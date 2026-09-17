@@ -490,3 +490,61 @@ function _numParam(val, label) {
   if (isNaN(n) || n < 0) throw new Error(label + ' harus berupa angka non-negatif.');
   return n;
 }
+
+// ── TREN BULANAN (FASE 8 — chart konteks anggaran) ─────────
+// Semua kalkulasi server-side (prinsip ARCHITECTURE.md). Baris dikelompokkan
+// per bulan lewat prefix "YYYY-MM" dari kolom Periode. Siklus YTD mengikuti
+// rentang filter (Jan s/d bulan/dateTo terpilih).
+
+function tataUsaha_getTren(token, filter) {
+  try {
+    var session = _tuRequireSession(token);
+    _tuAssertRead(session);
+
+    var sheet = openTransaksiSheet(SHEET_TX.TATA_USAHA);
+    var rows  = sheetToObjects(sheet);
+    var months = utils_getTrendMonths(filter);
+
+    var sp2dBulanan = [], akrualBulanan = [];
+    for (var i = 0; i < months.length; i++) { sp2dBulanan.push(0); akrualBulanan.push(0); }
+    var idx = {};
+    months.forEach(function (m, mi) { idx[m] = mi; });
+
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      if (String(r['Status']) !== ROW_STATUS.ACTIVE) continue;
+      var mm = String(r['Periode'] || '').substring(0, 7);
+      if (idx[mm] === undefined) continue;
+      sp2dBulanan[idx[mm]] += _num(r['RealisasiSP2D_Minggu']);
+      akrualBulanan[idx[mm]] += _num(r['RealisasiAkrual_Minggu']);
+    }
+
+    var sp2dYtd = [], akrualYtd = [], cs = 0, ca = 0;
+    for (var k = 0; k < months.length; k++) {
+      cs += sp2dBulanan[k];
+      ca += akrualBulanan[k];
+      sp2dYtd.push(cs);
+      akrualYtd.push(ca);
+    }
+
+    // Pagu terbaru dari laporan ACTIVE terakhir
+    var lat = null;
+    for (var l = 0; l < rows.length; l++) {
+      if (String(rows[l]['Status']) !== ROW_STATUS.ACTIVE) continue;
+      if (!lat || new Date(rows[l]['Timestamp']) > new Date(lat['Timestamp'])) lat = rows[l];
+    }
+
+    return { success: true, data: {
+      months:        months,
+      sp2dBulanan:   sp2dBulanan,
+      akrualBulanan: akrualBulanan,
+      sp2dYtd:       sp2dYtd,
+      akrualYtd:     akrualYtd,
+      paguReguler:   lat ? _num(lat['PaguReguler']) : 0,
+      paguABT:       lat ? _num(lat['PaguABT']) : 0
+    } };
+  } catch (e) {
+    Logger.log('[tataUsaha_getTren] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

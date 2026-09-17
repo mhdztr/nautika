@@ -361,3 +361,36 @@ function operasiLaut_anulir(token, params) {
     }
   });
 }
+
+// ── TREN BULANAN (FASE 8 — chart konteks operasi laut) ──────
+
+function operasiLaut_getTren(token, filter) {
+  try {
+    var session = _opsLautRequireSession(token);
+    _opsLautAssertRead(session);
+
+    var sheet = openTransaksiSheet(SHEET_TX.OPERASI_LAUT);
+    var rows  = sheetToObjects(sheet);
+    var months = utils_getTrendMonths(filter);
+
+    var kapal = [], rumpon = [], hari = [];
+    for (var i = 0; i < months.length; i++) { kapal.push(0); rumpon.push(0); hari.push(0); }
+    var idx = {};
+    months.forEach(function (m, mi) { idx[m] = mi; });
+
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      if (r.Status !== ROW_STATUS.ACTIVE) continue;
+      var mm = String(r.Periode || '').substring(0, 7);
+      if (idx[mm] === undefined) continue;
+      kapal[idx[mm]] += (Number(r.KII_Ditangkap) || 0) + (Number(r.KIA_Ditangkap) || 0);
+      rumpon[idx[mm]] += (Number(r.RumponDitertibkan) || 0);
+      hari[idx[mm]]   += (Number(r.HariOperasi_Jumlah) || 0);
+    }
+
+    return { success: true, data: { months: months, kapal: kapal, rumpon: rumpon, hari: hari } };
+  } catch (e) {
+    Logger.log('[operasiLaut_getTren] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

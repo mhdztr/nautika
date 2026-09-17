@@ -479,3 +479,37 @@ function pemantauan_anulir(token, params) {
     }
   });
 }
+
+// ── TREN BULANAN (FASE 8 — chart konteks pemantauan) ───────
+
+function pemantauan_getTren(token, filter) {
+  try {
+    var session = _pantaRequireSession(token);
+    _pantaAssertRead(session);
+
+    var sheet = openTransaksiSheet(SHEET_TX.PEMANTAUAN);
+    var rows  = sheetToObjects(sheet);
+    var months = utils_getTrendMonths(filter);
+
+    var username = [], skat = [], migrasi = [];
+    for (var i = 0; i < months.length; i++) { username.push(0); skat.push(0); migrasi.push(0); }
+    var idx = {};
+    months.forEach(function (m, mi) { idx[m] = mi; });
+
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      if (r.Status !== ROW_STATUS.ACTIVE) continue;
+      var mm = String(r.Periode || '').substring(0, 7);
+      if (idx[mm] === undefined) continue;
+      var v = Number(r.Jumlah) || 0;
+      if (r.Jenis === 'USERNAME')             username[idx[mm]] += v;
+      else if (r.Jenis === 'SKAT')            skat[idx[mm]] += v;
+      else if (r.Jenis === 'PEMASANGAN_MIGRASI') migrasi[idx[mm]] += v;
+    }
+
+    return { success: true, data: { months: months, username: username, skat: skat, migrasi: migrasi } };
+  } catch (e) {
+    Logger.log('[pemantauan_getTren] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

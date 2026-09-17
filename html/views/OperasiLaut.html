@@ -13,6 +13,35 @@
     </div>
   </div>
 
+  <!-- ── KONTEKS OPERASI (CHART — DESIGN §6) ─────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Konteks Operasi Laut</div>
+    <div class="chart-grid-2">
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Intensitas WPP Teratas</div>
+            <div class="chart-cell-sub">Kapal ditangkap + rumpon ditertibkan (periode ini)</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="ops-laut-chart-wpp"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Tren Bulanan Kapal &amp; Rumpon</div>
+            <div class="chart-cell-sub">Januari s/d bulan terpilih pada filter</div>
+          </div>
+          <div class="chart-cell-chips">
+            <span class="chart-chip"><i style="background:#4318FF;"></i>Kapal (KII+KIA)</span>
+            <span class="chart-chip"><i style="background:rgba(67,24,255,0.35);"></i>Rumpon</span>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="ops-laut-chart-tren"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
   <div id="ops-laut-form-section" class="content-section n-card">
     <div class="btn-form-toggle" onclick="opsLautToggleForm()">

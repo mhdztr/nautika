@@ -12,6 +12,36 @@
     </div>
   </div>
 
+  <!-- ── KONTEKS PEMANTAUAN (CHART — DESIGN §6) ─────────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Konteks Pemantauan</div>
+    <div class="chart-grid-2">
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Penerbitan Periode Ini</div>
+            <div class="chart-cell-sub">Username, SKAT, dan pemasangan migrasi</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="pem-chart-penerbitan"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Tren Bulanan Penerbitan</div>
+            <div class="chart-cell-sub">Januari s/d bulan terpilih pada filter</div>
+          </div>
+          <div class="chart-cell-chips">
+            <span class="chart-chip"><i style="background:#4318FF;"></i>Username</span>
+            <span class="chart-chip"><i style="background:#2B3674;"></i>SKAT</span>
+            <span class="chart-chip"><i style="background:rgba(67,24,255,0.35);"></i>Migrasi</span>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="pem-chart-tren"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── EVENT LOG PENYEDIA + KAPAL MARABAHAYA ────── -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;" id="pem-side-grid">
     <div class="content-section">

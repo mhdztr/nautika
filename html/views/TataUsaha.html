@@ -10,6 +10,39 @@
     <!-- diisi _tuRenderKPI() -->
   </div>
 
+  <!-- ── KONTEKS ANGGARAN (CHART — DESIGN §6) ─────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Konteks Anggaran</div>
+    <div class="chart-grid-2">
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Realisasi Kumulatif (YTD)</div>
+            <div class="chart-cell-sub">Januari s/d bulan terpilih pada filter</div>
+          </div>
+          <div class="chart-cell-chips">
+            <span class="chart-chip"><i style="background:#4318FF;"></i>SP2D</span>
+            <span class="chart-chip"><i style="background:rgba(67,24,255,0.35);"></i>Akrual</span>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="tu-chart-tren"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Realisasi per Bulan</div>
+            <div class="chart-cell-sub">Komposisi SP2D &amp; Akrual bulanan</div>
+          </div>
+          <div class="chart-cell-chips">
+            <span class="chart-chip"><i style="background:#4318FF;"></i>SP2D</span>
+            <span class="chart-chip"><i style="background:rgba(67,24,255,0.35);"></i>Akrual</span>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="tu-chart-bulanan"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
   <div id="tu-form-section" class="content-section n-card">
     <div class="btn-form-toggle" onclick="tuToggleForm()">

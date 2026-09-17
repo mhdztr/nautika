@@ -1,0 +1,380 @@
+<!--
+  html/Script_Charts.html — Wrapper charting dashboard (Fase 8).
+
+  Satu library chart: Chart.js v4 (4.4.1), di-inject on-demand dari
+  unpkg — pola identik dengan loader Leaflet di Script_Main.html
+  (_loadLeaflet). Chart.js tidak di-load di Index.html supaya tidak
+  memblokir render awal.
+
+  Keputusan teknis (dictatat di CHANGELOG.md, entri Fase 8):
+  - Chart.js v4.4.1, di-pin (tidak tag "latest").
+  - Canvas tidak bisa membaca CSS custom properties, jadi warna chart
+    di-mirror dari token Style.html lewat objek _CHART_COLORS (hex).
+  - Registry _NAUTIKA_CHARTS + _chartTeardownAll() supaya instance lama
+    di-destroy saat SPA berpindah view/tab (mencegah chart bocor).
+  - Label nilai langsung pada bar (nvVal) & ujung garis (nvEnd) lebih
+    diutamakan daripada legenda (DESIGN.md §6). Legenda diganti chip
+    statis di template view; legend Chart.js dimatikan.
+  - Tipe dipakai: bar horizontal (indexAxis 'y'), bar grup, line/area.
+    Gauge/3D/radar tidak dipakai (negative prompt DESIGN.md §1/§6).
+-->
+
+<script>
+// ============================================================
+// LOADER ON-DEMAND — mirip _loadLeaflet (Script_Main.html)
+// ============================================================
+var _CHARTS_LOADED = false;
+var _chartsQueue   = [];
+
+function _loadCharts(cb) {
+  if (typeof Chart !== 'undefined' || _CHARTS_LOADED) { cb(); return; }
+  _chartsQueue.push(cb);
+  if (_chartsQueue.length > 1) return; // sedang loading, tunggu giliran
+
+  var script = document.createElement('script');
+  script.src = 'https://unpkg.com/chart.js@4.4.1/dist/chart.umd.js';
+  script.onload = function () {
+    _CHARTS_LOADED = true;
+    // Register plugin label nilai & ujung garis, lalu theme default.
+    Chart.register(_CHART_VALUE_PLUGIN);
+    Chart.register(_CHART_LINEEND_PLUGIN);
+    Chart.defaults.font.family = "'Poppins', sans-serif";
+    Chart.defaults.font.size   = 12;
+    Chart.defaults.color       = _CHART_COLORS.textSecondary;
+    Chart.defaults.borderColor = '#E2E8F0';
+    var queue = _chartsQueue.slice();
+    _chartsQueue = [];
+    queue.forEach(function (fn) { try { fn(); } catch (e) {} });
+  };
+  script.onerror = function () {
+    console.error('Gagal memuat Chart.js dari CDN');
+    _chartsQueue = [];
+  };
+  document.head.appendChild(script);
+}
+
+// ============================================================
+// WARNA — mirror token Style.html (canvas tak bisa baca CSS var)
+// ============================================================
+var _CHART_COLORS = {
+  primary:       '#4318FF',            // --n-primary
+  primaryAlpha:  'rgba(67,24,255,0.35)',
+  indigoDark:    '#2B3674',            // --n-text-primary (seri pembanding ke-3)
+  ok:            '#10B981',            // --n-ok
+  warn:          '#F59E0B',            // --n-warn
+  crit:          '#EF4444',            // --n-crit
+  neutral:       '#E2E8F0',            // abu netral untuk referensi/target
+  textPrimary:   '#2B3674',
+  textSecondary: '#4A5568',
+  textMuted:     '#A3AED0',
+  grid:          'rgba(0,0,0,0.06)'    // ~ --n-border-subtle
+};
+
+function _chartRgba(hex, alpha) {
+  if (/^rgba?\(/.test(hex)) return hex;
+  var h = String(hex).replace('#', '');
+  if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+  var n = parseInt(h, 16);
+  if (isNaN(n)) return hex;
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
+
+// ============================================================
+// FORMATTER
+// ============================================================
+function _chartNum(v) {
+  if (v === null || v === undefined || isNaN(v)) return '';
+  return Number(v).toLocaleString('id-ID');
+}
+
+function _chartCompact(v) {
+  var n = Number(v) || 0;
+  var abs = Math.abs(n);
+  if (abs >= 1e9)  return (n / 1e9).toFixed(abs >= 1e10 ? 0 : 1).replace('.', ',') + ' M';
+  if (abs >= 1e6)  return (n / 1e6).toFixed(abs >= 1e7 ? 0 : 1).replace('.', ',') + ' jt';
+  if (abs >= 1e3)  return (n / 1e3).toFixed(abs >= 1e4 ? 0 : 1).replace('.', ',') + ' rb';
+  return String(n);
+}
+
+// '2026-01' → 'Jan 26' (memakai MONTHS dari Script_Main.html)
+function _chartMonthLabel(mm) {
+  if (!mm) return '';
+  var parts = String(mm).split('-');
+  var m = parseInt(parts[1], 10);
+  var name = (typeof MONTHS !== 'undefined' && MONTHS[m - 1]) ? MONTHS[m - 1] : String(m);
+  return name.substring(0, 3) + ' ' + String(parts[0]).substring(2);
+}
+
+// ============================================================
+// REGISTRY + TEARDOWN
+// ============================================================
+var _NAUTIKA_CHARTS = {};
+
+function _chartDestroy(canvasId) {
+  var c = _NAUTIKA_CHARTS[canvasId];
+  if (c) { try { c.destroy(); } catch (e) {} delete _NAUTIKA_CHARTS[canvasId]; }
+}
+
+function _chartTeardownAll() {
+  for (var k in _NAUTIKA_CHARTS) { try { _NAUTIKA_CHARTS[k].destroy(); } catch (e) {} }
+  _NAUTIKA_CHARTS = {};
+}
+
+// ============================================================
+// EMPTY STATE — semua nilai 0 bukan "bug", tampilkan pesan netral
+// ============================================================
+function _chartEmpty(canvasId, msg) {
+  _chartDestroy(canvasId);
+  var el = document.getElementById(canvasId);
+  if (!el) return;
+  el.style.display = 'none';
+  var box = el.closest('.chart-box');
+  if (!box) return;
+  if (box.querySelector('.chart-empty')) return;
+  var d = document.createElement('div');
+  d.className = 'chart-empty';
+  d.textContent = msg;
+  box.appendChild(d);
+}
+
+function _chartShow(canvasId) {
+  var el = document.getElementById(canvasId);
+  if (!el) return;
+  el.style.display = '';
+  var box = el.closest('.chart-box');
+  if (box) {
+    var ov = box.querySelector('.chart-empty');
+    if (ov) ov.remove();
+  }
+}
+
+function _chartHasData(datasets) {
+  for (var i = 0; i < datasets.length; i++) {
+    var arr = (datasets[i] && datasets[i].data) || [];
+    for (var j = 0; j < arr.length; j++) {
+      if (Number(arr[j]) !== 0) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+// PLUGIN LABEL NILAI (bar) — DESIGN §6: label langsung diutamakan
+// ============================================================
+var _CHART_VALUE_PLUGIN = {
+  id: 'nvVal',
+  afterDatasetsDraw: function (chart) {
+    var cfg = (chart.config.options.plugins || {}).nvVal;
+    if (!cfg || !cfg.enabled) return;
+    var ctx = chart.ctx;
+    var fmt = cfg.formatter || _chartNum;
+    ctx.save();
+    ctx.font = '600 11px Poppins, sans-serif';
+    ctx.fillStyle = cfg.color || _CHART_COLORS.textSecondary;
+    ctx.textBaseline = 'middle';
+    chart.data.datasets.forEach(function (ds, di) {
+      var meta = chart.getDatasetMeta(di);
+      meta.data.forEach(function (bar, i) {
+        if (!bar || bar.hidden) return;
+        var v = ds.data[i];
+        if (v === null || v === undefined) return;
+        var label = fmt(v);
+        if (label === '') return;
+        if (cfg.horizontal) {
+          ctx.textAlign = 'left';
+          ctx.fillText(label, bar.x + 6, bar.y);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.fillText(label, bar.x, bar.y - 6);
+        }
+      });
+    });
+    ctx.restore();
+  }
+};
+
+// ============================================================
+// PLUGIN LABEL UJUNG GARIS — label seri + nilai di titik terakhir
+// ============================================================
+var _CHART_LINEEND_PLUGIN = {
+  id: 'nvEnd',
+  afterDatasetsDraw: function (chart) {
+    var cfg = (chart.config.options.plugins || {}).nvEnd;
+    if (!cfg || !cfg.enabled) return;
+    var ctx = chart.ctx;
+    var fmt = cfg.formatter || _chartNum;
+    ctx.save();
+    ctx.font = '600 11px Poppins, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    chart.data.datasets.forEach(function (ds, di) {
+      var meta = chart.getDatasetMeta(di);
+      var last = -1;
+      for (var i = ds.data.length - 1; i >= 0; i--) {
+        if (ds.data[i] !== null && ds.data[i] !== undefined) { last = i; break; }
+      }
+      if (last < 0) return;
+      var pt = meta.data[last];
+      if (!pt) return;
+      ctx.fillStyle = cfg.color || _CHART_COLORS.textPrimary;
+      ctx.fillText(ds.label + '  ' + fmt(ds.data[last]), pt.x + 10, pt.y - 10);
+    });
+    ctx.restore();
+  }
+};
+
+// ============================================================
+// BASE OPTIONS — theme + tooltip seragam, legend dimatikan
+// ============================================================
+function _chartBase(opts, extra) {
+  var base = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    interaction: { mode: 'nearest', intersect: true },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1E293B',
+        titleColor: '#F8FAFC',
+        bodyColor: '#E2E8F0',
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: false,
+        titleFont: { family: "'Poppins', sans-serif", weight: '600' },
+        bodyFont: { family: "'Poppins', sans-serif" }
+      }
+    }
+  };
+  if (!extra) return base;
+  for (var k in extra) {
+    if (k === 'plugins') {
+      for (var p in extra.plugins) base.plugins[p] = extra.plugins[p];
+    } else {
+      base[k] = extra[k];
+    }
+  }
+  return base;
+}
+
+function _chartYScale() {
+  return {
+    beginAtZero: true,
+    grid: { color: _CHART_COLORS.grid },
+    ticks: {
+      color: _CHART_COLORS.textMuted,
+      font: { size: 11 },
+      callback: function (v) { return _chartCompact(v); }
+    },
+    border: { display: false }
+  };
+}
+
+// ============================================================
+// BUILDER LINE / AREA
+// ============================================================
+function _chartLine(canvasId, labels, datasets, opts) {
+  opts = opts || {};
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  _chartShow(canvasId);
+  if (!_chartHasData(datasets)) {
+    _chartEmpty(canvasId, opts.emptyMsg || 'Belum ada data pada rentang terpilih.');
+    return;
+  }
+
+  _loadCharts(function () {
+    _chartDestroy(canvasId);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    var dsOut = (datasets || []).map(function (d) {
+      return {
+        label: d.label,
+        data: d.data,
+        borderColor: d.color,
+        backgroundColor: d.fillColor || _chartRgba(d.color, 0.08),
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: d.color,
+        borderDash: d.dashed ? [6, 4] : [],
+        fill: !!d.fill,
+        tension: 0.32
+      };
+    });
+
+    var chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: labels, datasets: dsOut },
+      options: _chartBase(opts, {
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          nvVal:   { enabled: false },
+          nvEnd:   { enabled: true, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textPrimary }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: _CHART_COLORS.textSecondary, font: { size: 11 } }, border: { display: false } },
+          y: _chartYScale()
+        }
+      })
+    });
+    _NAUTIKA_CHARTS[canvasId] = chart;
+  });
+}
+
+// ============================================================
+// BUILDER BAR — vertikal (grup) & horizontal (ranking)
+// ============================================================
+function _chartBar(canvasId, labels, datasets, opts) {
+  opts = opts || {};
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  _chartShow(canvasId);
+  if (!_chartHasData(datasets)) {
+    _chartEmpty(canvasId, opts.emptyMsg || 'Belum ada data pada periode terpilih.');
+    return;
+  }
+
+  _loadCharts(function () {
+    _chartDestroy(canvasId);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    var dsOut = (datasets || []).map(function (d) {
+      return {
+        label: d.label,
+        data: d.data,
+        backgroundColor: d.color,
+        hoverBackgroundColor: _chartRgba(d.color, 0.85),
+        borderRadius: 4,
+        categoryPercentage: 0.72,
+        barPercentage: 0.82
+      };
+    });
+
+    var horizontal = !!opts.horizontal;
+    var chart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: dsOut },
+      options: _chartBase(opts, {
+        indexAxis: horizontal ? 'y' : 'x',
+        plugins: {
+          nvVal: { enabled: true, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textSecondary, horizontal: horizontal },
+          nvEnd: { enabled: false }
+        },
+        scales: horizontal
+          ? {
+              x: _chartYScale(),
+              y: { grid: { display: false }, ticks: { color: _CHART_COLORS.textPrimary, font: { size: 11 }, autoSkip: false }, border: { display: false } }
+            }
+          : {
+              x: { grid: { display: false }, ticks: { color: _CHART_COLORS.textSecondary, font: { size: 11 }, autoSkip: false }, border: { display: false } },
+              y: _chartYScale()
+            }
+      })
+    });
+    _NAUTIKA_CHARTS[canvasId] = chart;
+  });
+}
+</script>

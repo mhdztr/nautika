@@ -492,3 +492,37 @@ function intelijen_anulir(token, params) {
     }
   });
 }
+
+// ── TREN BULANAN (FASE 8 — chart konteks intelijen) ────────
+
+function intelijen_getTren(token, filter) {
+  try {
+    var session = _intelRequireSession(token);
+    _intelAssertRead(session);
+
+    var sheet = openTransaksiSheet(SHEET_TX.INTELIJEN);
+    var rows  = sheetToObjects(sheet);
+    var months = utils_getTrendMonths(filter);
+
+    var total = [], kawasan = [];
+    for (var i = 0; i < months.length; i++) { total.push(0); kawasan.push(0); }
+    var idx = {};
+    months.forEach(function (m, mi) { idx[m] = mi; });
+
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      if (r.Status !== ROW_STATUS.ACTIVE) continue;
+      var mm = String(r.Periode || '').substring(0, 7);
+      if (idx[mm] === undefined) continue;
+      total[idx[mm]] += (Number(r.Jumlah) || 0);
+      if (String(r.Jenis || '') === 'KAWASAN_KONSERVASI') {
+        kawasan[idx[mm]] += (Number(r.Jumlah) || 0);
+      }
+    }
+
+    return { success: true, data: { months: months, total: total, kawasan: kawasan } };
+  } catch (e) {
+    Logger.log('[intelijen_getTren] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

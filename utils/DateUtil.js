@@ -119,6 +119,34 @@ function isInRange(timestamp, range) {
   return ts >= range.startDate && ts <= range.endDate;
 }
 
+/**
+ * Daftar bulan "YYYY-MM" dari Januari s/d akhir rentang filter.
+ * Dipakai endpoint *_getTren (Fase 8) untuk label & slot array seri chart.
+ *
+ * - mode monthly → Jan..(filter.year, filter.month)
+ * - mode range   → Jan..bulan dari filter.dateTo (tahun dari dateTo)
+ *
+ * @param {{mode:string, month:number, year:number, dateFrom:string, dateTo:string}} filter
+ * @returns {string[]} e.g. ['2026-01','2026-02', ... ]
+ */
+function utils_getTrendMonths(filter) {
+  var f = filter || {};
+  var year, lastMonth;
+  if (f.mode === 'range' && f.dateTo) {
+    var end = new Date(f.dateTo);
+    year = end.getFullYear();
+    lastMonth = end.getMonth() + 1;
+  } else {
+    year = f.year || new Date().getFullYear();
+    lastMonth = f.month || (new Date().getMonth() + 1);
+  }
+  var out = [];
+  for (var m = 1; m <= lastMonth; m++) {
+    out.push(year + '-' + _pad(m));
+  }
+  return out;
+}
+
 // ── HELPER INTERNAL ───────────────────────────────────────
 
 function _pad(n) {

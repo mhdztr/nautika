@@ -385,6 +385,7 @@ function _setFilterTo(v)    { APP.filter.dateTo   = v; }
 
 // ── VIEW CONTENT ──────────────────────────────────────────
 function _renderViewContent(viewId) {
+  _chartTeardownAll(); // destroy instance chart lama sebelum DOM direbuild (Fase 8)
   var el = document.getElementById('page-content');
   if (viewId === 'overview')    { _renderOverview(el);    return; }
   if (viewId === 'tata-usaha')  { _renderTataUsaha(el);   return; }
@@ -1145,6 +1146,7 @@ function _tuLoadKPI() {
       _tuRenderKPI(res.data);
       _tuAutoToggleForm(res.data);
       _tuLoadHistory();
+      _tuLoadCharts();
     })
     .withFailureHandler(function () { _tuKPIError('Gagal memuat KPI.'); })
     .tataUsaha_getKPI(APP.token, APP.filter);
@@ -1461,6 +1463,7 @@ var _OPS_GEO = { wppGeoJsonData: null };
 
 // Teardown kedua peta (Kapal & Pesawat) sekaligus
 function _opsTeardownMaps() {
+  _chartTeardownAll(); // chart zona operasi ikut dibersihkan saat ganti tab/view
   if (window.opsLautMap)  { try { window.opsLautMap.remove(); } catch(e) {}  window.opsLautMap = null; }
   window.opsLautWppLayer = null;
   if (window.opsUdaraMap) { try { window.opsUdaraMap.remove(); } catch(e) {} window.opsUdaraMap = null; }
@@ -1770,6 +1773,8 @@ function _opsLautLoadKPI() {
       if(res.success) {
         _OPSLAUT.kpiData = res.data;
         _opsLautRenderKPI(res.data);
+        _opsLautBuildWppChart();
+        _opsLautLoadCharts();
         _renderWppLayer(); // update map colors
         if(res.data.mingguTerakhirSubmit && res.data.hari_operasi_realisasi > 0) {
           document.getElementById('ops-laut-form-body').style.display = 'none';
@@ -2179,6 +2184,8 @@ function _opsUdaraLoadKPI() {
       if(res.success) {
         _OPSUDARA.kpiData = res.data;
         _opsUdaraRenderKPI(res.data);
+        _opsUdaraBuildWppChart();
+        _opsUdaraLoadCharts();
         _renderOpsUdaraWppLayer(); // update map colors
         if(res.data.mingguTerakhirSubmit && res.data.hari_operasi_realisasi > 0) {
           document.getElementById('ops-udara-form-body').style.display = 'none';
@@ -2522,6 +2529,8 @@ function _intelLoadKPI() {
         _INTEL.kpiData = res.data;
         _intelRenderKPI(res.data);
         _intelRenderKawasanTable(res.data.kawasan || []);
+        _intelBuildJenisChart(res.data);
+        _intelLoadCharts();
       } else if (strip) {
         strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + _esc(res.error) + '</div>';
       }
@@ -2967,6 +2976,8 @@ function _pemLoadKPI() {
         _pemRenderKPI(res.data);
         _pemRenderPenyedia(res.data.penyedia || []);
         _pemRenderMarabahaya(res.data.marabahaya || []);
+        _pemBuildPenerbitanChart(res.data);
+        _pemLoadCharts();
       } else if (strip) {
         strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + _esc(res.error) + '</div>';
       }
@@ -3293,6 +3304,156 @@ function _rupiah(angka) {
   var n = parseFloat(angka) || 0;
   var prefix = n < 0 ? '-Rp ' : 'Rp ';
   return prefix + Math.abs(Math.round(n)).toLocaleString('id-ID');
+}
+
+// ── ZONA CHART (Fase 8) ─────────────────────────────────
+// Builder umum (_chartLine/_chartBar/_chartEmpty…) ada di Script_Charts.html.
+// Endpoint *_getTren dipanggil server-side; frontend hanya memetakan data ke chart.
+
+// ── TATA USAHA ──
+function _tuLoadCharts() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      var fmtRp  = function (v) { return _rupiah(v); };
+      _chartLine('tu-chart-tren', labels, [
+        { label: 'SP2D',   data: d.sp2dYtd,   color: _CHART_COLORS.primary },
+        { label: 'Akrual', data: d.akrualYtd, color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: fmtRp, emptyMsg: 'Belum ada realisasi pada rentang terpilih.' });
+      _chartBar('tu-chart-bulanan', labels, [
+        { label: 'SP2D',   data: d.sp2dBulanan,   color: _CHART_COLORS.primary },
+        { label: 'Akrual', data: d.akrualBulanan, color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: fmtRp, emptyMsg: 'Belum ada realisasi bulanan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .tataUsaha_getTren(APP.token, APP.filter);
+}
+
+// ── OPERASI LAUT ──
+function _opsLautBuildWppChart() {
+  var kpi = _OPSLAUT.kpiData;
+  if (!kpi || !kpi.wppIntensitas) return;
+  var arr = [];
+  for (var code in kpi.wppIntensitas) {
+    if (Object.prototype.hasOwnProperty.call(kpi.wppIntensitas, code)) {
+      arr.push({ code: code, val: kpi.wppIntensitas[code] });
+    }
+  }
+  arr.sort(function (a, b) { return b.val - a.val; });
+  arr = arr.slice(0, 8);
+  _chartBar('ops-laut-chart-wpp', arr.map(function (o) { return 'WPP ' + o.code; }),
+    [{ label: 'Intensitas', data: arr.map(function (o) { return o.val; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada intensitas WPP pada periode ini.' });
+}
+
+function _opsLautLoadCharts() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('ops-laut-chart-tren', labels, [
+        { label: 'Kapal (KII+KIA)', data: d.kapal,  color: _CHART_COLORS.primary },
+        { label: 'Rumpon',          data: d.rumpon, color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada laporan bulanan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .operasiLaut_getTren(APP.token, APP.filter);
+}
+
+// ── OPERASI UDARA ──
+function _opsUdaraBuildWppChart() {
+  var kpi = _OPSUDARA.kpiData;
+  if (!kpi || !kpi.wppIntensitas) return;
+  var arr = [];
+  for (var code in kpi.wppIntensitas) {
+    if (Object.prototype.hasOwnProperty.call(kpi.wppIntensitas, code)) {
+      arr.push({ code: code, val: kpi.wppIntensitas[code] });
+    }
+  }
+  arr.sort(function (a, b) { return b.val - a.val; });
+  arr = arr.slice(0, 8);
+  _chartBar('ops-udara-chart-wpp', arr.map(function (o) { return 'WPP ' + o.code; }),
+    [{ label: 'Intensitas', data: arr.map(function (o) { return o.val; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada intensitas WPP pada periode ini.' });
+}
+
+function _opsUdaraLoadCharts() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('ops-udara-chart-tren', labels, [
+        { label: 'Kapal (KII+KIA)', data: d.kapal, color: _CHART_COLORS.primary },
+        { label: 'Hari operasi',    data: d.hari,  color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada laporan bulanan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .operasiUdara_getTren(APP.token, APP.filter);
+}
+
+// ── INTELIJEN ──
+var _INTEL_CHART_JENIS = [
+  { key: 'dredging',                 lbl: 'Dredging' },
+  { key: 'pelanggaranPerizinan',     lbl: 'Perizinan' },
+  { key: 'pelanggaranTransmitter',   lbl: 'Transmitter' },
+  { key: 'notaDinas',                lbl: 'Nota Dinas' },
+  { key: 'kapalPengangkutIkanHidup', lbl: 'Ikan Hidup' }
+];
+
+function _intelBuildJenisChart(kpi) {
+  var arr = _INTEL_CHART_JENIS.map(function (o) {
+    return { lbl: o.lbl, val: Number(kpi[o.key]) || 0 };
+  });
+  arr.sort(function (a, b) { return b.val - a.val; });
+  _chartBar('int-chart-jenis', arr.map(function (o) { return o.lbl; }),
+    [{ label: 'Temuan', data: arr.map(function (o) { return o.val; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada temuan pada periode ini.' });
+}
+
+function _intelLoadCharts() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('int-chart-tren', labels, [
+        { label: 'Total temuan',     data: d.total,   color: _CHART_COLORS.primary },
+        { label: 'Pelanggaran kawasan', data: d.kawasan, color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada temuan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .intelijen_getTren(APP.token, APP.filter);
+}
+
+// ── PEMANTAUAN ──
+function _pemBuildPenerbitanChart(kpi) {
+  _chartBar('pem-chart-penerbitan', ['Username', 'SKAT', 'Migrasi'],
+    [{ label: 'Penerbitan', data: [
+        Number(kpi.usernamePeriode) || 0,
+        Number(kpi.skatPeriode) || 0,
+        Number(kpi.pemasanganPeriode) || 0
+      ], color: _CHART_COLORS.primary }],
+    { fmt: _chartNum, emptyMsg: 'Belum ada penerbitan pada periode ini.' });
+}
+
+function _pemLoadCharts() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('pem-chart-tren', labels, [
+        { label: 'Username', data: d.username, color: _CHART_COLORS.primary },
+        { label: 'SKAT',     data: d.skat,     color: _CHART_COLORS.indigoDark },
+        { label: 'Migrasi',  data: d.migrasi,  color: _CHART_COLORS.primaryAlpha }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada penerbitan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .pemantauan_getTren(APP.token, APP.filter);
 }
 
 </script>

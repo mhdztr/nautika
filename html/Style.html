@@ -836,4 +836,77 @@ a { text-decoration: none; color: inherit; }
   color: var(--n-text-primary);
   margin-bottom: 14px;
 }
+
+/* ============================================================
+   ZONA CHART — konteks di antara KPI dan tabel (DESIGN.md §6)
+   ============================================================ */
+.chart-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.chart-cell {
+  background: var(--n-surface-1);
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-card);
+  padding: 18px 18px 16px;
+}
+.chart-cell-hd {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.chart-cell-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--n-text-primary);
+}
+.chart-cell-sub {
+  font-size: 0.73rem;
+  color: var(--n-text-muted);
+  margin-top: 2px;
+}
+.chart-cell-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.chart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--n-text-muted);
+}
+.chart-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.chart-box {
+  position: relative;
+  height: 260px;
+}
+.chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--n-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 0 20px;
+}
+@media (max-width: 900px) {
+  .chart-grid-2 { grid-template-columns: 1fr; }
+}
+
 </style>

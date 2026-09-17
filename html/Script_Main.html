@@ -1,0 +1,2433 @@
+<script>
+/* ============================================================
+   Script_Main.html
+   State management, hash routing, sidebar, filter periode.
+   Dipanggil via include di Index.html.
+   ============================================================ */
+
+// ── KONSTANTA ─────────────────────────────────────────────
+var TOKEN_KEY  = 'nautika_token';
+var MONTHS     = ['Januari','Februari','Maret','April','Mei','Juni',
+                  'Juli','Agustus','September','Oktober','November','Desember'];
+var ROLE_LABEL = {
+  SUPERADMIN: 'Super Administrator',
+  DIREKTUR:   'Direktur',
+  KADIV:      'Kepala Divisi / Ketua Tim Kerja',
+  STAF:       'Staf'
+};
+
+// ── STATE ─────────────────────────────────────────────────
+var APP = {
+  token:          null,
+  user:           null,
+  currentView:    'overview',
+  pendingQueueId: null,
+  filter: {
+    mode:     'monthly',   // 'monthly' | 'range'
+    month:    new Date().getMonth() + 1,
+    year:     new Date().getFullYear(),
+    dateFrom: '',
+    dateTo:   ''
+  }
+};
+
+// ── NAVIGASI: section + items ─────────────────────────────
+// divisiId: null = semua role; string = DIV-* untuk Kadiv/Staf
+// minRoles: null = semua APPROVED; array = hanya role tsb
+var NAV_SECTIONS = [
+  {
+    label: 'UTAMA',
+    items: [
+      { id: 'overview',    label: 'Ikhtisar',            divisiId: null,         minRoles: null }
+    ]
+  },
+  {
+    label: 'DIVISI',
+    items: [
+      { id: 'tata-usaha',    label: 'Tata Usaha',          divisiId: 'DIV-TU',     minRoles: null },
+      { id: 'operasi',       label: 'Operasi',             divisiId: 'DIV-OPS',    minRoles: null },
+      { id: 'intelijen',     label: 'Intelijen',           divisiId: 'DIV-INTEL',  minRoles: null },
+      { id: 'pemantauan',    label: 'Pemantauan',          divisiId: 'DIV-PANTAU', minRoles: null },
+      { id: 'perawatan',     label: 'Perawatan',           divisiId: 'DIV-RAWAT',  minRoles: null },
+      { id: 'logistik',      label: 'Logistik',            divisiId: 'DIV-LOG',    minRoles: null },
+      { id: 'pengawakan',    label: 'Pengawakan',          divisiId: 'DIV-AWAK',   minRoles: null },
+      { id: 'kegiatan',      label: 'Kegiatan Direktorat', divisiId: null,         minRoles: null }
+    ]
+  },
+  {
+    label: 'SISTEM',
+    items: [
+      { id: 'master-data', label: 'Master Data',     divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
+      { id: 'riwayat',     label: 'Riwayat Laporan', divisiId: null, minRoles: null }
+    ]
+  }
+];
+
+// Apakah user bisa akses view ini?
+function _canAccess(item, user) {
+  if (!user) return false;
+  if (user.role === 'SUPERADMIN' || user.role === 'DIREKTUR') return true;
+  if (item.minRoles && item.minRoles.indexOf(user.role) === -1) return false;
+  if (item.divisiId && user.divisiId !== item.divisiId) return false;
+  return true;
+}
+
+// Ambil item nav dari id
+function _navItem(id) {
+  for (var s = 0; s < NAV_SECTIONS.length; s++) {
+    var items = NAV_SECTIONS[s].items;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id === id) return items[i];
+    }
+  }
+  return null;
+}
+
+// Judul halaman dari view ID
+function _viewTitle(id) {
+  var item = _navItem(id);
+  return item ? item.label : '—';
+}
+
+// ── INIT ──────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  // Fallback safety: jika dalam 15 detik callback tidak pernah dipanggil
+  // (GAS RPC error, sandbox restriction, dsb), paksa sembunyikan loading.
+  var _loadingTimedOut = false;
+  var _loadingTimer = setTimeout(function () {
+    _loadingTimedOut = true;
+    _hideLoading();
+    _showAuthView('login');
+  }, 15000);
+
+  function _doneLoading() {
+    if (_loadingTimedOut) return;
+    clearTimeout(_loadingTimer);
+    _hideLoading();
+  }
+
+  // Prefill divisi list (dipakai di form register) — fire-and-forget
+  try {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.success || !res.data) return;
+        var sel = document.getElementById('reg-divisi');
+        if (!sel) return;
+        res.data.forEach(function (d) {
+          var opt = document.createElement('option');
+          opt.value       = d.divisiId;
+          opt.textContent = d.namaDashboard + ' \u2014 ' + d.namaResmi;
+          sel.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function () { /* silent – tidak kritis */ })
+      .auth_getDivisiList();
+  } catch (e) { /* silent */ }
+
+  // Cek sesi
+  var savedToken = null;
+  try { savedToken = sessionStorage.getItem(TOKEN_KEY); } catch (e) { /* sandbox restriction */ }
+
+  if (savedToken) {
+    try {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          _doneLoading();
+          if (res && res.success && res.data) {
+            APP.token = savedToken;
+            APP.user  = res.data;
+            if (res.data.status === 'APPROVED') {
+              _initApp();
+            } else {
+              _renderPendingInfo(res.data);
+              _showAuthView('pending');
+            }
+          } else {
+            try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+            _showAuthView('login');
+          }
+        })
+        .withFailureHandler(function () {
+          _doneLoading();
+          try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+          _showAuthView('login');
+        })
+        .auth_getSessionInfo(savedToken);
+    } catch (e) {
+      _doneLoading();
+      _showAuthView('login');
+    }
+  } else {
+    _doneLoading();
+    _showAuthView('login');
+  }
+});
+
+// ── AUTH HELPERS ──────────────────────────────────────────
+function _hideLoading() {
+  var el = document.getElementById('n-loading');
+  if (el) { el.style.opacity = '0'; setTimeout(function(){ el.style.display='none'; }, 250); }
+}
+
+function _showAuthView(name) {
+  document.getElementById('auth-wrapper').classList.remove('n-hidden');
+  document.getElementById('app-wrapper').classList.add('n-hidden');
+  ['login','register','pending'].forEach(function (v) {
+    document.getElementById('v-' + v).classList.add('n-hidden');
+  });
+  document.getElementById('v-' + name).classList.remove('n-hidden');
+}
+
+function showAuthView(name) { _showAuthView(name); } // public alias for inline onclick
+
+function _renderPendingInfo(user) {
+  var el = document.getElementById('pending-info');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="info-row"><span class="lbl">Nama</span><span class="val">' + _esc(user.nama) + '</span></div>' +
+    '<div class="info-row"><span class="lbl">Email</span><span class="val">' + _esc(user.email) + '</span></div>' +
+    '<div class="info-row"><span class="lbl">Jabatan Dilamar</span><span class="val">' + _esc(ROLE_LABEL[user.role] || user.role) + '</span></div>' +
+    '<div class="info-row"><span class="lbl">Status</span>' +
+      '<span class="val"><span class="badge badge-warn">Menunggu Persetujuan</span></span>' +
+    '</div>';
+}
+
+// ── AUTH HANDLERS ─────────────────────────────────────────
+function handleLogin(e) {
+  e.preventDefault();
+  var btn = document.getElementById('btn-login');
+  _setLoading(btn, true);
+  _msg('login-msg', null);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('login-msg', 'error', res.error); return; }
+      APP.token = res.data.token;
+      APP.user  = res.data.user;
+      sessionStorage.setItem(TOKEN_KEY, APP.token);
+      if (res.data.user.status === 'APPROVED') {
+        _initApp();
+      } else {
+        _renderPendingInfo(res.data.user);
+        _showAuthView('pending');
+      }
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('login-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .auth_login({
+      email:    document.getElementById('login-email').value,
+      password: document.getElementById('login-password').value
+    });
+}
+
+function handleRegister(e) {
+  e.preventDefault();
+  var btn = document.getElementById('btn-register');
+  _setLoading(btn, true);
+  _msg('register-msg', null);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('register-msg', 'error', res.error); return; }
+      _msg('register-msg', 'success', 'Pendaftaran berhasil. Akun menunggu persetujuan administrator.');
+      document.getElementById('form-register').reset();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .auth_register({
+      nama:        document.getElementById('reg-nama').value,
+      email:       document.getElementById('reg-email').value,
+      password:    document.getElementById('reg-password').value,
+      divisiId:    document.getElementById('reg-divisi').value,
+      roleDilamar: document.getElementById('reg-role').value
+    });
+}
+
+function handleLogout() {
+  if (APP.token) google.script.run.auth_logout(APP.token);
+  APP.token = null;
+  APP.user  = null;
+  sessionStorage.removeItem(TOKEN_KEY);
+  _showAuthView('login');
+}
+
+// ── APP INIT ──────────────────────────────────────────────
+function _initApp() {
+  document.getElementById('auth-wrapper').classList.add('n-hidden');
+  document.getElementById('app-wrapper').classList.remove('n-hidden');
+  _renderSidebar();
+  var hash = (window.location.hash || '').replace('#', '') || 'overview';
+  _routeTo(hash);
+  window.addEventListener('hashchange', function () {
+    _routeTo((window.location.hash || '').replace('#', ''));
+  });
+}
+
+// ── SIDEBAR ───────────────────────────────────────────────
+function _renderSidebar() {
+  var user = APP.user;
+  // Footer
+  document.getElementById('sb-user-name').textContent = user.nama;
+  document.getElementById('sb-user-role').textContent = ROLE_LABEL[user.role] || user.role;
+
+  // Nav
+  var nav = document.getElementById('sb-nav');
+  var html = '';
+  NAV_SECTIONS.forEach(function (section) {
+    var visibleItems = section.items.filter(function (it) { return _canAccess(it, user); });
+    if (visibleItems.length === 0) return;
+    html += '<div class="sb-section-label">' + section.label + '</div>';
+    visibleItems.forEach(function (it) {
+      html += '<div class="nav-item" id="nav-' + it.id + '" onclick="_routeTo(\'' + it.id + '\')">' +
+        _esc(it.label) + '</div>';
+    });
+  });
+  nav.innerHTML = html;
+}
+
+function _updateActiveNav(viewId) {
+  document.querySelectorAll('.nav-item').forEach(function (el) {
+    el.classList.remove('active');
+  });
+  var active = document.getElementById('nav-' + viewId);
+  if (active) active.classList.add('active');
+}
+
+// ── ROUTING ───────────────────────────────────────────────
+function _routeTo(viewId) {
+  var item = _navItem(viewId);
+  // Jika view tidak ada atau tidak bisa diakses → ke overview
+  if (!item || !_canAccess(item, APP.user)) {
+    viewId = 'overview';
+  }
+  APP.currentView = viewId;
+  if (window.location.hash !== '#' + viewId) {
+    window.location.hash = viewId;
+  }
+  _updateActiveNav(viewId);
+  _renderPageHeader(viewId);
+  _renderViewContent(viewId);
+}
+
+// ── PAGE HEADER ───────────────────────────────────────────
+function _renderPageHeader(viewId) {
+  // filter tidak tampil di master-data (tidak relevan)
+  var noFilter = (viewId === 'master-data' || viewId === 'riwayat');
+  var filterHtml = noFilter ? '' : _buildFilterHtml();
+
+  document.getElementById('page-header').innerHTML =
+    '<div class="page-header-inner">' +
+      '<h1 class="page-title">' + _esc(_viewTitle(viewId)) + '</h1>' +
+      (filterHtml ? '<div class="filter-periode" id="filter-periode">' + filterHtml + '</div>' : '') +
+    '</div>';
+}
+
+// ── FILTER PERIODE ────────────────────────────────────────
+function _buildFilterHtml() {
+  var f    = APP.filter;
+  var now  = new Date();
+  var year = now.getFullYear();
+
+  // Year options: 3 tahun ke belakang s.d. tahun ini
+  var yearOpts = '';
+  for (var y = year; y >= year - 3; y--) {
+    yearOpts += '<option value="' + y + '"' + (f.year === y ? ' selected' : '') + '>' + y + '</option>';
+  }
+
+  // Month options
+  var monthOpts = MONTHS.map(function (m, i) {
+    var val = i + 1;
+    return '<option value="' + val + '"' + (f.month === val ? ' selected' : '') + '>' + m + '</option>';
+  }).join('');
+
+  var monthlyInputs =
+    '<div class="filter-inputs" id="filter-monthly" ' + (f.mode !== 'monthly' ? 'style="display:none"' : '') + '>' +
+      '<select class="filter-sel" onchange="_setFilterMonth(this.value)">' + monthOpts + '</select>' +
+      '<select class="filter-sel" onchange="_setFilterYear(this.value)">' + yearOpts + '</select>' +
+    '</div>';
+
+  var rangeInputs =
+    '<div class="filter-inputs" id="filter-range" ' + (f.mode !== 'range' ? 'style="display:none"' : '') + '>' +
+      '<input type="date" class="filter-date" value="' + (f.dateFrom||'') + '" onchange="_setFilterFrom(this.value)">' +
+      '<span class="filter-sep">s.d.</span>' +
+      '<input type="date" class="filter-date" value="' + (f.dateTo||'') + '"   onchange="_setFilterTo(this.value)">' +
+    '</div>';
+
+  var toggle =
+    '<div class="filter-toggle">' +
+      '<button class="filter-toggle-btn' + (f.mode==='monthly'?' active':'') + '" onclick="_setFilterMode(\'monthly\')">Bulanan</button>' +
+      '<button class="filter-toggle-btn' + (f.mode==='range'  ?' active':'') + '" onclick="_setFilterMode(\'range\')"  >Rentang</button>' +
+    '</div>';
+
+  return toggle + monthlyInputs + rangeInputs;
+}
+
+function _setFilterMode(mode) {
+  APP.filter.mode = mode;
+  var ml = document.getElementById('filter-monthly');
+  var rl = document.getElementById('filter-range');
+  if (ml && rl) {
+    ml.style.display = (mode === 'monthly') ? 'flex' : 'none';
+    rl.style.display = (mode === 'range')   ? 'flex' : 'none';
+  }
+  document.querySelectorAll('.filter-toggle-btn').forEach(function(btn, i){
+    btn.classList.toggle('active', (i===0 && mode==='monthly') || (i===1 && mode==='range'));
+  });
+}
+function _setFilterMonth(v) { APP.filter.month    = parseInt(v, 10); }
+function _setFilterYear(v)  { APP.filter.year     = parseInt(v, 10); }
+function _setFilterFrom(v)  { APP.filter.dateFrom = v; }
+function _setFilterTo(v)    { APP.filter.dateTo   = v; }
+
+// ── VIEW CONTENT ──────────────────────────────────────────
+function _renderViewContent(viewId) {
+  var el = document.getElementById('page-content');
+  if (viewId === 'overview')    { _renderOverview(el);    return; }
+  if (viewId === 'tata-usaha')  { _renderTataUsaha(el);   return; }
+  if (viewId === 'operasi')     { _renderOperasi(el);     return; }
+  if (viewId === 'master-data') { _renderMasterData(el); return; }
+  if (viewId === 'riwayat')     { _renderRiwayatStub(el); return; }
+  // Modul lain — stub hingga fase masing-masing
+  el.innerHTML = _moduleStub(_viewTitle(viewId));
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────
+function _renderOverview(el) {
+  var user = APP.user;
+  var canApprove = ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(user.role) !== -1;
+  var html = '';
+
+  // ── 1. Approval panel (admin only) ────────────────────
+  if (canApprove) {
+    html +=
+      '<div class="content-section">' +
+        '<div class="content-section-hd">Permintaan Registrasi Masuk</div>' +
+        '<div class="n-card">' +
+          '<div id="approval-msg" class="n-msg"></div>' +
+          '<div id="approval-table-wrap"><div style="color:var(--n-text-muted);font-size:.875rem;">Memuat\u2026</div></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── 2. Headline KPI — 4 metrik lintas divisi ──────────
+  // Data diisi DashboardService.js (Fase 8). Semua nilai placeholder "—".
+  html +=
+    '<div class="content-section">' +
+      '<div class="content-section-hd">KPI Utama</div>' +
+      '<div class="ov-kpi-row">' +
+        _kpiHeadline('Realisasi Anggaran (SP2D)', '\u2014', '%', 'YTD kumulatif') +
+        _kpiHeadline('Hari Operasi Kapal & Pesawat', '\u2014', 'hari', 'Realisasi periode ini') +
+        _kpiHeadline('Armada Siap Operasi', '\u2014', 'kapal', 'Dari total armada aktif') +
+        _kpiHeadline('Divisi Melapor Minggu Ini', '\u2014', '/ 7', 'Berdasarkan laporan masuk') +
+      '</div>' +
+    '</div>';
+
+  // ── 3. Ringkasan per Divisi — 9 cards ────────────────
+  html +=
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Ringkasan per Divisi</div>' +
+      '<div class="div-grid">' +
+        _divCard('Tata Usaha', [
+          { lbl: 'Realisasi SP2D (YTD)',    val: '\u2014', unit: '%',   prog: true },
+          { lbl: 'Realisasi Akrual (YTD)',  val: '\u2014', unit: '%',   prog: true },
+          { lbl: 'Sisa Pagu SP2D',          val: '\u2014', unit: 'Rp',  prog: false }
+        ]) +
+        _divCard('Operasi Kapal Pengawas dan Pesawat', [
+          { lbl: 'Hari Operasi Kapal (realisasi)', val: '\u2014', unit: 'hari', prog: false },
+          { lbl: 'Hari Operasi Pesawat (/ 180)',   val: '\u2014', unit: 'hari', prog: false },
+          { lbl: 'Kapal Ditangkap (YTD)',          val: '\u2014', unit: 'unit', prog: false },
+          { lbl: 'Kapal Dipantau (KII/KIA)',       val: '\u2014', unit: 'unit', prog: false },
+          { lbl: 'Cakupan Wilayah',                val: '\u2014', unit: 'NM\u00B2', prog: false }
+        ]) +
+        _divCard('Intelijen', [
+          { lbl: 'Nota Dinas Data Intelijen', val: '\u2014', unit: 'dokumen', prog: false },
+          { lbl: 'Pelanggaran Transmitter',   val: '\u2014', unit: 'kapal',   prog: false },
+          { lbl: 'Kawasan Konservasi Aktif',  val: '\u2014', unit: 'lokasi',  prog: false }
+        ]) +
+        _divCard('Pemantauan', [
+          { lbl: 'SKAT Diterbitkan (YTD)',    val: '\u2014', unit: 'dokumen', prog: false },
+          { lbl: 'Username Diterbitkan (YTD)',val: '\u2014', unit: 'akun',    prog: false },
+          { lbl: 'Kapal Kondisi Marabahaya',  val: '\u2014', unit: 'unit',    prog: false }
+        ]) +
+        _divCard('Perawatan', [
+          { lbl: 'Kapal Siap Operasi',   val: '\u2014', unit: 'unit', prog: false },
+          { lbl: 'Kapal Tidak Siap',     val: '\u2014', unit: 'unit', prog: false },
+          { lbl: 'Docking Aktif',        val: '\u2014', unit: 'unit', prog: false }
+        ]) +
+        _divCard('Logistik', [
+          { lbl: 'Realisasi BBM (YTD)',  val: '\u2014', unit: '%',   prog: true  },
+          { lbl: 'Tunggakan BBM',        val: '\u2014', unit: 'Rp',  prog: false },
+          { lbl: 'Stok Amunisi (total)', val: '\u2014', unit: 'butir', prog: false }
+        ]) +
+        _divCard('Pengawakan', [
+          { lbl: 'AKN Keseluruhan',         val: '\u2014', unit: 'orang', prog: false },
+          { lbl: 'AKN POA',                 val: '\u2014', unit: 'orang', prog: false },
+          { lbl: 'Kegiatan Personel (YTD)', val: '\u2014', unit: 'kegiatan', prog: false }
+        ]) +
+        _divCard('Kegiatan Direktorat', [
+          { lbl: 'Kegiatan YTD',            val: '\u2014', unit: 'kegiatan', prog: false },
+          { lbl: 'Kegiatan Periode Ini',    val: '\u2014', unit: 'kegiatan', prog: false },
+          { lbl: 'Terakhir Dicatat',        val: '\u2014', unit: '',         prog: false }
+        ]) +
+      '</div>' +
+    '</div>';
+
+  el.innerHTML = html;
+  if (canApprove) _loadApprovals();
+}
+
+// Headline KPI card (top row, bigger number)
+function _kpiHeadline(label, value, unit, sub) {
+  return '<div class="kpi-card">' +
+    '<div class="kpi-label">' + label + '</div>' +
+    '<div class="kpi-value">' + value +
+      (unit ? '<span style="font-size:0.95rem;font-weight:500;margin-left:3px;color:var(--n-text-secondary);">' + unit + '</span>' : '') +
+    '</div>' +
+    '<div class="kpi-sub">' + sub + '</div>' +
+  '</div>';
+}
+
+// Division summary card
+// metrics: [{lbl, val, unit, prog}] — prog=true adds a placeholder progress bar
+function _divCard(title, metrics) {
+  var rows = metrics.map(function(m) {
+    var valHtml = '<span class="div-metric-val ' + (m.val === '\u2014' ? 'muted' : '') + '">' +
+      m.val + (m.unit ? ' <span style="font-size:.75rem;font-weight:400;color:var(--n-text-muted);">' + m.unit + '</span>' : '') +
+    '</span>';
+    var progHtml = (m.prog && m.val !== '\u2014') ? (
+      '<div class="prog-wrap">' +
+        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' + parseFloat(m.val) + '%;"></div></div>' +
+        '<div class="prog-labels"><span>0%</span><span>100%</span></div>' +
+      '</div>'
+    ) : '';
+    return '<div class="div-metric"><span class="div-metric-lbl">' + m.lbl + '</span>' + valHtml + '</div>' + progHtml;
+  }).join('');
+
+  return '<div class="div-card">' +
+    '<div class="div-card-title">' + title + '</div>' +
+    rows +
+  '</div>';
+}
+
+// ── APPROVAL MANAGEMENT ───────────────────────────────────
+function _loadApprovals() {
+  var wrap = document.getElementById('approval-table-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat permintaan registrasi\u2026');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _appMsg('error', res.error); return; }
+      _renderApprovalTable(res.data);
+    })
+    .withFailureHandler(function () { _appMsg('error', 'Gagal memuat data.'); })
+    .auth_getPendingApprovals(APP.token);
+}
+
+function _appMsg(type, text) {
+  var el = document.getElementById('approval-msg');
+  if (!el) return;
+  el.className = 'n-msg ' + type + ' show';
+  el.textContent = text;
+}
+
+function _renderApprovalTable(items) {
+  var wrap = document.getElementById('approval-table-wrap');
+  if (!wrap) return;
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--n-text-muted);font-size:.875rem;padding:8px 0;">Tidak ada permintaan yang menunggu persetujuan.</div>';
+    return;
+  }
+  var rows = items.map(function (it) {
+    var d = it.registeredAt ? new Date(it.registeredAt).toLocaleDateString('id-ID') : '-';
+    return '<tr>' +
+      '<td>' + _esc(it.nama) +
+        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(it.email) + '</span></td>' +
+      '<td>' + _esc(it.namaDivisi) + '</td>' +
+      '<td>' + (it.roleDilamar === 'KADIV' ? 'Kepala Divisi / Ketua Tim Kerja' : 'Staf') + '</td>' +
+      '<td>' + d + '</td>' +
+      '<td>' +
+        '<button class="btn-sm btn-sm-ok"   onclick="doApprove(\'' + _esc(it.queueId) + '\')">Setujui</button>' +
+        '<button class="btn-sm btn-sm-crit" onclick="openRejectModal(\'' + _esc(it.queueId) + '\')">Tolak</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="n-table">' +
+      '<thead><tr><th>Nama</th><th>Unit Kerja</th><th>Jabatan</th><th>Tgl Daftar</th><th>Tindakan</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+function doApprove(queueId) {
+  if (!confirm('Setujui registrasi ini?')) return;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _appMsg('error', res.error); return; }
+      _appMsg('success', 'Registrasi berhasil disetujui.');
+      _loadApprovals();
+    })
+    .withFailureHandler(function () { _appMsg('error', 'Terjadi kesalahan. Coba lagi.'); })
+    .auth_decideApproval({ token: APP.token, queueId: queueId, approve: true, alasan: '' });
+}
+
+function openRejectModal(queueId) {
+  APP.pendingQueueId = queueId;
+  document.getElementById('reject-reason').value = '';
+  document.getElementById('modal-reject').classList.remove('n-hidden');
+}
+function closeRejectModal() {
+  APP.pendingQueueId = null;
+  document.getElementById('modal-reject').classList.add('n-hidden');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var btnConfirm = document.getElementById('btn-confirm-reject');
+  if (!btnConfirm) return;
+  btnConfirm.addEventListener('click', function () {
+    var alasan = document.getElementById('reject-reason').value.trim();
+    if (!alasan) { alert('Alasan penolakan wajib diisi.'); return; }
+    google.script.run
+      .withSuccessHandler(function (res) {
+        closeRejectModal();
+        if (!res.success) { _appMsg('error', res.error); return; }
+        _appMsg('success', 'Registrasi berhasil ditolak.');
+        _loadApprovals();
+      })
+      .withFailureHandler(function () {
+        closeRejectModal();
+        _appMsg('error', 'Terjadi kesalahan. Coba lagi.');
+      })
+      .auth_decideApproval({ token: APP.token, queueId: APP.pendingQueueId, approve: false, alasan: alasan });
+  });
+});
+
+// ── MODULE STUBS ──────────────────────────────────────────
+function _moduleStub(title) {
+  return '<div class="module-stub">' +
+    '<div class="module-stub-title">' + _esc(title) + '</div>' +
+    '<p>Modul ini sedang dalam pembangunan dan akan aktif pada fase berikutnya.</p>' +
+  '</div>';
+}
+
+function _renderMasterData(el) {
+
+  var tpl = document.getElementById('view-tpl-master-data');
+  if (!tpl) { el.innerHTML = _moduleStub('Master Data'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  // Tombol sinkron WPP hanya untuk SUPERADMIN (PRD §5.11)
+  var btnSync = document.getElementById('md-btn-sync-wpp');
+  if (btnSync && APP.user && APP.user.role !== 'SUPERADMIN') btnSync.style.display = 'none';
+
+  _MD.tab = 'kapal';
+  _mdSyncTabState();
+  _mdLoadAll();
+}
+
+var _MD = {
+  tab: 'kapal',
+  data:   { kapal: null, kawasan: null, wpp: null },
+  wppFromFallback: false,
+  editingKapalId:  null,   // null = mode tambah
+  editingKawasanId:null    // null = mode tambah
+};
+
+function _mdSyncTabState() {
+  var tabs = document.querySelectorAll('#md-tabs .n-tab');
+  tabs.forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-md-tab') === _MD.tab);
+  });
+  ['kapal','kawasan','wpp'].forEach(function (pane) {
+    var el = document.getElementById('md-pane-' + pane);
+    if (el) el.classList.toggle('n-hidden', pane !== _MD.tab);
+  });
+}
+
+function _mdSetTab(name) {
+  _MD.tab = name;
+  _mdSyncTabState();
+}
+
+function _mdLoadAll() {
+  // Hanya muat tab aktif per-permintaan render; data lain dimuat saat tab dibuka.
+  _mdLoadKapal();
+  _mdLoadKawasan();
+  _mdLoadWpp();
+}
+
+function _mdLoadKapal() {
+  var wrap = document.getElementById('md-kapal-wrap');
+  var sum  = document.getElementById('md-kapal-summary');
+  if (wrap) wrap.innerHTML = _tableSkeleton(4, 5);
+  if (sum)  sum.innerHTML   = '';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdKapalMsg('error', res.error); return; }
+      _MD.data.kapal = res.data;
+      _mdRenderKapal(res.data);
+    })
+    .withFailureHandler(function () { _mdKapalMsg('error', 'Gagal memuat data kapal.'); })
+    .master_getKapalList(APP.token);
+}
+
+function _mdKapalMsg(type, text) { _mdMsg('md-kapal-msg', type, text); }
+
+function _mdRenderKapal(items) {
+  var wrap = document.getElementById('md-kapal-wrap');
+  var sum  = document.getElementById('md-kapal-summary');
+  if (!wrap) return;
+
+  var list = items || [];
+  var aktif = list.filter(function (k) { return k.statusAktif; });
+
+  if (sum) {
+    sum.innerHTML =
+      '<div class="md-chip"><span class="lbl">Total armada</span><span class="val">' + list.length + '</span></div>' +
+      '<div class="md-chip"><span class="lbl">Aktif</span><span class="val">' + aktif.length + '</span></div>' +
+      '<div class="md-chip"><span class="lbl">Tidak aktif</span><span class="val">' + (list.length - aktif.length) + '</span></div>';
+  }
+
+  if (list.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada data kapal. Gunakan "Tambah Kapal" untuk mulai.</div>';
+    return;
+  }
+
+  var rows = list.map(function (k) {
+    var badge = k.statusAktif
+      ? '<span class="badge badge-ok">Aktif</span>'
+      : '<span class="badge badge-neutral">Tidak aktif</span>';
+    return '<tr>' +
+      '<td>' + _esc(k.kapalId) + '</td>' +
+      '<td>' + _esc(k.nama) + '</td>' +
+      '<td>' + _esc(k.kelas || '\u2014') + '</td>' +
+      '<td>' + _esc(k.homebaseUpt || '\u2014') + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
+        (k.statusAktif
+          ? '<button class="btn-sm btn-sm-crit" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Nonaktifkan</button>'
+          : '<button class="btn-sm btn-sm-ok" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Aktifkan</button>') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="n-table"><thead><tr>' +
+      '<th>ID</th><th>Nama</th><th>Kelas</th><th>Homebase / UPT</th><th>Status</th><th>Aksi</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function _mdOpenKapalModal(kapalId) {
+  _MD.editingKapalId = kapalId || null;
+  _mdKapalModalMsg(null);
+  var row = kapalId ? (_MD.data.kapal || []).filter(function (k) { return k.kapalId === kapalId; })[0] : null;
+
+  var idIn   = document.getElementById('md-kapal-id');
+  var nmIn   = document.getElementById('md-kapal-nama');
+  var klIn   = document.getElementById('md-kapal-kelas');
+  var hbIn   = document.getElementById('md-kapal-homebase');
+  var stSel  = document.getElementById('md-kapal-status');
+
+  if (row) {
+    idIn.value  = row.kapalId;
+    nmIn.value  = row.nama;
+    klIn.value  = row.kelas || '';
+    hbIn.value  = row.homebaseUpt || '';
+    stSel.value = row.statusAktif ? 'true' : 'false';
+    idIn.disabled = true;
+    document.getElementById('md-kapal-modal-title').textContent = 'Edit Kapal';
+  } else {
+    idIn.value = ''; nmIn.value = ''; klIn.value = ''; hbIn.value = '';
+    stSel.value = 'true';
+    idIn.disabled = false;
+    document.getElementById('md-kapal-modal-title').textContent = 'Tambah Kapal';
+  }
+  document.getElementById('modal-md-kapal').classList.remove('n-hidden');
+  if (!row && nmIn) nmIn.focus();
+}
+
+function _mdKapalModalMsg(type, text) { _mdMsg('md-kapal-modal-msg', type, text); }
+
+function _mdSaveKapal() {
+  var editing = !!_MD.editingKapalId;
+  var btn = document.getElementById('md-btn-kapal-save');
+  var params = {
+    kapalId:      ((document.getElementById('md-kapal-id')    || {}).value || '').trim(),
+    nama:         ((document.getElementById('md-kapal-nama')  || {}).value || '').trim(),
+    kelas:        ((document.getElementById('md-kapal-kelas') || {}).value || '').trim(),
+    homebaseUpt:  ((document.getElementById('md-kapal-homebase') || {}).value || '').trim(),
+    statusAktif:  ((document.getElementById('md-kapal-status')  || {}).value || 'true') === 'true'
+  };
+
+  if (!params.kapalId || !params.nama) {
+    _mdKapalModalMsg('error', 'KapalID dan Nama wajib diisi.');
+    return;
+  }
+  _mdKapalModalMsg(null);
+  _setLoading(btn, true);
+
+  var call = editing
+    ? google.script.run.master_updateKapal(APP.token, params)
+    : google.script.run.master_createKapal(APP.token, params);
+
+  call
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _mdKapalModalMsg('error', res.error); return; }
+      closeModal('modal-md-kapal');
+      _mdKapalMsg('success', res.message);
+      _MD.data.kapal = null;
+      _mdLoadKapal();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _mdKapalModalMsg('error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    });
+}
+
+function _mdToggleKapal(kapalId) {
+  var row = (_MD.data.kapal || []).filter(function (k) { return k.kapalId === kapalId; })[0];
+  if (!row) return;
+  var target = !row.statusAktif;
+  var label  = target ? 'mengaktifkan' : 'menonaktifkan';
+  if (!confirm('Yakin ' + label + ' kapal ' + kapalId + '?')) return;
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdKapalMsg('error', res.error); return; }
+      _mdKapalMsg('success', res.message);
+      _MD.data.kapal = null;
+      _mdLoadKapal();
+    })
+    .withFailureHandler(function () { _mdKapalMsg('error', 'Gagal memperbarui status kapal.'); })
+    .master_updateKapal(APP.token, { kapalId: kapalId, statusAktif: target });
+}
+
+// ── KAWASAN KONSERVASI ────────────────────────────────────
+
+function _mdLoadKawasan() {
+  var wrap = document.getElementById('md-kawasan-wrap');
+  if (wrap) wrap.innerHTML = _tableSkeleton(4, 5);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdKawasanMsg('error', res.error); return; }
+      _MD.data.kawasan = res.data;
+      _mdRenderKawasan(res.data);
+    })
+    .withFailureHandler(function () { _mdKawasanMsg('error', 'Gagal memuat data kawasan.'); })
+    .master_getKawasanList(APP.token);
+}
+
+function _mdKawasanMsg(type, text) { _mdMsg('md-kawasan-msg', type, text); }
+
+function _mdRenderKawasan(items) {
+  var wrap = document.getElementById('md-kawasan-wrap');
+  if (!wrap) return;
+
+  var list = items || [];
+
+  if (list.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada data kawasan konservasi. Gunakan "Tambah Kawasan" untuk mulai.</div>';
+    return;
+  }
+
+  var rows = list.map(function (k) {
+    var loc = _fmtLatLng(k.latitude, k.longitude);
+    return '<tr>' +
+      '<td>' + _esc(k.kawasanId) + '</td>' +
+      '<td>' + _esc(k.nama) + '</td>' +
+      '<td>' + _esc(k.provinsi) + '</td>' +
+      '<td>' + _esc(loc) + '</td>' +
+      '<td>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" onclick="_mdOpenKawasanModal(\'' + _esc(k.kawasanId) + '\')">Edit</button>' +
+        '<button class="btn-sm btn-sm-crit" onclick="_mdDeleteKawasan(\'' + _esc(k.kawasanId) + '\')">Hapus</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="n-table"><thead><tr>' +
+      '<th>ID</th><th>Nama</th><th>Provinsi</th><th>Koordinat</th><th>Aksi</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function _fmtLatLng(lat, lng) {
+  if (lat === null && lng === null) return '\u2014';
+  if (lat === null) return 'Lon ' + lng;
+  if (lng === null) return 'Lat ' + lat;
+  return lat + ', ' + lng;
+}
+
+function _mdOpenKawasanModal(kawasanId) {
+  _MD.editingKawasanId = kawasanId || null;
+  _mdKawasanModalMsg(null);
+  var row = kawasanId ? (_MD.data.kawasan || []).filter(function (k) { return k.kawasanId === kawasanId; })[0] : null;
+
+  var idIn = document.getElementById('md-kawasan-id');
+  var nmIn = document.getElementById('md-kawasan-nama');
+  var pvIn = document.getElementById('md-kawasan-provinsi');
+  var ltIn = document.getElementById('md-kawasan-lat');
+  var lgIn = document.getElementById('md-kawasan-lng');
+
+  if (row) {
+    idIn.value = row.kawasanId;
+    nmIn.value = row.nama;
+    pvIn.value = row.provinsi || '';
+    ltIn.value = (row.latitude  === null ? '' : row.latitude);
+    lgIn.value = (row.longitude === null ? '' : row.longitude);
+    idIn.disabled = true;
+    document.getElementById('md-kawasan-modal-title').textContent = 'Edit Kawasan';
+  } else {
+    idIn.value = ''; nmIn.value = ''; pvIn.value = ''; ltIn.value = ''; lgIn.value = '';
+    idIn.disabled = false;
+    document.getElementById('md-kawasan-modal-title').textContent = 'Tambah Kawasan';
+  }
+  document.getElementById('modal-md-kawasan').classList.remove('n-hidden');
+  if (!row && nmIn) nmIn.focus();
+}
+
+function _mdKawasanModalMsg(type, text) { _mdMsg('md-kawasan-modal-msg', type, text); }
+
+function _mdSaveKawasan() {
+  var editing = !!_MD.editingKawasanId;
+  var btn = document.getElementById('md-btn-kawasan-save');
+  var latVal = ((document.getElementById('md-kawasan-lat') || {}).value || '').trim();
+  var lngVal = ((document.getElementById('md-kawasan-lng') || {}).value || '').trim();
+
+  var params = {
+    kawasanId: ((document.getElementById('md-kawasan-id')      || {}).value || '').trim(),
+    nama:      ((document.getElementById('md-kawasan-nama')    || {}).value || '').trim(),
+    provinsi:  ((document.getElementById('md-kawasan-provinsi')|| {}).value || '').trim(),
+    latitude:  latVal === '' ? null : parseFloat(latVal),
+    longitude: lngVal === '' ? null : parseFloat(lngVal)
+  };
+
+  if (!params.kawasanId || !params.nama || !params.provinsi) {
+    _mdKawasanModalMsg('error', 'KawasanID, Nama, dan Provinsi wajib diisi.');
+    return;
+  }
+  if ((params.latitude  !== null && isNaN(params.latitude)) ||
+      (params.longitude !== null && isNaN(params.longitude))) {
+    _mdKawasanModalMsg('error', 'Latitude/Longitude harus berupa angka.');
+    return;
+  }
+  _mdKawasanModalMsg(null);
+  _setLoading(btn, true);
+
+  var call = editing
+    ? google.script.run.master_updateKawasan(APP.token, params)
+    : google.script.run.master_createKawasan(APP.token, params);
+
+  call
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _mdKawasanModalMsg('error', res.error); return; }
+      closeModal('modal-md-kawasan');
+      _mdKawasanMsg('success', res.message);
+      _MD.data.kawasan = null;
+      _mdLoadKawasan();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _mdKawasanModalMsg('error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    });
+}
+
+function _mdDeleteKawasan(kawasanId) {
+  if (!confirm('Hapus kawasan ' + kawasanId + '? Data yang mereferensikannya akan tetap tersimpan apa adanya.')) return;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdKawasanMsg('error', res.error); return; }
+      _mdKawasanMsg('success', res.message);
+      _MD.data.kawasan = null;
+      _mdLoadKawasan();
+    })
+    .withFailureHandler(function () { _mdKawasanMsg('error', 'Gagal menghapus kawasan.'); })
+    .master_deleteKawasan(APP.token, { kawasanId: kawasanId });
+}
+
+// ── WPP ───────────────────────────────────────────────────
+
+function _mdLoadWpp() {
+  var wrap = document.getElementById('md-wpp-wrap');
+  var note = document.getElementById('md-wpp-source-note');
+  if (wrap) wrap.innerHTML = _tableSkeleton(5, 2);
+  if (note) note.innerHTML = '';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdWppMsg('error', res.error); return; }
+      _MD.data.wpp = res.data;
+      _MD.wppFromFallback = !!res.fromFallback;
+      _mdRenderWpp(res.data, res.fromFallback);
+    })
+    .withFailureHandler(function () { _mdWppMsg('error', 'Gagal memuat data WPP.'); })
+    .master_getWppList(APP.token);
+}
+
+function _mdWppMsg(type, text) { _mdMsg('md-wpp-msg', type, text); }
+
+function _mdRenderWpp(items, fromFallback) {
+  var wrap = document.getElementById('md-wpp-wrap');
+  var note = document.getElementById('md-wpp-source-note');
+  if (!wrap) return;
+
+  var list = items || [];
+
+  if (fromFallback) {
+    if (note) {
+      note.innerHTML = '<div class="n-info-static">Master WPP belum disinkronkan — daftar di bawah adalah referensi statis (WPP_NRI). Jalankan "Sinkronkan" (Superadmin) untuk menulis ke sheet master.</div>';
+    }
+  } else {
+    if (note) {
+      note.innerHTML = '<div style="font-size:.78rem;color:var(--n-text-muted);margin-bottom:10px;">Sumber: sheet master WPP.</div>';
+    }
+  }
+
+  var rows = list.map(function (w) {
+    return '<tr><td>' + _esc(w.WPPCode) + '</td><td>' + _esc(w.NamaWilayah) + '</td></tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="n-table"><thead><tr><th>Kode</th><th>Nama Wilayah</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
+}
+
+function _mdSyncWpp() {
+  var btn = document.getElementById('md-btn-sync-wpp');
+  if (!btn) return;
+  _mdWppMsg(null);
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _mdWppMsg('error', res.error); return; }
+      _mdWppMsg('success', res.message);
+      _MD.data.wpp = null;
+      _mdLoadWpp();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _mdWppMsg('error', 'Gagal sinkronisasi WPP. Coba lagi.');
+    })
+    .master_syncWpp(APP.token);
+}
+
+// ── HELPER MASTER DATA ────────────────────────────────────
+
+function _mdMsg(id, type, text) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (!type) { el.className = 'n-msg'; el.textContent = ''; return; }
+  el.className = 'n-msg ' + type + ' show';
+  el.textContent = text;
+}
+
+function _renderRiwayatStub(el) {
+  el.innerHTML = '<div class="module-stub">' +
+    '<div class="module-stub-title">Riwayat Laporan</div>' +
+    '<p>Riwayat seluruh laporan yang pernah dikirim, termasuk revisi dan anulir.<br>Aktif pada Fase 11.</p>' +
+  '</div>';
+}
+
+// ── UTILITIES ─────────────────────────────────────────────
+function _esc(str) {
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+function _msg(id, type, text) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (!type) { el.className = 'n-msg'; el.textContent = ''; return; }
+  el.className  = 'n-msg ' + type + ' show';
+  el.textContent = text;
+}
+
+function _setLoading(btn, loading) {
+  btn.disabled = loading;
+  if (loading) {
+    btn._orig = btn.innerHTML;
+    btn.innerHTML = '<span class="n-spin-sm"></span>Memproses\u2026';
+  } else {
+    btn.innerHTML = btn._orig || btn.textContent;
+  }
+}
+
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('n-hidden');
+}
+
+// ── LOADING INDICATORS ────────────────────────────────────
+
+function _loadingInline(text) {
+  return '<div class="md-loading-inline"><span class="n-spin-sm"></span><span>' +
+    _esc(text || 'Memuat\u2026') + '</span></div>';
+}
+
+function _kpiSkeleton(n) {
+  var chips = '';
+  for (var i = 0; i < (n || 4); i++) {
+    chips += '<div class="n-card kpi-skeleton-item"><div class="sk-bar sk-bar-lg"></div>' +
+             '<div class="sk-bar sk-bar-sm" style="margin-top:10px;"></div><div class="sk-bar sk-bar-sm" style="margin-top:6px;width:40%;"></div></div>';
+  }
+  return '<div class="kpi-skeleton">' + chips + '</div>';
+}
+
+function _tableSkeleton(rows, cols) {
+  var h = '<thead><tr>';
+  for (var c = 0; c < (cols || 3); c++) h += '<th><div class="sk-bar sk-bar-sm" style="width:80%;"></div></th>';
+  h += '</tr></thead><tbody>';
+  for (var r = 0; r < (rows || 4); r++) {
+    h += '<tr>';
+    for (var cc = 0; cc < (cols || 3); cc++) h += '<td><div class="sk-bar sk-bar-sm"></div></td>';
+    h += '</tr>';
+  }
+  h += '</tbody>';
+  return '<table class="n-table n-table-full">' + h + '</table>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODUL TATA USAHA
+// ═══════════════════════════════════════════════════════════
+
+// State lokal modul
+var _TU = {
+  formOpen:       true,
+  pendingRowId:   null,   // untuk revisi/anulir
+  kpi:            null,
+  history:        []
+};
+
+// ── RENDER ────────────────────────────────────────────────
+
+function _renderTataUsaha(el) {
+  // Clone template dari DOM
+  var tpl = document.getElementById('view-tpl-tata-usaha');
+  if (!tpl) { el.innerHTML = _moduleStub('Tata Usaha'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  // Pre-fill periode saat ini
+  var now = new Date();
+  var week = Math.ceil(now.getDate() / 7);
+  var m    = now.getMonth() + 1;
+  var y    = now.getFullYear();
+  var periodeNow = y + '-' + (m<10?'0'+m:m) + '-W' + (week<10?'0'+week:week);
+  var pIn  = document.getElementById('tu-periode');
+  if (pIn) pIn.value = periodeNow;
+  var hint = document.getElementById('tu-periode-hint');
+  if (hint) hint.textContent = 'Periode saat ini: ' + periodeNow;
+
+  // Load data
+  _tuLoadKPI();
+}
+
+function _tuLoadKPI() {
+  var strip = document.getElementById('tu-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _tuKPIError(res.error); return; }
+      _TU.kpi = res.data;
+      _tuRenderKPI(res.data);
+      _tuAutoToggleForm(res.data);
+      _tuLoadHistory();
+    })
+    .withFailureHandler(function () { _tuKPIError('Gagal memuat KPI.'); })
+    .tataUsaha_getKPI(APP.token, APP.filter);
+}
+
+function _tuKPIError(msg) {
+  var el = document.getElementById('tu-kpi-strip');
+  if (el) el.innerHTML = '<div class="n-msg error show">' + _esc(msg) + '</div>';
+}
+
+function _tuRenderKPI(d) {
+  var el = document.getElementById('tu-kpi-strip');
+  if (!el) return;
+
+  var kpiData = [
+    { lbl: 'Pagu Reguler',      val: _rupiah(d.paguReguler),    sub: 'Diperbarui dari laporan terakhir' },
+    { lbl: 'Pagu ABT',          val: _rupiah(d.paguABT),        sub: 'Anggaran Biaya Tambahan' },
+    { lbl: 'Realisasi SP2D',    val: d.pctSP2D + '%',           sub: _rupiah(d.realisasiSP2D) + ' dari ' + _rupiah(d.paguReguler) },
+    { lbl: 'Realisasi Akrual',  val: d.pctAkrual + '%',         sub: _rupiah(d.realisasiAkrual) + ' dari ' + _rupiah(d.paguABT) },
+    { lbl: 'Sisa SP2D',         val: _rupiah(d.sisaSP2D),       sub: d.sisaSP2D >= 0 ? 'Saldo aman' : 'Melebihi Pagu' },
+    { lbl: 'Sisa Akrual',       val: _rupiah(d.sisaAkrual),     sub: d.sisaAkrual >= 0 ? 'Saldo aman' : 'Melebihi Pagu' }
+  ];
+
+  var progSP2D   = Math.min(Math.max(d.pctSP2D,   0), 100);
+  var progAkrual = Math.min(Math.max(d.pctAkrual, 0), 100);
+  var clsSP2D    = progSP2D   >= 90 ? 'warn' : '';
+  var clsAkrual  = progAkrual >= 90 ? 'warn' : '';
+
+  var html = '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);">';
+  kpiData.slice(0,2).forEach(function(k) {
+    html += '<div class="kpi-card"><div class="kpi-label">' + k.lbl + '</div>' +
+      '<div class="kpi-value" style="font-size:1.25rem;">' + k.val + '</div>' +
+      '<div class="kpi-sub">' + k.sub + '</div></div>';
+  });
+  // SP2D dengan progress bar
+  html += '<div class="kpi-card"><div class="kpi-label">Realisasi SP2D</div>' +
+    '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctSP2D + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
+    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsSP2D + '" style="width:' + progSP2D + '%;"></div></div>' +
+    '<div class="prog-labels"><span>0%</span><span>' + _rupiah(d.realisasiSP2D) + '</span><span>100%</span></div></div></div>';
+  html += '</div>';
+
+  html += '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:0;">';
+  // Akrual dengan progress bar
+  html += '<div class="kpi-card"><div class="kpi-label">Realisasi Akrual</div>' +
+    '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctAkrual + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
+    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsAkrual + '" style="width:' + progAkrual + '%;"></div></div>' +
+    '<div class="prog-labels"><span>0%</span><span>' + _rupiah(d.realisasiAkrual) + '</span><span>100%</span></div></div></div>';
+  // Sisa SP2D
+  html += '<div class="kpi-card"><div class="kpi-label">Sisa SP2D</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaSP2D < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaSP2D) + '</div>' +
+    '<div class="kpi-sub">' + kpiData[4].sub + '</div></div>';
+  // Sisa Akrual
+  html += '<div class="kpi-card"><div class="kpi-label">Sisa Akrual</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaAkrual < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaAkrual) + '</div>' +
+    '<div class="kpi-sub">' + kpiData[5].sub + '</div></div>';
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+// Auto-expand form jika belum ada laporan minggu ini
+function _tuAutoToggleForm(kpi) {
+  var periodeAktif = kpi && kpi.periodeAktif ? kpi.periodeAktif : null;
+  var sudahAda     = kpi && kpi.mingguTerakhirSubmit === periodeAktif;
+  var body         = document.getElementById('tu-form-body');
+  var icon         = document.getElementById('tu-form-toggle-icon');
+  if (!body) return;
+  if (sudahAda) {
+    body.style.display = 'none';
+    if (icon) icon.textContent = '▸';
+    _TU.formOpen = false;
+  } else {
+    body.style.display = 'block';
+    if (icon) icon.textContent = '▾';
+    _TU.formOpen = true;
+  }
+}
+
+function tuToggleForm() {
+  var body = document.getElementById('tu-form-body');
+  var icon = document.getElementById('tu-form-toggle-icon');
+  if (!body) return;
+  _TU.formOpen = !_TU.formOpen;
+  body.style.display = _TU.formOpen ? 'block' : 'none';
+  if (icon) icon.textContent = _TU.formOpen ? '▾' : '▸';
+}
+
+// ── HISTORY ───────────────────────────────────────────────
+
+function _tuLoadHistory() {
+  var wrap = document.getElementById('tu-history-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        _msg('tu-history-msg', 'error', res.error);
+        if (wrap) wrap.innerHTML = '';
+        return;
+      }
+      _TU.history = res.data;
+      _tuRenderHistory(res.data);
+    })
+    .withFailureHandler(function () { _msg('tu-history-msg', 'error', 'Gagal memuat riwayat.'); })
+    .tataUsaha_getHistory(APP.token, APP.filter);
+}
+
+function _tuRenderHistory(items) {
+  var wrap = document.getElementById('tu-history-wrap');
+  if (!wrap) return;
+  var canAnulir = ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(APP.user.role) !== -1;
+  var canRevisi = ['SUPERADMIN','KADIV','STAF'].indexOf(APP.user.role) !== -1;
+
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada laporan untuk periode ini.</div>';
+    return;
+  }
+
+  var rows = items.map(function (r) {
+    var badge = _tuStatusBadge(r.status);
+    var aksi  = '';
+
+    if (r.status === 'ACTIVE') {
+      if (canRevisi) {
+        aksi += '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" ' +
+          'onclick="tuOpenRevisiModal(\'' + _esc(r.rowId) + '\')">' +
+          'Revisi</button>';
+      }
+      if (canAnulir) {
+        aksi += '<button class="btn-sm btn-sm-crit" onclick="tuOpenAnulirModal(\'' + _esc(r.rowId) + '\',\'' + _esc(r.periode) + '\')">' +
+          'Anulir</button>';
+      }
+    }
+
+    // Baris void: tampilkan VoidReason inline
+    var voidRow = '';
+    if (r.status === 'VOID' && r.voidReason) {
+      voidRow = '<tr><td colspan="7" style="padding:0 12px 10px;background:#FEF2F2;">' +
+        '<div style="font-size:.8rem;color:var(--n-crit);border-left:3px solid var(--n-crit);padding:6px 10px;border-radius:0 4px 4px 0;">' +
+        '<strong>Komentar anulir:</strong> ' + _esc(r.voidReason) +
+        (r.voidedBy ? ' — <em>oleh ' + _esc(r.voidedBy) + '</em>' : '') +
+        '</div></td></tr>';
+    }
+
+    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '-';
+    return '<tr>' +
+      '<td>' + _esc(r.periode) + '</td>' +
+      '<td>' + _rupiah(r.paguTotal) + '</td>' +
+      '<td>' + _rupiah(r.realisasiSP2D) + '</td>' +
+      '<td>' + _rupiah(r.realisasiAkrual) + '</td>' +
+      '<td>' + tgl + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + (aksi || '—') + '</td>' +
+    '</tr>' + voidRow;
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="n-table">' +
+      '<thead><tr>' +
+        '<th>Periode</th><th>Pagu Total</th><th>SP2D Minggu</th>' +
+        '<th>Akrual Minggu</th><th>Tanggal</th><th>Status</th><th>Aksi</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+function _tuStatusBadge(status) {
+  var map = {
+    'ACTIVE':     '<span class="badge badge-ok">AKTIF</span>',
+    'SUPERSEDED': '<span class="badge badge-neutral">DIGANTI</span>',
+    'VOID':       '<span class="badge badge-crit">DIANULIR</span>'
+  };
+  return map[status] || '<span class="badge badge-neutral">' + _esc(status) + '</span>';
+}
+
+// ── SUBMIT ────────────────────────────────────────────────
+
+function tuSubmit() {
+  var btn = document.getElementById('tu-btn-submit');
+  _msg('tu-form-msg', null);
+  _setLoading(btn, true);
+
+  var params = {
+    periode:          (document.getElementById('tu-periode')      || {}).value || '',
+    paguReguler:      (document.getElementById('tu-pagu-reguler') || {}).value || 0,
+    paguABT:          (document.getElementById('tu-pagu-abt')     || {}).value || 0,
+    realisasiSP2D:    (document.getElementById('tu-real-sp2d')    || {}).value || 0,
+    realisasiAkrual:  (document.getElementById('tu-real-akrual')  || {}).value || 0,
+    catatanRevisiPagu:(document.getElementById('tu-catatan')      || {}).value || ''
+  };
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('tu-form-msg', 'error', res.error); return; }
+      _msg('tu-form-msg', 'success', res.data.message);
+      _tuLoadKPI(); // refresh
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('tu-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .tataUsaha_submitMingguan(APP.token, params);
+}
+
+// ── REVISI ────────────────────────────────────────────────
+
+function tuOpenRevisiModal(rowId) {
+  _TU.pendingRowId = rowId;
+  // Pre-fill dari data history
+  var row = (_TU.history || []).filter(function(r) { return r.rowId === rowId; })[0];
+  if (row) {
+    document.getElementById('rv-pagu-reguler').value  = row.paguReguler || 0;
+    document.getElementById('rv-pagu-abt').value      = row.paguABT     || 0;
+    document.getElementById('rv-real-sp2d').value     = row.realisasiSP2D   || 0;
+    document.getElementById('rv-real-akrual').value   = row.realisasiAkrual || 0;
+    document.getElementById('rv-alasan').value        = '';
+    document.getElementById('rv-catatan').value       = '';
+    var info = document.getElementById('tu-revisi-info');
+    if (info) info.textContent = 'Merevisi laporan periode ' + row.periode + '.';
+  }
+  _msg('tu-revisi-msg', null);
+  document.getElementById('modal-tu-revisi').classList.remove('n-hidden');
+}
+
+function tuCloseRevisiModal() {
+  _TU.pendingRowId = null;
+  document.getElementById('modal-tu-revisi').classList.add('n-hidden');
+}
+
+function tuRevisiConfirm() {
+  var btn = document.getElementById('btn-confirm-revisi');
+  _msg('tu-revisi-msg', null);
+  var alasan = (document.getElementById('rv-alasan') || {}).value || '';
+  if (!alasan.trim()) { _msg('tu-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  var params = {
+    targetRowId:      _TU.pendingRowId,
+    paguReguler:      (document.getElementById('rv-pagu-reguler')  || {}).value || 0,
+    paguABT:          (document.getElementById('rv-pagu-abt')      || {}).value || 0,
+    realisasiSP2D:    (document.getElementById('rv-real-sp2d')     || {}).value || 0,
+    realisasiAkrual:  (document.getElementById('rv-real-akrual')   || {}).value || 0,
+    alasanRevisi:     alasan,
+    catatanRevisiPagu:(document.getElementById('rv-catatan')       || {}).value || ''
+  };
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      tuCloseRevisiModal();
+      if (!res.success) { _msg('tu-history-msg', 'error', res.error); return; }
+      _msg('tu-history-msg', 'success', res.data.message);
+      _tuLoadKPI();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('tu-revisi-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    })
+    .tataUsaha_revisi(APP.token, params);
+}
+
+// ── ANULIR ────────────────────────────────────────────────
+
+function tuOpenAnulirModal(rowId, periode) {
+  _TU.pendingRowId = rowId;
+  var info = document.getElementById('tu-anulir-info');
+  if (info) info.textContent = 'Akan menganulir laporan periode ' + periode + ' (ID: ' + rowId + ').';
+  var inp = document.getElementById('anulir-reason');
+  if (inp) inp.value = '';
+  _msg('tu-anulir-msg', null);
+  document.getElementById('modal-tu-anulir').classList.remove('n-hidden');
+}
+
+function tuCloseAnulirModal() {
+  _TU.pendingRowId = null;
+  document.getElementById('modal-tu-anulir').classList.add('n-hidden');
+}
+
+function tuAnulirConfirm() {
+  var btn    = document.getElementById('btn-confirm-anulir');
+  var alasan = (document.getElementById('anulir-reason') || {}).value || '';
+  _msg('tu-anulir-msg', null);
+  if (!alasan.trim()) {
+    _msg('tu-anulir-msg', 'error', 'Komentar anulir wajib diisi.');
+    return;
+  }
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      tuCloseAnulirModal();
+      if (!res.success) { _msg('tu-history-msg', 'error', res.error); return; }
+      _msg('tu-history-msg', 'success', res.data.message);
+      _tuLoadKPI();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('tu-anulir-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    })
+    .tataUsaha_anulir(APP.token, { targetRowId: _TU.pendingRowId, voidReason: alasan });
+}
+
+// ============================================================
+// MODUL OPERASI (KAPAL & PESAWAT — tab gabungan, Fase 7)
+// ============================================================
+var _OPS = {
+  tab: 'kapal' // 'kapal' | 'pesawat'
+};
+
+// Cache GeoJSON WPP — dibagi Kapal & Pesawat (load sekali per sesi)
+var _OPS_GEO = { wppGeoJsonData: null };
+
+// Teardown kedua peta (Kapal & Pesawat) sekaligus
+function _opsTeardownMaps() {
+  if (window.opsLautMap)  { try { window.opsLautMap.remove(); } catch(e) {}  window.opsLautMap = null; }
+  window.opsLautWppLayer = null;
+  if (window.opsUdaraMap) { try { window.opsUdaraMap.remove(); } catch(e) {} window.opsUdaraMap = null; }
+  window.opsUdaraWppLayer = null;
+}
+
+function _renderOperasi(el) {
+  _opsTeardownMaps();
+
+  var tpl = document.getElementById('view-tpl-operasi');
+  if (!tpl) { el.innerHTML = _moduleStub('Operasi'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _OPS.tab = 'kapal';
+  _opsSetTab('kapal');
+}
+
+function _opsSyncTabState() {
+  var tabs = document.querySelectorAll('#ops-tabs .n-tab');
+  tabs.forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-ops-tab') === _OPS.tab);
+  });
+}
+
+function _opsSetTab(name) {
+  if (name !== 'kapal' && name !== 'pesawat') return;
+  _OPS.tab = name;
+  _opsSyncTabState();
+  _opsRenderTab();
+}
+
+function _opsRenderTab() {
+  _opsTeardownMaps();
+  var pane = document.getElementById('ops-tab-pane');
+  if (!pane) return;
+  if (_OPS.tab === 'pesawat') {
+    _renderOperasiUdara(pane);
+  } else {
+    _renderOperasiLaut(pane);
+  }
+}
+
+// Ambil cache GeoJSON WPP bersama (load sekali, dipakai Laut & Udara)
+function _opsGetGeoData(cb) {
+  if (_OPS_GEO.wppGeoJsonData) { cb(_OPS_GEO.wppGeoJsonData); return; }
+  fetch('https://raw.githubusercontent.com/mhdztr/wppnri/main/wpp_final.geojson')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+       _OPS_GEO.wppGeoJsonData = data;
+       cb(data);
+    })
+    .catch(function(err) {
+       console.error("Gagal load GeoJSON WPP dari GitHub", err);
+    });
+}
+
+// ── Loader Leaflet on-demand ─────────────────────────────────
+// Leaflet CSS+JS tidak di-load di Index.html (itu memblokir DOMContentLoaded).
+// Di-inject secara dinamis pertama kali modul Operasi dibuka.
+var _LEAFLET_LOADED = false;
+var _leafletQueue   = [];
+function _loadLeaflet(cb) {
+  if (typeof L !== 'undefined' || _LEAFLET_LOADED) { cb(); return; }
+  _leafletQueue.push(cb);
+  if (_leafletQueue.length > 1) return; // sedang loading, tunggu callback
+
+  // Inject CSS
+  if (!document.getElementById('leaflet-css')) {
+    var link = document.createElement('link');
+    link.id   = 'leaflet-css';
+    link.rel  = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+  }
+
+  // Inject JS
+  var script = document.createElement('script');
+  script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  script.onload = function () {
+    _LEAFLET_LOADED = true;
+    var queue = _leafletQueue.slice();
+    _leafletQueue = [];
+    queue.forEach(function(fn) { try { fn(); } catch(e) {} });
+  };
+  script.onerror = function () {
+    console.error('Gagal memuat Leaflet dari CDN');
+    _leafletQueue = [];
+  };
+  document.head.appendChild(script);
+}
+
+// ============================================================
+// MODUL OPERASI LAUT
+// ============================================================
+var _OPSLAUT = {
+  pendingRowId: null,
+  wppData: null,       // cache WPP list
+  kpiData: null,       // simpan result kpi agar _renderWppLayer bisa pakai kpiData.wppIntensitas
+  wppGeoJsonData: null // cache geojson dari github (dialihkan ke _OPS_GEO)
+};
+
+function _renderOperasiLaut(el) {
+  // Peta dirender ulang utuh setiap masuk view: container #map-ops-laut baru dibuat
+  // oleh innerHTML tpl, jadi map Leaflet lama (yang menempel ke container lama yang
+  // sudah dihapus dari DOM) harus di-teardown dulu — kalau tidak, peta jadi kosong.
+  if (window.opsLautMap) {
+    try { window.opsLautMap.remove(); } catch(e) {}
+    window.opsLautMap = null;
+  }
+  window.opsLautWppLayer = null;
+
+  var tpl = document.getElementById('view-tpl-operasi-laut');
+  if (!tpl) { el.innerHTML = _moduleStub('Operasi Laut'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _opsLautInitPeriodeUi();
+  _opsLautLoadOptions();
+  _opsLautLoadKPI();
+  _opsLautLoadHistory();
+  
+  // Set hint periode saat ini
+  var pHint = document.getElementById('ops-periode-hint');
+  if (pHint) {
+    google.script.run.withSuccessHandler(function(res){
+      if(res) pHint.textContent = 'Periode saat ini: ' + res;
+    }).utils_getCurrentPeriode();
+  }
+
+  // Init map — tunggu Leaflet dimuat dulu (on-demand loader)
+  _loadLeaflet(function() { setTimeout(_initOpsLautMap, 100); });
+}
+
+function _opsLautInitPeriodeUi() {
+  _opsInitPeriodeUi('ops-');
+}
+
+// Init dropdown periode Tahun/Bulan/Minggu Ke- (prefix: 'ops-' | 'oud-')
+function _opsInitPeriodeUi(prefix) {
+  prefix = prefix || 'ops-';
+  var now = new Date();
+  var ySel = document.getElementById(prefix + 'periode-tahun');
+  var mSel = document.getElementById(prefix + 'periode-bulan');
+  var wSel = document.getElementById(prefix + 'periode-minggu');
+  if (!ySel || !mSel || !wSel) return;
+
+  // Tahun: tahun lalu - tahun depan (laporan lintas-tahun jadi aman)
+  var tahunOpts = '';
+  for (var y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
+    tahunOpts += '<option value="' + y + '"' + (y === now.getFullYear() ? ' selected' : '') + '>' + y + '</option>';
+  }
+  ySel.innerHTML = tahunOpts;
+
+  var bulanOpts = MONTHS.map(function(m, i) {
+    return '<option value="' + (i + 1) + '"' + ((i + 1) === (now.getMonth() + 1) ? ' selected' : '') + '>' + m + '</option>';
+  }).join('');
+  mSel.innerHTML = bulanOpts;
+
+  var mingguKe = Math.min(Math.ceil(now.getDate() / 7), 5); // konvensi DateUtil: tanggal 1-7 = W01, dst
+  var mingguOpts = '';
+  for (var w = 1; w <= 5; w++) {
+    mingguOpts += '<option value="' + w + '"' + (w === mingguKe ? ' selected' : '') + '>Ke-' + w + '</option>';
+  }
+  wSel.innerHTML = mingguOpts;
+}
+
+// Rakit Periode "YYYY-MM-W0X" dari 3 dropdown (Tahun/Bulan/Minggu Ke-).
+// Format selalu valid, tidak ada kemungkinan salah ketik.
+// prefix: 'ops-' (Kapal) | 'oud-' (Pesawat)
+function _composePeriode(prefix) {
+  prefix = prefix || 'ops-';
+  var y = _v(prefix + 'periode-tahun');
+  var m = _v(prefix + 'periode-bulan');
+  var w = _v(prefix + 'periode-minggu');
+  if (!y || !m || !w) return '';
+  m = (parseInt(m, 10) < 10 ? '0' : '') + parseInt(m, 10);
+  w = 'W0' + parseInt(w, 10);
+  return y + '-' + m + '-' + w;
+}
+
+function _ensureCartoKey(cb) {
+  if (window._nautikaCartoKey !== undefined) { cb(window._nautikaCartoKey); return; }
+  google.script.run
+    .withSuccessHandler(function (key) {
+      window._nautikaCartoKey = key || '';
+      cb(window._nautikaCartoKey);
+    })
+    .withFailureHandler(function () {
+      window._nautikaCartoKey = '';
+      cb('');
+    })
+    .utils_getCartoKey();
+}
+
+function _cartoTileUrl(key) {
+  var base = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  return key ? (base + '?key=' + encodeURIComponent(key)) : base;
+}
+
+function _initOpsLautMap() {
+  _loadLeaflet(function () {
+    if (window.opsLautMap) {
+      window.opsLautMap.invalidateSize();
+      _renderWppLayer();
+      return;
+    }
+    var mapEl = document.getElementById('map-ops-laut');
+    if (!mapEl) return;
+    _ensureCartoKey(function (key) {
+      if (!window.opsLautMap) {
+        window.opsLautMap = L.map('map-ops-laut').setView([-2.5489, 118.0149], 5);
+      }
+      L.tileLayer(_cartoTileUrl(key), {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(window.opsLautMap);
+      _renderWppLayer();
+    });
+  });
+}
+
+function _renderWppLayer() {
+  if (!window.opsLautMap) return;
+  if (window.opsLautWppLayer) {
+    window.opsLautMap.removeLayer(window.opsLautWppLayer);
+    window.opsLautWppLayer = null;
+  }
+
+  _opsGetGeoData(function(geoData) {
+    if (!window.opsLautMap) return;
+    var kpi = _OPSLAUT.kpiData;
+    window.opsLautWppLayer = L.geoJSON(geoData, {
+        style: function(feature) {
+          var wppCode = feature.properties.wppnri; // properti geojson: wppnri (kode), name (mis. "WPP 571")
+          var intensitas = 0;
+          if (kpi && kpi.wppIntensitas && kpi.wppIntensitas[wppCode]) {
+            intensitas = kpi.wppIntensitas[wppCode];
+          }
+
+          var fillColor = '#e2e8f0'; // default empty
+          var fillOpacity = 0.5;
+          if (intensitas > 0) {
+            fillColor = 'var(--n-primary)';
+            fillOpacity = Math.min(0.2 + (intensitas * 0.05), 0.8);
+          }
+
+          return {
+            fillColor: fillColor,
+            weight: 1,
+            opacity: 1,
+            color: '#cbd5e1',
+            fillOpacity: fillOpacity
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          var wppCode = feature.properties.wppnri;
+          var nama    = feature.properties.name || wppCode;
+          var intensitas = 0;
+          if (_OPSLAUT.kpiData && _OPSLAUT.kpiData.wppIntensitas) {
+            intensitas = _OPSLAUT.kpiData.wppIntensitas[wppCode] || 0;
+          }
+          layer.bindTooltip("<strong>" + nama + "</strong><br>WPP: " + wppCode + "<br>Intensitas periode ini: " + intensitas, {sticky: true});
+        }
+      }).addTo(window.opsLautMap);
+  });
+}
+
+function _opsLautLoadOptions() {
+  if (_OPSLAUT.wppData) {
+    _opsLautPopulateWpp();
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _OPSLAUT.wppData = res.data;
+        _opsLautPopulateWpp();
+      } else {
+        var sel = document.getElementById('ops-wpp');
+        if (sel) sel.innerHTML = '<option value="">(Gagal: ' + res.error + ')</option>';
+      }
+    })
+    .withFailureHandler(function(err) {
+      var sel = document.getElementById('ops-wpp');
+      if (sel) sel.innerHTML = '<option value="">(Gagal memuat WPP)</option>';
+    })
+    .operasiLaut_getOptions(APP.token);
+}
+function _opsLautPopulateWpp() {
+  var sel = document.getElementById('ops-wpp');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">(Pilih WPP)</option>';
+  (_OPSLAUT.wppData || []).forEach(function(opt) {
+    var o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.text;
+    sel.appendChild(o);
+  });
+}
+
+function _opsLautLoadKPI() {
+  var strip = document.getElementById('ops-laut-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if(res.success) {
+        _OPSLAUT.kpiData = res.data;
+        _opsLautRenderKPI(res.data);
+        _renderWppLayer(); // update map colors
+        if(res.data.mingguTerakhirSubmit && res.data.hari_operasi_realisasi > 0) {
+          document.getElementById('ops-laut-form-body').style.display = 'none';
+          document.getElementById('ops-laut-form-toggle-icon').textContent = '▾';
+        }
+      } else {
+        if(strip) strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + res.error + '</div>';
+      }
+    })
+    .operasiLaut_getKPI(APP.token, APP.filter);
+}
+
+function _opsLautRenderKPI(kpi) {
+  var strip = document.getElementById('ops-laut-kpi-strip');
+  if (!strip) return;
+  
+  var totalKapal = (kpi.kii || 0) + (kpi.kia || 0);
+  var pctOp = kpi.hari_operasi_target > 0 ? ((kpi.hari_operasi_realisasi / kpi.hari_operasi_target)*100).toFixed(1) : 0;
+  
+  var html = '<div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; margin-bottom: 24px;">' +
+'<div class="n-card">' +
+'<div class="kpi-label">TOTAL KAPAL DITANGKAP</div>' +
+'<div class="kpi-val">' + totalKapal + '</div>' +
+'<div class="kpi-sub">KII: ' + kpi.kii + ' &middot; KIA: ' + kpi.kia + '</div>' +
+'</div>' +
+'<div class="n-card">' +
+'<div class="kpi-label">VALUASI DICEGAH</div>' +
+'<div class="kpi-val">' + _rupiah(kpi.valuasi_ikan) + '</div>' +
+'</div>' +
+'<div class="n-card">' +
+'<div class="kpi-label">RUMPON DITERTIBKAN</div>' +
+'<div class="kpi-val">' + kpi.rumpon + '</div>' +
+'<div class="kpi-sub">Val: ' + _rupiah(kpi.valuasi_rumpon) + '</div>' +
+'</div>' +
+'<div class="n-card">' +
+'<div class="kpi-label">HARI OPERASI (' + pctOp + '%)</div>' +
+'<div class="kpi-val" style="font-size:1.5rem;">' + kpi.hari_operasi_realisasi + ' / ' + kpi.hari_operasi_target + '</div>' +
+'<div style="margin-top:8px; height:6px; background:#e2e8f0; border-radius:99px; overflow:hidden;">' +
+'<div style="height:100%; width:' + Math.min(pctOp,100) + '%; background:var(--n-status-success);"></div>' +
+'</div>' +
+'</div>' +
+'</div>';
+  strip.innerHTML = html;
+}
+
+function opsLautToggleForm() {
+  var b = document.getElementById('ops-laut-form-body');
+  var i = document.getElementById('ops-laut-form-toggle-icon');
+  if (b.style.display === 'none') {
+    b.style.display = 'block';
+    i.textContent = '▴';
+  } else {
+    b.style.display = 'none';
+    i.textContent = '▾';
+  }
+}
+
+function _v(id) {
+  var el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+function opsLautSubmit() {
+  _msg('ops-laut-form-msg', '', '');
+  var btn = document.getElementById('ops-btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Menyimpan...';
+
+  var params = {
+    Periode: _composePeriode(),
+    WPPCode: _v('ops-wpp'),
+    KII_Ditangkap: parseInt(_v('ops-kii'), 10) || 0,
+    KIA_Ditangkap: parseInt(_v('ops-kia'), 10) || 0,
+    AsalNegaraAsing: _v('ops-asal-negara'),
+    ValuasiIllegalFishing: parseInt(_v('ops-valuasi-ikan'), 10) || 0,
+    RumponDitertibkan: parseInt(_v('ops-rumpon'), 10) || 0,
+    ValuasiRumpon: parseInt(_v('ops-valuasi-rumpon'), 10) || 0,
+    HasilRiksa_Kategori: _v('ops-riksa-kategori'),
+    HasilRiksa_KII: parseInt(_v('ops-riksa-kii'), 10) || 0,
+    HasilRiksa_KIA: parseInt(_v('ops-riksa-kia'), 10) || 0,
+    HasilRiksa_ObjekSDK: parseInt(_v('ops-riksa-sdk'), 10) || 0,
+    HariOperasi_Kategori: _v('ops-hari-kategori'),
+    HariOperasi_Jumlah: parseInt(_v('ops-hari-jumlah'), 10) || 0,
+    HariOperasi_Target: parseInt(_v('ops-hari-target'), 10) || 180
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Simpan Laporan';
+      if(res.success) {
+        _msg('ops-laut-form-msg', 'success', res.message);
+        setTimeout(function(){
+          _msg('ops-laut-form-msg', '', '');
+          opsLautToggleForm();
+          _opsLautLoadKPI();
+          _opsLautLoadHistory();
+        }, 1500);
+      } else {
+        _msg('ops-laut-form-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      btn.disabled = false;
+      btn.textContent = 'Simpan Laporan';
+      _msg('ops-laut-form-msg', 'error', 'Koneksi terputus.');
+    })
+    .operasiLaut_submit(APP.token, params);
+}
+
+function _opsLautLoadHistory() {
+  var wrap = document.getElementById('ops-laut-history-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat riwayat operasi laut\u2026');
+  
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res.success) _opsLautRenderHistory(res.data);
+      else wrap.innerHTML = '<div class="n-msg error">' + res.error + '</div>';
+    })
+    .operasiLaut_getHistory(APP.token, APP.filter);
+}
+
+function _opsLautRenderHistory(data) {
+  var wrap = document.getElementById('ops-laut-history-wrap');
+  if(!wrap) return;
+  if(data.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;">Tidak ada riwayat untuk periode ini.</div>';
+    return;
+  }
+  
+  var isStaf = (APP.user && APP.user.role === 'STAF');
+  var isPimpinan = (APP.user && (APP.user.role==='DIREKTUR' || APP.user.role==='SUPERADMIN' || APP.user.role==='KADIV'));
+  
+  var t = '<table class="n-table"><thead><tr>';
+  t += '<th>Periode</th><th>WPP</th><th>Kapal (KII/KIA)</th><th>Valuasi</th><th>Rumpon</th><th>Riksa</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
+  t += '</tr></thead><tbody>';
+  
+  for(var i=0; i<data.length; i++) {
+    var r = data[i];
+    
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if(r.Status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if(r.Status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+    
+    var bRev = (r.Status==='ACTIVE' && !isStaf && APP.user.divisiId === 'DIV-OPS') ? '<button class="btn-mini" onclick="opsLautOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
+    var bAn  = (r.Status==='ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="opsLautOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
+    
+    if(r.Status==='ACTIVE' && (APP.user.role==='STAF'||APP.user.role==='KADIV') && APP.user.divisiId === 'DIV-OPS'){
+      bRev = '<button class="btn-mini" onclick="opsLautOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>';
+    }
+    
+    var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + r.Periode + '</td>';
+    t += '<td>' + r.WPPCode + '</td>';
+    t += '<td>' + r.KII_Ditangkap + ' / ' + r.KIA_Ditangkap + '</td>';
+    t += '<td>' + _rupiah(r.ValuasiIllegalFishing) + '</td>';
+    t += '<td>' + r.RumponDitertibkan + '</td>';
+    t += '<td>' + (r.HasilRiksa_Kategori||'-') + '</td>';
+    t += '<td>' + r.HariOperasi_Jumlah + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+    
+    if(r.Status === 'VOID' && r.VoidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="9" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
+      t += '<strong>Alasan Anulir:</strong> ' + r.VoidReason + ' (oleh ' + r.VoidedBy + ')';
+      t += '</td></tr>';
+    }
+  }
+  
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function opsLautOpenRevisiModal(rowId) {
+  _OPSLAUT.pendingRowId = rowId;
+  document.getElementById('rv-ops-alasan').value = '';
+  document.getElementById('ops-revisi-msg').style.display = 'none';
+  document.getElementById('modal-ops-revisi').classList.remove('n-hidden');
+}
+
+function opsLautRevisiConfirm() {
+  _msg('ops-revisi-msg', '', '');
+  var alasan = _v('rv-ops-alasan');
+  if(!alasan) { _msg('ops-revisi-msg', 'error', 'Alasan wajib diisi.'); return; }
+  
+  var btn = document.getElementById('ops-btn-revisi-save');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  
+  var params = {
+    targetRowId: _OPSLAUT.pendingRowId,
+    alasanRevisi: alasan
+  };
+  
+  if(_v('rv-ops-kii')) params.KII_Ditangkap = parseInt(_v('rv-ops-kii'), 10);
+  if(_v('rv-ops-kia')) params.KIA_Ditangkap = parseInt(_v('rv-ops-kia'), 10);
+  if(_v('rv-ops-asal-negara')) params.AsalNegaraAsing = _v('rv-ops-asal-negara');
+  if(_v('rv-ops-valuasi-ikan')) params.ValuasiIllegalFishing = parseInt(_v('rv-ops-valuasi-ikan'), 10);
+  if(_v('rv-ops-rumpon')) params.RumponDitertibkan = parseInt(_v('rv-ops-rumpon'), 10);
+  if(_v('rv-ops-valuasi-rumpon')) params.ValuasiRumpon = parseInt(_v('rv-ops-valuasi-rumpon'), 10);
+  if(_v('rv-ops-riksa-kategori')) params.HasilRiksa_Kategori = _v('rv-ops-riksa-kategori');
+  if(_v('rv-ops-riksa-kii')) params.HasilRiksa_KII = parseInt(_v('rv-ops-riksa-kii'), 10);
+  if(_v('rv-ops-riksa-kia')) params.HasilRiksa_KIA = parseInt(_v('rv-ops-riksa-kia'), 10);
+  if(_v('rv-ops-riksa-sdk')) params.HasilRiksa_ObjekSDK = parseInt(_v('rv-ops-riksa-sdk'), 10);
+  if(_v('rv-ops-hari-kategori')) params.HariOperasi_Kategori = _v('rv-ops-hari-kategori');
+  if(_v('rv-ops-hari-jumlah')) params.HariOperasi_Jumlah = parseInt(_v('rv-ops-hari-jumlah'), 10);
+  if(_v('rv-ops-hari-target')) params.HariOperasi_Target = parseInt(_v('rv-ops-hari-target'), 10);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false; btn.textContent = 'Simpan Revisi';
+      if(res.success) {
+        _msg('ops-revisi-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-ops-revisi');
+          _opsLautLoadKPI();
+          _opsLautLoadHistory();
+        }, 1000);
+      } else {
+        _msg('ops-revisi-msg', 'error', res.error);
+      }
+    })
+    .operasiLaut_revisi(APP.token, params);
+}
+
+function opsLautOpenAnulirModal(rowId) {
+  _OPSLAUT.pendingRowId = rowId;
+  document.getElementById('an-ops-alasan').value = '';
+  document.getElementById('ops-anulir-msg').style.display = 'none';
+  document.getElementById('modal-ops-anulir').classList.remove('n-hidden');
+}
+
+function opsLautAnulirConfirm() {
+  var alasan = _v('an-ops-alasan');
+  if(!alasan) { _msg('ops-anulir-msg', 'error', 'Alasan wajib diisi.'); return; }
+  
+  var btn = document.getElementById('ops-btn-anulir-save');
+  btn.disabled = true; btn.textContent = 'Memproses...';
+  
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.textContent = 'Anulir Laporan';
+      if(res.success) {
+        _msg('ops-anulir-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-ops-anulir');
+          _opsLautLoadKPI();
+          _opsLautLoadHistory();
+        }, 1000);
+      } else {
+        _msg('ops-anulir-msg', 'error', res.error);
+      }
+    })
+    .operasiLaut_anulir(APP.token, { targetRowId: _OPSLAUT.pendingRowId, alasan: alasan });
+}
+
+
+// ============================================================
+// MODUL OPERASI UDARA (PESAWAT) — Fase 7
+// ============================================================
+var _OPSUDARA = {
+  pendingRowId: null,
+  wppData: null,
+  kpiData: null
+};
+
+function _renderOperasiUdara(el) {
+  // Teardown peta Pesawat dulu (setiap render ulang utuh)
+  if (window.opsUdaraMap) {
+    try { window.opsUdaraMap.remove(); } catch(e) {}
+    window.opsUdaraMap = null;
+  }
+  window.opsUdaraWppLayer = null;
+
+  var tpl = document.getElementById('view-tpl-operasi-udara');
+  if (!tpl) { el.innerHTML = _moduleStub('Operasi Udara'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _opsInitPeriodeUi('oud-');
+  _opsUdaraLoadOptions();
+  _opsUdaraLoadKPI();
+  _opsUdaraLoadHistory();
+
+  var pHint = document.getElementById('oud-periode-hint');
+  if (pHint) {
+    google.script.run.withSuccessHandler(function(res){
+      if(res) pHint.textContent = 'Periode saat ini: ' + res;
+    }).utils_getCurrentPeriode();
+  }
+
+  // Init map — tunggu Leaflet dimuat dulu (on-demand loader)
+  _loadLeaflet(function() { setTimeout(_initOpsUdaraMap, 100); });
+}
+
+function _initOpsUdaraMap() {
+  _loadLeaflet(function () {
+    if (window.opsUdaraMap) {
+      window.opsUdaraMap.invalidateSize();
+      _renderOpsUdaraWppLayer();
+      return;
+    }
+    var mapEl = document.getElementById('map-ops-udara');
+    if (!mapEl) return;
+    _ensureCartoKey(function (key) {
+      if (!window.opsUdaraMap) {
+        window.opsUdaraMap = L.map('map-ops-udara').setView([-2.5489, 118.0149], 5);
+      }
+      L.tileLayer(_cartoTileUrl(key), {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(window.opsUdaraMap);
+      _renderOpsUdaraWppLayer();
+    });
+  });
+}
+
+function _renderOpsUdaraWppLayer() {
+  if (!window.opsUdaraMap) return;
+  if (window.opsUdaraWppLayer) {
+    window.opsUdaraMap.removeLayer(window.opsUdaraWppLayer);
+    window.opsUdaraWppLayer = null;
+  }
+
+  _opsGetGeoData(function(geoData) {
+    if (!window.opsUdaraMap) return;
+    var kpi = _OPSUDARA.kpiData;
+    window.opsUdaraWppLayer = L.geoJSON(geoData, {
+        style: function(feature) {
+          var wppCode = feature.properties.wppnri;
+          var intensitas = 0;
+          if (kpi && kpi.wppIntensitas && kpi.wppIntensitas[wppCode]) {
+            intensitas = kpi.wppIntensitas[wppCode];
+          }
+
+          var fillColor = '#e2e8f0';
+          var fillOpacity = 0.5;
+          if (intensitas > 0) {
+            fillColor = 'var(--n-primary)';
+            fillOpacity = Math.min(0.2 + (intensitas * 0.05), 0.8);
+          }
+
+          return {
+            fillColor: fillColor,
+            weight: 1,
+            opacity: 1,
+            color: '#cbd5e1',
+            fillOpacity: fillOpacity
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          var wppCode = feature.properties.wppnri;
+          var nama    = feature.properties.name || wppCode;
+          var intensitas = 0;
+          if (_OPSUDARA.kpiData && _OPSUDARA.kpiData.wppIntensitas) {
+            intensitas = _OPSUDARA.kpiData.wppIntensitas[wppCode] || 0;
+          }
+          layer.bindTooltip("<strong>" + nama + "</strong><br>WPP: " + wppCode + "<br>Intensitas periode ini: " + intensitas, {sticky: true});
+        }
+      }).addTo(window.opsUdaraMap);
+  });
+}
+
+function _opsUdaraLoadOptions() {
+  if (_OPSUDARA.wppData) {
+    _opsUdaraPopulateWpp();
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _OPSUDARA.wppData = res.data;
+        _opsUdaraPopulateWpp();
+      } else {
+        var sel = document.getElementById('oud-wpp');
+        if (sel) sel.innerHTML = '<option value="">(Gagal: ' + res.error + ')</option>';
+      }
+    })
+    .withFailureHandler(function(err) {
+      var sel = document.getElementById('oud-wpp');
+      if (sel) sel.innerHTML = '<option value="">(Gagal memuat WPP)</option>';
+    })
+    .operasiUdara_getOptions(APP.token);
+}
+
+function _opsUdaraPopulateWpp() {
+  var sel = document.getElementById('oud-wpp');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">(Pilih WPP)</option>';
+  (_OPSUDARA.wppData || []).forEach(function(opt) {
+    var o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.text;
+    sel.appendChild(o);
+  });
+}
+
+function _opsUdaraLoadKPI() {
+  var strip = document.getElementById('ops-udara-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if(res.success) {
+        _OPSUDARA.kpiData = res.data;
+        _opsUdaraRenderKPI(res.data);
+        _renderOpsUdaraWppLayer(); // update map colors
+        if(res.data.mingguTerakhirSubmit && res.data.hari_operasi_realisasi > 0) {
+          document.getElementById('ops-udara-form-body').style.display = 'none';
+          document.getElementById('ops-udara-form-toggle-icon').textContent = '▾';
+        }
+      } else {
+        if(strip) strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + res.error + '</div>';
+      }
+    })
+    .operasiUdara_getKPI(APP.token, APP.filter);
+}
+
+function _opsUdaraRenderKPI(kpi) {
+  var strip = document.getElementById('ops-udara-kpi-strip');
+  if (!strip) return;
+
+  var totalPantau = (kpi.kii || 0) + (kpi.kia || 0);
+  var pctOp = kpi.hari_operasi_target > 0 ? ((kpi.hari_operasi_realisasi / kpi.hari_operasi_target)*100).toFixed(1) : 0;
+
+  var html = '    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; margin-bottom: 24px;">\n' +
+'      <div class="n-card">\n' +
+'        <div class="kpi-label">KAPAL DIPANTAU</div>\n' +
+'        <div class="kpi-val">' + (totalPantau) + '</div>\n' +
+'        <div class="kpi-sub">KII: ' + (kpi.kii) + ' &middot; KIA: ' + (kpi.kia) + '</div>\n' +
+'      </div>\n' +
+'      <div class="n-card">\n' +
+'        <div class="kpi-label">RUMPON LOKAL</div>\n' +
+'        <div class="kpi-val">' + (kpi.rumpon_lokal) + '</div>\n' +
+'        <div class="kpi-sub">Teridentifikasi</div>\n' +
+'      </div>\n' +
+'      <div class="n-card">\n' +
+'        <div class="kpi-label">CAKUPAN WILAYAH</div>\n' +
+'        <div class="kpi-val">' + (kpi.cakupan_nm2) + '</div>\n' +
+'        <div class="kpi-sub">NM&sup2; teramati</div>\n' +
+'      </div>\n' +
+'      <div class="n-card">\n' +
+'        <div class="kpi-label">HARI OPERASI (' + (pctOp) + '%)</div>\n' +
+'        <div class="kpi-val" style="font-size:1.5rem;">' + (kpi.hari_operasi_realisasi) + ' / ' + (kpi.hari_operasi_target) + '</div>\n' +
+'        <div style="margin-top:8px; height:6px; background:#e2e8f0; border-radius:99px; overflow:hidden;">\n' +
+'          <div style="height:100%; width:' + (Math.min(pctOp,100)) + '%; background:var(--n-status-success);"></div>\n' +
+'        </div>\n' +
+'      </div>\n' +
+'    </div>\n';
+  strip.innerHTML = html;
+}
+
+function opsUdaraToggleForm() {
+  var b = document.getElementById('ops-udara-form-body');
+  var i = document.getElementById('ops-udara-form-toggle-icon');
+  if (b.style.display === 'none') {
+    b.style.display = 'block';
+    i.textContent = '▴';
+  } else {
+    b.style.display = 'none';
+    i.textContent = '▾';
+  }
+}
+
+function opsUdaraSubmit() {
+  _msg('ops-udara-form-msg', '', '');
+  var btn = document.getElementById('oud-btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Menyimpan...';
+
+  var params = {
+    Periode: _composePeriode('oud-'),
+    WPPCode: _v('oud-wpp'),
+    KII: parseInt(_v('oud-kii'), 10) || 0,
+    KIA: parseInt(_v('oud-kia'), 10) || 0,
+    ObjekSDK: parseInt(_v('oud-sdk'), 10) || 0,
+    RumponLokalTeridentifikasi: parseInt(_v('oud-rumpon'), 10) || 0,
+    CakupanWilayah_NM2: parseInt(_v('oud-cakupan'), 10) || 0,
+    HariOperasi_Jumlah: parseInt(_v('oud-hari-jumlah'), 10) || 0,
+    HariOperasi_Target: parseInt(_v('oud-hari-target'), 10) || 180
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Simpan Laporan';
+      if(res.success) {
+        _msg('ops-udara-form-msg', 'success', res.message);
+        setTimeout(function(){
+          _msg('ops-udara-form-msg', '', '');
+          opsUdaraToggleForm();
+          _opsUdaraLoadKPI();
+          _opsUdaraLoadHistory();
+        }, 1500);
+      } else {
+        _msg('ops-udara-form-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      btn.disabled = false;
+      btn.textContent = 'Simpan Laporan';
+      _msg('ops-udara-form-msg', 'error', 'Koneksi terputus.');
+    })
+    .operasiUdara_submit(APP.token, params);
+}
+
+function _opsUdaraLoadHistory() {
+  var wrap = document.getElementById('ops-udara-history-wrap');
+  if(!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat riwayat operasi pesawat\u2026');
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res.success) _opsUdaraRenderHistory(res.data);
+      else wrap.innerHTML = '<div class="n-msg error">' + res.error + '</div>';
+    })
+    .operasiUdara_getHistory(APP.token, APP.filter);
+}
+
+function _opsUdaraRenderHistory(data) {
+  var wrap = document.getElementById('ops-udara-history-wrap');
+  if(!wrap) return;
+  if(data.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;">Tidak ada riwayat untuk periode ini.</div>';
+    return;
+  }
+
+  var isStaf = (APP.user && APP.user.role === 'STAF');
+  var isPimpinan = (APP.user && (APP.user.role==='DIREKTUR' || APP.user.role==='SUPERADMIN' || APP.user.role==='KADIV'));
+
+  var t = '<table class="n-table"><thead><tr>';
+  t += '<th>Periode</th><th>WPP</th><th>KII/KIA</th><th>Objek SDK</th><th>Rumpon</th><th>Cakupan (NM&sup2;)</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
+  t += '</tr></thead><tbody>';
+
+  for(var i=0; i<data.length; i++) {
+    var r = data[i];
+
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if(r.Status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if(r.Status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.Status==='ACTIVE' && !isStaf && APP.user.divisiId === 'DIV-OPS') ? '<button class="btn-mini" onclick="opsUdaraOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
+    var bAn  = (r.Status==='ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="opsUdaraOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
+
+    if(r.Status==='ACTIVE' && (APP.user.role==='STAF'||APP.user.role==='KADIV') && APP.user.divisiId === 'DIV-OPS'){
+      bRev = '<button class="btn-mini" onclick="opsUdaraOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>';
+    }
+
+    var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + r.Periode + '</td>';
+    t += '<td>' + r.WPPCode + '</td>';
+    t += '<td>' + (r.KII||0) + ' / ' + (r.KIA||0) + '</td>';
+    t += '<td>' + (r.ObjekSDK||0) + '</td>';
+    t += '<td>' + (r.RumponLokalTeridentifikasi||0) + '</td>';
+    t += '<td>' + (r.CakupanWilayah_NM2||0) + '</td>';
+    t += '<td>' + (r.HariOperasi_Jumlah||0) + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if(r.Status === 'VOID' && r.VoidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="9" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
+      t += '<strong>Alasan Anulir:</strong> ' + r.VoidReason + ' (oleh ' + r.VoidedBy + ')';
+      t += '</td></tr>';
+    }
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function opsUdaraOpenRevisiModal(rowId) {
+  _OPSUDARA.pendingRowId = rowId;
+  document.getElementById('rv-oud-alasan').value = '';
+  document.getElementById('oud-revisi-msg').style.display = 'none';
+  document.getElementById('modal-oud-revisi').classList.remove('n-hidden');
+}
+
+function opsUdaraRevisiConfirm() {
+  _msg('oud-revisi-msg', '', '');
+  var alasan = _v('rv-oud-alasan');
+  if(!alasan) { _msg('oud-revisi-msg', 'error', 'Alasan wajib diisi.'); return; }
+
+  var btn = document.getElementById('oud-btn-revisi-save');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+  var params = {
+    targetRowId: _OPSUDARA.pendingRowId,
+    alasanRevisi: alasan
+  };
+
+  if(_v('rv-oud-kii')) params.KII = parseInt(_v('rv-oud-kii'), 10);
+  if(_v('rv-oud-kia')) params.KIA = parseInt(_v('rv-oud-kia'), 10);
+  if(_v('rv-oud-sdk')) params.ObjekSDK = parseInt(_v('rv-oud-sdk'), 10);
+  if(_v('rv-oud-rumpon')) params.RumponLokalTeridentifikasi = parseInt(_v('rv-oud-rumpon'), 10);
+  if(_v('rv-oud-cakupan')) params.CakupanWilayah_NM2 = parseInt(_v('rv-oud-cakupan'), 10);
+  if(_v('rv-oud-hari-jumlah')) params.HariOperasi_Jumlah = parseInt(_v('rv-oud-hari-jumlah'), 10);
+  if(_v('rv-oud-hari-target')) params.HariOperasi_Target = parseInt(_v('rv-oud-hari-target'), 10);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false; btn.textContent = 'Simpan Revisi';
+      if(res.success) {
+        _msg('oud-revisi-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-oud-revisi');
+          _opsUdaraLoadKPI();
+          _opsUdaraLoadHistory();
+        }, 1000);
+      } else {
+        _msg('oud-revisi-msg', 'error', res.error);
+      }
+    })
+    .operasiUdara_revisi(APP.token, params);
+}
+
+function opsUdaraOpenAnulirModal(rowId) {
+  _OPSUDARA.pendingRowId = rowId;
+  document.getElementById('an-oud-alasan').value = '';
+  document.getElementById('oud-anulir-msg').style.display = 'none';
+  document.getElementById('modal-oud-anulir').classList.remove('n-hidden');
+}
+
+function opsUdaraAnulirConfirm() {
+  var alasan = _v('an-oud-alasan');
+  if(!alasan) { _msg('oud-anulir-msg', 'error', 'Alasan wajib diisi.'); return; }
+
+  var btn = document.getElementById('oud-btn-anulir-save');
+  btn.disabled = true; btn.textContent = 'Memproses...';
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      btn.disabled = false; btn.textContent = 'Anulir Laporan';
+      if(res.success) {
+        _msg('oud-anulir-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-oud-anulir');
+          _opsUdaraLoadKPI();
+          _opsUdaraLoadHistory();
+        }, 1000);
+      } else {
+        _msg('oud-anulir-msg', 'error', res.error);
+      }
+    })
+    .operasiUdara_anulir(APP.token, { targetRowId: _OPSUDARA.pendingRowId, alasan: alasan });
+}
+
+
+// ── FORMAT RUPIAH ─────────────────────────────────────────
+
+function _rupiah(angka) {
+  if (angka === null || angka === undefined) return 'Rp —';
+  var n = parseFloat(angka) || 0;
+  var prefix = n < 0 ? '-Rp ' : 'Rp ';
+  return prefix + Math.abs(Math.round(n)).toLocaleString('id-ID');
+}
+
+</script>

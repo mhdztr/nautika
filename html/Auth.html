@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nautika — Direktorat POA, KKP RI</title>
+  <meta name="description" content="Sistem Monitoring dan Pelaporan Direktorat Pengendalian Operasi Armada, Kementerian Kelautan dan Perikanan RI.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* =========================================================
+       Design tokens — sesuai DESIGN.md §2-4
+       ========================================================= */
+    :root {
+      --n-bg-base:       #F4F7FE;
+      --n-surface-1:     #FFFFFF;
+      --n-surface-2:     #F9FAFB;
+      --n-surface-hover: #F1F5F9;
+      --n-text-primary:  #2B3674;
+      --n-text-secondary:#4A5568;
+      --n-text-muted:    #A3AED0;
+      --n-border-subtle: rgba(0,0,0,0.06);
+      --n-primary:       #4318FF;
+      --n-primary-light: #E9E3FF;
+      --n-status-success:#10B981;
+      --n-status-warning:#F59E0B;
+      --n-status-critical:#EF4444;
+      --n-shadow-card:   0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+      --n-radius-sm:     12px;
+      --n-radius-lg:     16px;
+      --n-radius-pill:   99px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: var(--n-bg-base);
+      color: var(--n-text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* =========================================================
+       Kartu autentikasi
+       ========================================================= */
+    .auth-card {
+      background: var(--n-surface-1);
+      border-radius: var(--n-radius-lg);
+      box-shadow: var(--n-shadow-card);
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .brand {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 1.25rem;
+      color: var(--n-primary);
+      letter-spacing: -0.01em;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 1.375rem;
+      color: var(--n-text-primary);
+      margin-bottom: 24px;
+      letter-spacing: -0.01em;
+    }
+
+    /* =========================================================
+       Form elements
+       ========================================================= */
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--n-text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--n-border-subtle);
+      border-radius: var(--n-radius-sm);
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.9375rem;
+      color: var(--n-text-primary);
+      background: var(--n-surface-2);
+      transition: border-color 0.15s, background 0.15s;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: var(--n-primary);
+      background: var(--n-surface-1);
+    }
+    .form-group select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AED0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    /* =========================================================
+       Tombol
+       ========================================================= */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: var(--n-radius-sm);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn-primary {
+      background: var(--n-primary);
+      color: #fff;
+      margin-top: 8px;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--n-primary);
+      border: 1px solid var(--n-border-subtle);
+      margin-top: 8px;
+    }
+    .btn-ghost:hover { background: var(--n-primary-light); }
+    .btn-danger {
+      background: transparent;
+      color: var(--n-status-critical);
+      border: 1px solid var(--n-border-subtle);
+    }
+    .btn-danger:hover { background: #FEF2F2; }
+
+    /* =========================================================
+       Pesan & alert
+       ========================================================= */
+    .msg {
+      padding: 10px 14px;
+      border-radius: var(--n-radius-sm);
+      font-size: 0.875rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .msg.error   { background:#FEF2F2; color:var(--n-status-critical); }
+    .msg.success { background:#ECFDF5; color:var(--n-status-success); }
+    .msg.info    { background:var(--n-primary-light); color:var(--n-primary); }
+    .msg.show    { display: block; }
+
+    /* =========================================================
+       Link kecil
+       ========================================================= */
+    .link-row {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.875rem;
+      color: var(--n-text-secondary);
+    }
+    .link-row a {
+      color: var(--n-primary);
+      text-decoration: none;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .link-row a:hover { text-decoration: underline; }
+
+    /* =========================================================
+       Pending view
+       ========================================================= */
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--n-border-subtle);
+      font-size: 0.9rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .lbl { color: var(--n-text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .info-row .val { color: var(--n-text-primary); font-weight: 500; }
+
+    /* =========================================================
+       Main view (stub + approvals)
+       ========================================================= */
+    .main-card {
+      background: var(--n-surface-1);
+      border-radius: var(--n-radius-lg);
+      box-shadow: var(--n-shadow-card);
+      padding: 32px;
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--n-border-subtle);
+    }
+    .header-bar .brand-sm {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--n-primary);
+    }
+    .header-bar .user-chip {
+      font-size: 0.875rem;
+      color: var(--n-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-bar .user-name {
+      font-weight: 600;
+      color: var(--n-text-primary);
+    }
+
+    /* Approval table */
+    .section-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--n-text-primary);
+      margin-bottom: 16px;
+    }
+    .approval-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .approval-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--n-text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--n-border-subtle);
+    }
+    .approval-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--n-border-subtle);
+      vertical-align: middle;
+    }
+    .approval-table tr:last-child td { border-bottom: none; }
+    .approval-table .action-btns { display: flex; gap: 8px; }
+    .btn-sm {
+      padding: 5px 12px;
+      border: 1px solid var(--n-border-subtle);
+      border-radius: var(--n-radius-pill);
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-sm-approve { background: #ECFDF5; color: var(--n-status-success); border-color: #A7F3D0; }
+    .btn-sm-approve:hover { background: #D1FAE5; }
+    .btn-sm-reject  { background: #FEF2F2; color: var(--n-status-critical); border-color: #FECACA; }
+    .btn-sm-reject:hover  { background: #FEE2E2; }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px;
+      color: var(--n-text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Reject reason modal overlay */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: var(--n-surface-1);
+      border-radius: var(--n-radius-lg);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      padding: 32px;
+      width: 400px;
+      max-width: 90vw;
+    }
+    .modal-box h2 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: var(--n-text-primary);
+    }
+
+    /* Spinner kecil */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- =====================================================
+       VIEW: LOGIN
+       ===================================================== -->
+  <div id="view-login" class="auth-card hidden">
+    <div class="brand">Nautika</div>
+    <h1>Masuk ke Akun</h1>
+
+    <div id="login-msg" class="msg"></div>
+
+    <form id="form-login" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-email">Email / NIP</label>
+        <input type="email" id="login-email" placeholder="nama@instansi.go.id" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-login">Masuk</button>
+    </form>
+
+    <div class="link-row">
+      Belum punya akun? <a onclick="showView('register')">Daftar</a>
+    </div>
+  </div>
+
+  <!-- =====================================================
+       VIEW: REGISTER
+       ===================================================== -->
+  <div id="view-register" class="auth-card hidden">
+    <div class="brand">Nautika</div>
+    <h1>Daftar Akun Baru</h1>
+
+    <div id="register-msg" class="msg"></div>
+
+    <form id="form-register" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label for="reg-nama">Nama Lengkap</label>
+        <input type="text" id="reg-nama" placeholder="Nama sesuai dokumen resmi" required>
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email / NIP</label>
+        <input type="email" id="reg-email" placeholder="nama@instansi.go.id" required>
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Password</label>
+        <input type="password" id="reg-password" placeholder="Minimal 8 karakter" required minlength="8">
+      </div>
+      <div class="form-group">
+        <label for="reg-divisi">Unit Kerja / Divisi</label>
+        <select id="reg-divisi" required>
+          <option value="">— Pilih Unit Kerja —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reg-role">Jabatan yang Dilamar</label>
+        <select id="reg-role" required>
+          <option value="">— Pilih Jabatan —</option>
+          <option value="STAF">Staf / Pegawai</option>
+          <option value="KADIV">Kepala Divisi / Ketua Tim Kerja / Kepala Sub Direktorat</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-register">Kirim Permintaan</button>
+    </form>
+
+    <div class="link-row">
+      Sudah punya akun? <a onclick="showView('login')">Masuk</a>
+    </div>
+  </div>
+
+  <!-- =====================================================
+       VIEW: MENUNGGU PERSETUJUAN
+       ===================================================== -->
+  <div id="view-pending" class="auth-card hidden">
+    <div class="brand">Nautika</div>
+    <h1>Menunggu Persetujuan</h1>
+
+    <div class="msg info show" style="margin-bottom:20px;">
+      Akun Anda sedang dalam proses verifikasi oleh administrator.
+      Anda akan dapat mengakses sistem setelah disetujui.
+    </div>
+
+    <div id="pending-info" style="margin-bottom:24px;"></div>
+
+    <button class="btn btn-ghost" onclick="handleLogout()">Keluar</button>
+  </div>
+
+  <!-- =====================================================
+       VIEW: UTAMA (APPROVED) — Stub Fase 2
+       ===================================================== -->
+  <div id="view-main" class="main-card hidden">
+    <div class="header-bar">
+      <div class="brand-sm">Nautika</div>
+      <div class="user-chip">
+        <span>Masuk sebagai <span id="main-user-name" class="user-name"></span></span>
+        <button class="btn-sm btn-danger" onclick="handleLogout()">Keluar</button>
+      </div>
+    </div>
+
+    <div id="main-msg" class="msg" style="margin-bottom:16px;"></div>
+
+    <!-- Approvals section — hanya tampil untuk SUPERADMIN, DIREKTUR, KADIV -->
+    <div id="approvals-section">
+      <div class="section-title">Permintaan Registrasi Masuk</div>
+      <div id="approvals-msg" class="msg" style="margin-bottom:12px;"></div>
+      <div id="approvals-container">
+        <div class="empty-state">Memuat data…</div>
+      </div>
+    </div>
+
+    <!-- Stub untuk role STAF -->
+    <div id="staff-stub" class="hidden">
+      <div class="section-title">Selamat Datang</div>
+      <p style="color:var(--n-text-secondary); font-size:0.9rem; line-height:1.6;">
+        Akun Anda telah aktif. Antarmuka modul sedang dalam pembangunan (Fase 3).
+        Pantau perkembangan bersama administrator sistem.
+      </p>
+    </div>
+  </div>
+
+  <!-- =====================================================
+       MODAL: ALASAN PENOLAKAN
+       ===================================================== -->
+  <div class="modal-overlay" id="modal-reject">
+    <div class="modal-box">
+      <h2>Tolak Registrasi</h2>
+      <div class="form-group">
+        <label for="reject-reason">Alasan Penolakan</label>
+        <input type="text" id="reject-reason" placeholder="Tuliskan alasan penolakan">
+      </div>
+      <button class="btn btn-primary" id="btn-confirm-reject">Konfirmasi Penolakan</button>
+      <button class="btn btn-ghost" onclick="closeRejectModal()" style="margin-top:8px;">Batal</button>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // STATE
+    // =========================================================
+    var APP = {
+      token: null,
+      user: null,
+      pendingQueueId: null   // untuk modal reject
+    };
+
+    var TOKEN_KEY = 'nautika_token';
+
+    // =========================================================
+    // INIT
+    // =========================================================
+    document.addEventListener('DOMContentLoaded', function () {
+      // Coba restore sesi dari sessionStorage
+      var savedToken = sessionStorage.getItem(TOKEN_KEY);
+      if (savedToken) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.success) {
+              APP.token = savedToken;
+              APP.user  = res.data;
+              routeByStatus(res.data);
+            } else {
+              sessionStorage.removeItem(TOKEN_KEY);
+              showView('login');
+            }
+          })
+          .withFailureHandler(function () {
+            sessionStorage.removeItem(TOKEN_KEY);
+            showView('login');
+          })
+          .auth_getSessionInfo(savedToken);
+      } else {
+        showView('login');
+      }
+
+      // Load divisi list untuk form register
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) return;
+          var sel = document.getElementById('reg-divisi');
+          res.data.forEach(function (d) {
+            var opt = document.createElement('option');
+            opt.value = d.divisiId;
+            opt.textContent = d.namaDashboard + ' — ' + d.namaResmi;
+            sel.appendChild(opt);
+          });
+        })
+        .auth_getDivisiList();
+    });
+
+    // =========================================================
+    // ROUTING BERDASARKAN STATUS AKUN
+    // =========================================================
+    function routeByStatus(user) {
+      if (user.status === 'PENDING') {
+        renderPendingInfo(user);
+        showView('pending');
+      } else if (user.status === 'APPROVED') {
+        renderMain(user);
+        showView('main');
+      } else {
+        sessionStorage.removeItem(TOKEN_KEY);
+        showView('login');
+      }
+    }
+
+    // =========================================================
+    // LOGIN
+    // =========================================================
+    function handleLogin(e) {
+      e.preventDefault();
+      var btn = document.getElementById('btn-login');
+      setLoading(btn, true);
+      hideMsg('login-msg');
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          setLoading(btn, false);
+          if (!res.success) {
+            showMsg('login-msg', 'error', res.error);
+            return;
+          }
+          APP.token = res.data.token;
+          APP.user  = res.data.user;
+          sessionStorage.setItem(TOKEN_KEY, APP.token);
+          routeByStatus(res.data.user);
+        })
+        .withFailureHandler(function (err) {
+          setLoading(btn, false);
+          showMsg('login-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+        })
+        .auth_login({
+          email:    document.getElementById('login-email').value,
+          password: document.getElementById('login-password').value
+        });
+    }
+
+    // =========================================================
+    // REGISTER
+    // =========================================================
+    function handleRegister(e) {
+      e.preventDefault();
+      var btn = document.getElementById('btn-register');
+      setLoading(btn, true);
+      hideMsg('register-msg');
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          setLoading(btn, false);
+          if (!res.success) {
+            showMsg('register-msg', 'error', res.error);
+            return;
+          }
+          showMsg('register-msg', 'success',
+            'Pendaftaran berhasil. Silakan tunggu persetujuan dari administrator.');
+          document.getElementById('form-register').reset();
+        })
+        .withFailureHandler(function (err) {
+          setLoading(btn, false);
+          showMsg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+        })
+        .auth_register({
+          nama:        document.getElementById('reg-nama').value,
+          email:       document.getElementById('reg-email').value,
+          password:    document.getElementById('reg-password').value,
+          divisiId:    document.getElementById('reg-divisi').value,
+          roleDilamar: document.getElementById('reg-role').value
+        });
+    }
+
+    // =========================================================
+    // LOGOUT
+    // =========================================================
+    function handleLogout() {
+      if (APP.token) {
+        google.script.run.auth_logout(APP.token);
+      }
+      APP.token = null;
+      APP.user  = null;
+      sessionStorage.removeItem(TOKEN_KEY);
+      showView('login');
+    }
+
+    // =========================================================
+    // PENDING VIEW
+    // =========================================================
+    function renderPendingInfo(user) {
+      var container = document.getElementById('pending-info');
+      container.innerHTML =
+        '<div class="info-row"><span class="lbl">Nama</span><span class="val">' + esc(user.nama) + '</span></div>' +
+        '<div class="info-row"><span class="lbl">Email</span><span class="val">' + esc(user.email) + '</span></div>' +
+        '<div class="info-row"><span class="lbl">Jabatan Dilamar</span><span class="val">' + esc(user.role) + '</span></div>' +
+        '<div class="info-row"><span class="lbl">Status</span>' +
+          '<span class="val" style="color:var(--n-status-warning);">Menunggu Persetujuan</span>' +
+        '</div>';
+    }
+
+    // =========================================================
+    // MAIN VIEW (APPROVED)
+    // =========================================================
+    function renderMain(user) {
+      document.getElementById('main-user-name').textContent = user.nama + ' (' + user.role + ')';
+
+      var canApprove = ['SUPERADMIN', 'DIREKTUR', 'KADIV'].indexOf(user.role) !== -1;
+
+      if (canApprove) {
+        document.getElementById('approvals-section').classList.remove('hidden');
+        document.getElementById('staff-stub').classList.add('hidden');
+        loadApprovals();
+      } else {
+        document.getElementById('approvals-section').classList.add('hidden');
+        document.getElementById('staff-stub').classList.remove('hidden');
+      }
+    }
+
+    function loadApprovals() {
+      document.getElementById('approvals-container').innerHTML =
+        '<div class="empty-state">Memuat…</div>';
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) {
+            showMsg('approvals-msg', 'error', res.error);
+            document.getElementById('approvals-container').innerHTML = '';
+            return;
+          }
+          renderApprovalsTable(res.data);
+        })
+        .withFailureHandler(function () {
+          showMsg('approvals-msg', 'error', 'Gagal memuat data. Coba muat ulang halaman.');
+          document.getElementById('approvals-container').innerHTML = '';
+        })
+        .auth_getPendingApprovals(APP.token);
+    }
+
+    function renderApprovalsTable(items) {
+      var container = document.getElementById('approvals-container');
+      if (!items || items.length === 0) {
+        container.innerHTML = '<div class="empty-state">Tidak ada permintaan registrasi yang menunggu persetujuan.</div>';
+        return;
+      }
+      var rows = items.map(function (item) {
+        var regDate = item.registeredAt ? new Date(item.registeredAt).toLocaleDateString('id-ID') : '-';
+        return '<tr>' +
+          '<td>' + esc(item.nama) + '<br><span style="color:var(--n-text-muted);font-size:0.8rem;">' + esc(item.email) + '</span></td>' +
+          '<td>' + esc(item.namaDivisi) + '</td>' +
+          '<td>' + (item.roleDilamar === 'KADIV' ? 'Kepala Divisi / Ketua Tim Kerja' : 'Staf / Pegawai') + '</td>' +
+          '<td>' + regDate + '</td>' +
+          '<td>' +
+            '<div class="action-btns">' +
+              '<button class="btn-sm btn-sm-approve" onclick="doApprove(\'' + esc(item.queueId) + '\')">Setujui</button>' +
+              '<button class="btn-sm btn-sm-reject"  onclick="openRejectModal(\'' + esc(item.queueId) + '\')">Tolak</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+
+      container.innerHTML =
+        '<table class="approval-table">' +
+          '<thead><tr>' +
+            '<th>Nama</th><th>Unit Kerja</th><th>Jabatan</th><th>Tanggal Daftar</th><th>Tindakan</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>';
+    }
+
+    // =========================================================
+    // APPROVE / REJECT
+    // =========================================================
+    function doApprove(queueId) {
+      if (!confirm('Setujui registrasi ini?')) return;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res.success) { showMsg('approvals-msg', 'error', res.error); return; }
+          showMsg('approvals-msg', 'success', 'Registrasi berhasil disetujui.');
+          loadApprovals();
+        })
+        .withFailureHandler(function () {
+          showMsg('approvals-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+        })
+        .auth_decideApproval({ token: APP.token, queueId: queueId, approve: true, alasan: '' });
+    }
+
+    function openRejectModal(queueId) {
+      APP.pendingQueueId = queueId;
+      document.getElementById('reject-reason').value = '';
+      document.getElementById('modal-reject').classList.add('show');
+    }
+
+    function closeRejectModal() {
+      APP.pendingQueueId = null;
+      document.getElementById('modal-reject').classList.remove('show');
+    }
+
+    document.getElementById('btn-confirm-reject').addEventListener('click', function () {
+      var alasan = document.getElementById('reject-reason').value.trim();
+      if (!alasan) { alert('Alasan penolakan wajib diisi.'); return; }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          closeRejectModal();
+          if (!res.success) { showMsg('approvals-msg', 'error', res.error); return; }
+          showMsg('approvals-msg', 'success', 'Registrasi berhasil ditolak.');
+          loadApprovals();
+        })
+        .withFailureHandler(function () {
+          closeRejectModal();
+          showMsg('approvals-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+        })
+        .auth_decideApproval({
+          token:   APP.token,
+          queueId: APP.pendingQueueId,
+          approve: false,
+          alasan:  alasan
+        });
+    });
+
+    // =========================================================
+    // HELPERS UI
+    // =========================================================
+    function showView(name) {
+      ['login','register','pending','main'].forEach(function (v) {
+        document.getElementById('view-' + v).classList.add('hidden');
+      });
+      document.getElementById('view-' + name).classList.remove('hidden');
+    }
+
+    function showMsg(id, type, text) {
+      var el = document.getElementById(id);
+      el.className = 'msg ' + type + ' show';
+      el.textContent = text;
+    }
+
+    function hideMsg(id) {
+      var el = document.getElementById(id);
+      el.className = 'msg';
+      el.textContent = '';
+    }
+
+    function setLoading(btn, loading) {
+      btn.disabled = loading;
+      if (loading) {
+        btn._orig = btn.textContent;
+        btn.innerHTML = '<span class="spinner"></span>Memproses…';
+      } else {
+        btn.innerHTML = btn._orig || btn.textContent;
+      }
+    }
+
+    /** Escape HTML untuk mencegah XSS saat merender data dari server. */
+    function esc(str) {
+      return String(str || '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+  </script>
+</body>
+</html>

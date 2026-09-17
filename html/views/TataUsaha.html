@@ -1,0 +1,134 @@
+<!-- html/views/TataUsaha.html
+     Template modul Tata Usaha.
+     Di-include ke Index.html via html_include() server-side,
+     disimpan dalam <div id="view-tpl-tata-usaha" hidden>.
+     Konten dirender oleh _renderTataUsaha() di Script_Main.html. -->
+<div id="view-tpl-tata-usaha" hidden>
+
+  <!-- ── KPI STRIP ───────────────────────────────── -->
+  <div id="tu-kpi-strip" class="content-section">
+    <!-- diisi _tuRenderKPI() -->
+  </div>
+
+  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
+  <div id="tu-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="tuToggleForm()">
+      <div id="tu-form-toggle-label">Input Laporan Mingguan</div>
+      <span id="tu-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="tu-form-body" style="margin-top:18px;">
+      <div id="tu-form-msg" class="n-msg"></div>
+
+      <!-- Periode -->
+      <div class="form-grp">
+        <label for="tu-periode">Periode</label>
+        <input type="text" id="tu-periode" placeholder="YYYY-MM-WW (contoh: 2026-09-W03)"
+               maxlength="12" autocomplete="off">
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;"
+             id="tu-periode-hint">Periode saat ini: —</div>
+      </div>
+
+      <!-- Pagu row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="tu-pagu-reguler">Pagu Reguler (Rp)</label>
+          <input type="number" id="tu-pagu-reguler" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="tu-pagu-abt">Pagu ABT (Rp)</label>
+          <input type="number" id="tu-pagu-abt" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <!-- Realisasi row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="tu-real-sp2d">Realisasi SP2D Minggu Ini (Rp)</label>
+          <input type="number" id="tu-real-sp2d" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="tu-real-akrual">Realisasi Akrual Minggu Ini (Rp)</label>
+          <input type="number" id="tu-real-akrual" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <!-- Catatan revisi pagu (opsional, wajib jika pagu berubah) -->
+      <div class="form-grp">
+        <label for="tu-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(wajib jika Pagu berubah dari laporan sebelumnya)</span></label>
+        <input type="text" id="tu-catatan" placeholder="Alasan perubahan pagu...">
+      </div>
+
+      <button class="btn-primary" id="tu-btn-submit" onclick="tuSubmit()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <!-- ── TABEL RIWAYAT ─────────────────────────────── -->
+  <div id="tu-history-section" class="content-section">
+    <div class="content-section-hd">Riwayat Laporan</div>
+    <div id="tu-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow:hidden;" id="tu-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL REVISI ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-tu-revisi">
+    <div class="n-modal">
+      <h2>Revisi Laporan</h2>
+      <div id="tu-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="tu-revisi-msg" class="n-msg"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="rv-pagu-reguler">Pagu Reguler (Rp)</label>
+          <input type="number" id="rv-pagu-reguler" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="rv-pagu-abt">Pagu ABT (Rp)</label>
+          <input type="number" id="rv-pagu-abt" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="rv-real-sp2d">Realisasi SP2D (Rp)</label>
+          <input type="number" id="rv-real-sp2d" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="rv-real-akrual">Realisasi Akrual (Rp)</label>
+          <input type="number" id="rv-real-akrual" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+      <div class="form-grp">
+        <label for="rv-alasan">Alasan Revisi <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="rv-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
+      </div>
+      <div class="form-grp">
+        <label for="rv-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(jika Pagu berubah)</span></label>
+        <input type="text" id="rv-catatan" placeholder="Opsional">
+      </div>
+      <button class="btn-primary" id="btn-confirm-revisi" onclick="tuRevisiConfirm()">Simpan Revisi</button>
+      <button class="btn-ghost" onclick="tuCloseRevisiModal()" style="margin-top:8px;">Batal</button>
+    </div>
+  </div>
+
+  <!-- ── MODAL ANULIR ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-tu-anulir">
+    <div class="n-modal">
+      <h2>Anulir Laporan</h2>
+      <div id="tu-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div class="n-info-static" style="margin-bottom:14px;">
+        Komentar anulir akan terlihat oleh seluruh anggota divisi.
+        Staf dapat mengunggah laporan baru setelah memperbaiki data.
+      </div>
+      <div id="tu-anulir-msg" class="n-msg"></div>
+      <div class="form-grp">
+        <label for="anulir-reason">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="anulir-reason" placeholder="Jelaskan apa yang perlu diperbaiki staf">
+      </div>
+      <button class="btn-primary" style="background:var(--n-crit);" id="btn-confirm-anulir" onclick="tuAnulirConfirm()">Konfirmasi Anulir</button>
+      <button class="btn-ghost" onclick="tuCloseAnulirModal()" style="margin-top:8px;">Batal</button>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-tata-usaha -->

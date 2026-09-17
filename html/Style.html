@@ -1,0 +1,839 @@
+<style>
+/* ============================================================
+   DESIGN TOKENS — DESIGN.md §2-4
+   ============================================================ */
+:root {
+  /* Netral */
+  --n-bg-base:        #F4F7FE;
+  --n-surface-1:      #FFFFFF;
+  --n-surface-2:      #F9FAFB;
+  --n-surface-hover:  #F1F5F9;
+  --n-text-primary:   #2B3674;
+  --n-text-secondary: #4A5568;
+  --n-text-muted:     #A3AED0;
+  --n-border-subtle:  rgba(0,0,0,0.06);
+  /* Aksen */
+  --n-primary:        #4318FF;
+  --n-primary-light:  #E9E3FF;
+  /* Status semantik (DESIGN.md §3 — tidak ditambah warna lain) */
+  --n-ok:             #10B981;
+  --n-warn:           #F59E0B;
+  --n-crit:           #EF4444;
+  /* Shape — DESIGN.md §4 */
+  --n-shadow-card:    0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  --n-r-sm:           12px;
+  --n-r-lg:           16px;
+  --n-r-pill:         99px;
+  /* Layout */
+  --n-sidebar-w:      240px;
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'Poppins', sans-serif;
+  color: var(--n-text-primary);
+  background: var(--n-bg-base);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+button  { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+a { text-decoration: none; color: inherit; }
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.n-hidden { display: none !important; }
+
+/* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+#n-loading {
+  position: fixed;
+  inset: 0;
+  background: var(--n-bg-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 900;
+  transition: opacity 0.25s;
+}
+.n-loading-brand {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--n-primary);
+  letter-spacing: -0.02em;
+}
+.n-loading-spin {
+  width: 22px; height: 22px;
+  border: 2px solid var(--n-primary-light);
+  border-top-color: var(--n-primary);
+  border-radius: 50%;
+  animation: _spin 0.8s linear infinite;
+}
+@keyframes _spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   AUTH VIEWS
+   ============================================================ */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--n-bg-base);
+}
+.auth-card {
+  background: var(--n-surface-1);
+  border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-card);
+  padding: 40px;
+  width: 100%;
+  max-width: 432px;
+}
+.auth-brand {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--n-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 28px;
+}
+/* h1.auth-title: no subtitle follows — DESIGN.md §1.6 */
+.auth-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1.375rem;
+  color: var(--n-text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+}
+.auth-foot {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.875rem;
+  color: var(--n-text-secondary);
+}
+.auth-foot a { color: var(--n-primary); font-weight: 500; cursor: pointer; }
+.auth-foot a:hover { text-decoration: underline; }
+
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+.form-grp { margin-bottom: 16px; }
+.form-grp label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--n-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.form-grp input,
+.form-grp select {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-size: 0.9375rem;
+  color: var(--n-text-primary);
+  background: var(--n-surface-2);
+  outline: none;
+  transition: border-color 0.14s, background 0.14s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.form-grp input:focus,
+.form-grp select:focus {
+  border-color: var(--n-primary);
+  background: var(--n-surface-1);
+}
+.form-grp select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AED0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+/* Tombol utama (submit form) di semua divisi + Index login/register.
+   Dipertegas agar "jelas tombol": isi solid indigo, tepi bawah tebal
+   (raised), shadow satu level token resmi (§4), weight 700. Tanpa warna
+   baru — border/shadow pakai overlay neutral rgba hitam. */
+.btn-primary {
+  display: block; width: 100%;
+  padding: 13px 18px;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-bottom-width: 4px;
+  border-bottom-style: solid;
+  border-bottom-color: rgba(0,0,0,0.25);
+  border-radius: var(--n-r-sm);
+  background: var(--n-primary);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  letter-spacing: 0.01em;
+  box-shadow: var(--n-shadow-card);
+  transition: filter 0.14s, transform 0.06s;
+  margin-top: 8px;
+}
+.btn-primary:hover:not(:disabled)  { filter: brightness(0.94); }
+.btn-primary:active:not(:disabled) { filter: brightness(0.9); border-bottom-width: 1px; transform: translateY(3px); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary:focus-visible { outline: 3px solid var(--n-primary-light); outline-offset: 2px; }
+
+/* Tombol toggle form pelaporan (agar terlihat tegas seperti tombol) */
+.btn-form-toggle {
+  display: flex; width: 100%;
+  align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--n-primary);
+  color: #fff;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-bottom-width: 4px;
+  border-bottom-style: solid;
+  border-bottom-color: rgba(0,0,0,0.25);
+  border-radius: var(--n-r-sm);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  box-shadow: var(--n-shadow-card);
+  cursor: pointer;
+  transition: filter 0.14s, transform 0.06s;
+  user-select: none;
+}
+.btn-form-toggle:hover  { filter: brightness(0.94); }
+.btn-form-toggle:active { filter: brightness(0.9); border-bottom-width: 1px; transform: translateY(3px); }
+.btn-form-toggle .toggle-icon { font-size: 1.2rem; color: #fff; opacity: 0.9; transition: transform 0.2s; }
+
+.btn-ghost {
+  display: block; width: 100%;
+  padding: 11px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: transparent;
+  color: var(--n-primary);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: background 0.14s, border-color 0.14s;
+  margin-top: 8px;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--n-primary-light);
+  border-color: var(--n-primary);
+}
+
+/* Tombol batalkan dalam modal — garansi outline indigo di atas kartu putih. */
+.btn-outline {
+  display: block; width: 100%;
+  padding: 11px;
+  border: 1px solid var(--n-primary);
+  border-radius: var(--n-r-sm);
+  background: transparent;
+  color: var(--n-primary);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  transition: background 0.14s, border-color 0.14s;
+  margin-top: 8px;
+}
+.btn-outline:hover:not(:disabled) { background: var(--n-primary-light); }
+.btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Tombol aksi mini dalam baris tabel (Revisi/Anulir) — pill outline. */
+.btn-mini {
+  display: inline-block;
+  padding: 4px 11px;
+  border-radius: var(--n-r-pill);
+  border: 1px solid var(--n-primary);
+  background: transparent;
+  color: var(--n-primary);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  margin-right: 5px;
+}
+.btn-mini:hover { background: var(--n-primary-light); }
+
+/* ============================================================
+   INLINE MESSAGES
+   ============================================================ */
+.n-msg {
+  padding: 10px 13px;
+  border-radius: var(--n-r-sm);
+  font-size: 0.875rem;
+  display: none;
+  margin-bottom: 14px;
+}
+.n-msg.show      { display: block; }
+.n-msg.error     { background: #FEF2F2; color: var(--n-crit); }
+.n-msg.success   { background: #ECFDF5; color: var(--n-ok);   }
+.n-msg.info      { background: var(--n-primary-light); color: var(--n-primary); }
+/* static info — always visible */
+.n-info-static   { background: var(--n-primary-light); color: var(--n-primary);
+                   padding: 10px 13px; border-radius: var(--n-r-sm); font-size: 0.875rem;
+                   margin-bottom: 18px; }
+
+/* Info rows (pending detail) */
+.info-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--n-border-subtle);
+  font-size: 0.9rem;
+}
+.info-row:last-child { border-bottom: none; }
+.info-row .lbl { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--n-text-muted); }
+.info-row .val { font-weight: 500; color: var(--n-text-primary); }
+
+/* ============================================================
+   APP LAYOUT — sidebar fixed + scrollable main
+   ============================================================ */
+.sidebar {
+  position: fixed; top: 0; left: 0;
+  width: var(--n-sidebar-w);
+  height: 100vh;
+  background: var(--n-surface-1);
+  border-right: 1px solid var(--n-border-subtle);
+  display: flex; flex-direction: column;
+  z-index: 50;
+  overflow: hidden;
+}
+.app-main {
+  margin-left: var(--n-sidebar-w);
+  min-height: 100vh;
+  background: var(--n-bg-base);
+}
+
+/* ============================================================
+   SIDEBAR — brand, nav, footer
+   ============================================================ */
+.sb-brand {
+  flex-shrink: 0;
+  padding: 21px 20px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.1875rem;
+  color: var(--n-primary);
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--n-border-subtle);
+}
+.sb-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--n-border-subtle) transparent;
+}
+.sb-nav::-webkit-scrollbar { width: 3px; }
+.sb-nav::-webkit-scrollbar-thumb { background: var(--n-border-subtle); border-radius: 2px; }
+
+.sb-section-label {
+  padding: 13px 20px 4px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--n-text-muted);
+}
+/* nav-item: text-only, no colorful icons (DESIGN.md §1.1) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 20px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--n-text-secondary);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+  border-left: 3px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { background: var(--n-surface-hover); color: var(--n-text-primary); }
+.nav-item.active {
+  background: var(--n-primary-light);
+  color: var(--n-primary);
+  border-left-color: var(--n-primary);
+  font-weight: 600;
+}
+
+.sb-footer {
+  flex-shrink: 0;
+  padding: 13px 16px;
+  border-top: 1px solid var(--n-border-subtle);
+}
+.sb-user-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--n-text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.sb-user-role {
+  font-size: 0.73rem;
+  color: var(--n-text-muted);
+  margin-bottom: 10px;
+}
+.btn-logout {
+  width: 100%;
+  padding: 7px 12px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: transparent;
+  color: var(--n-text-secondary);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.btn-logout:hover { background: #FEF2F2; color: var(--n-crit); border-color: #FECACA; }
+
+/* ============================================================
+   PAGE HEADER — sticky, title + filter
+   ============================================================ */
+.page-header {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--n-bg-base);
+  padding: 24px 32px 0;
+}
+.page-header-inner {
+  display: flex; align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--n-border-subtle);
+}
+/* h1.page-title: title only, no subtitle — DESIGN.md §1.6 */
+.page-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1.375rem;
+  color: var(--n-text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+/* ============================================================
+   FILTER PERIODE — DESIGN.md §7
+   ============================================================ */
+.filter-periode {
+  display: flex; align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+.filter-toggle {
+  display: flex;
+  background: var(--n-surface-1);
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-pill);
+  padding: 2px;
+  gap: 1px;
+}
+.filter-toggle-btn {
+  padding: 4px 11px;
+  border: none;
+  border-radius: var(--n-r-pill);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--n-text-secondary);
+  transition: all 0.14s;
+  white-space: nowrap;
+}
+.filter-toggle-btn.active { background: var(--n-primary); color: #fff; }
+.filter-inputs { display: flex; align-items: center; gap: 5px; }
+.filter-sel,
+.filter-date {
+  padding: 3px 8px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.8rem;
+  color: var(--n-text-primary);
+  background: var(--n-surface-1);
+  outline: none;
+  height: 28px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.filter-sel:focus, .filter-date:focus { border-color: var(--n-primary); }
+.filter-date { width: 118px; }
+.filter-sep { color: var(--n-text-muted); font-size: 0.75rem; }
+
+/* ============================================================
+   PAGE CONTENT AREA — DESIGN.md §5
+   ============================================================ */
+.page-content {
+  padding: 28px 32px 40px;
+}
+
+/* ============================================================
+   CARD — DESIGN.md §4, §7
+   ============================================================ */
+.n-card {
+  background: var(--n-surface-1);
+  border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-card);
+  padding: 24px;
+}
+
+/* ============================================================
+   KPI CARD — DESIGN.md §7 (no colorful icon, number is focus)
+   ============================================================ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--n-surface-1);
+  border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-card);
+  padding: 20px 24px;
+}
+.kpi-label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  margin-bottom: 10px;
+}
+.kpi-value {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.75rem;
+  color: var(--n-text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.kpi-sub {
+  font-size: 0.8rem;
+  color: var(--n-text-secondary);
+  margin-top: 6px;
+}
+
+/* ============================================================
+   STATUS BADGES — DESIGN.md §1.3 (semantic only, not decoration)
+   ============================================================ */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--n-r-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-ok      { background: #ECFDF5; color: var(--n-ok); }
+.badge-warn    { background: #FFFBEB; color: var(--n-warn); }
+.badge-crit    { background: #FEF2F2; color: var(--n-crit); }
+.badge-neutral { background: var(--n-surface-2); color: var(--n-text-secondary); }
+.badge-super   { background: var(--n-primary-light); color: var(--n-primary); }
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+.n-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.n-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--n-text-muted); font-weight: 600;
+  border-bottom: 1px solid var(--n-border-subtle);
+}
+.n-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--n-border-subtle);
+  vertical-align: middle;
+  color: var(--n-text-primary);
+}
+.n-table tr:last-child td { border-bottom: none; }
+.n-table tbody tr:hover td { background: var(--n-surface-hover); }
+
+.btn-sm {
+  padding: 4px 11px;
+  border-radius: var(--n-r-pill);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-sm-ok   { background: #ECFDF5; color: var(--n-ok);   border: 1px solid #A7F3D0; margin-right: 5px; }
+.btn-sm-ok:hover   { background: #D1FAE5; }
+.btn-sm-crit { background: #FEF2F2; color: var(--n-crit); border: 1px solid #FECACA; }
+.btn-sm-crit:hover { background: #FEE2E2; }
+
+/* ============================================================
+   TABS — pemisah sub-konten (Operasi Kapal/Pesawat, Master Data)
+   ============================================================ */
+.n-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--n-border-subtle);
+  margin-bottom: 24px;
+}
+.n-tab {
+  padding: 9px 18px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.845rem;
+  font-weight: 500;
+  color: var(--n-text-secondary);
+  cursor: pointer;
+  transition: color 0.14s, border-color 0.14s;
+  white-space: nowrap;
+}
+.n-tab:hover { color: var(--n-primary); }
+.n-tab.active {
+  color: var(--n-primary);
+  font-weight: 600;
+  border-bottom-color: var(--n-primary);
+}
+
+/* ============================================================
+   MODULE STUB (Phase 3 placeholder for views not yet built)
+   ============================================================ */
+.module-stub {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 80px 32px;
+  text-align: center;
+}
+.module-stub-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--n-text-secondary);
+  margin-bottom: 8px;
+}
+.module-stub p {
+  font-size: 0.875rem;
+  color: var(--n-text-muted);
+  line-height: 1.65;
+  max-width: 320px;
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.n-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.22);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+}
+.n-overlay.n-hidden { display: none !important; }
+.n-modal {
+  background: var(--n-surface-1);
+  border-radius: var(--n-r-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  padding: 32px; width: 400px; max-width: 90vw;
+}
+.n-modal h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700; font-size: 1.05rem;
+  color: var(--n-text-primary);
+  margin-bottom: 16px;
+}
+
+/* ============================================================
+   INLINE SPINNER (inside button while loading)
+   ============================================================ */
+.n-spin-sm {
+  display: inline-block;
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: _spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* ============================================================
+   INLINE LOADING (non-full-screen) — spinner + text
+   ============================================================ */
+.md-loading-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 24px;
+  font-size: .875rem;
+  color: var(--n-text-muted);
+}
+.md-loading-inline .n-spin-sm {
+  border-color: rgba(79,70,229,0.25);
+  border-top-color: var(--n-primary);
+}
+
+/* ============================================================
+   SKELETON PLACEHOLDERS (netral — tidak ada warna random)
+   ============================================================ */
+.kpi-skeleton {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.kpi-skeleton-item {
+  padding: 20px;
+  min-height: 100px;
+}
+.sk-bar {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--n-surface-2);
+  animation: _sk-pulse 1.4s ease-in-out infinite;
+}
+.sk-bar-lg { height: 18px; width: 60%; }
+.sk-bar-sm { height: 11px; width: 90%; }
+
+@keyframes _sk-pulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.35; }
+}
+
+@media (max-width: 768px) {
+  .kpi-skeleton { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================================
+   SECTION DIVIDER
+   ============================================================ */
+.section-hd {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--n-text-primary);
+  margin-bottom: 14px;
+}
+/* ============================================================
+   OVERVIEW — headline KPI row (4 columns)
+   ============================================================ */
+.ov-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+/* Reuse .kpi-card from above */
+
+/* ============================================================
+   OVERVIEW — per-divisi cards grid (3 columns)
+   ============================================================ */
+.div-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.div-card {
+  background: var(--n-surface-1);
+  border-radius: var(--n-r-lg);
+  box-shadow: var(--n-shadow-card);
+  padding: 16px 18px;
+}
+.div-card-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--n-text-primary);
+  margin-bottom: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--n-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.div-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  font-size: 0.845rem;
+}
+.div-metric + .div-metric {
+  border-top: 1px solid var(--n-border-subtle);
+}
+.div-metric-lbl { color: var(--n-text-secondary); }
+.div-metric-val {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  color: var(--n-text-primary);
+}
+.div-metric-val.muted {
+  font-weight: 400;
+  color: var(--n-text-muted);
+  font-family: 'Poppins', sans-serif;
+}
+
+/* ============================================================
+   HORIZONTAL PROGRESS BAR — pengganti gauge (DESIGN.md §6)
+   ============================================================ */
+.prog-wrap {
+  margin-top: 8px;
+}
+.prog-bar-bg {
+  background: var(--n-surface-2);
+  border-radius: var(--n-r-pill);
+  height: 6px;
+  overflow: hidden;
+}
+.prog-bar-fill {
+  height: 100%;
+  border-radius: var(--n-r-pill);
+  background: var(--n-primary);
+  transition: width 0.3s;
+}
+.prog-bar-fill.warn { background: var(--n-warn); }
+.prog-bar-fill.crit { background: var(--n-crit); }
+.prog-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.73rem;
+  color: var(--n-text-muted);
+}
+
+/* ============================================================
+   SECTION HEADER inside page content
+   ============================================================ */
+.content-section { margin-bottom: 28px; }
+.content-section-hd {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--n-text-primary);
+  margin-bottom: 14px;
+}
+</style>

@@ -1,0 +1,15 @@
+<!-- html/views/Operasi.html -->
+<!--
+  Fase 7: wadah gabungan menu "Operasi" — tab Kapal (OperasiLaut) dan
+  Pesawat (OperasiUdara). Pane diisi oleh _renderOperasiLaut()/_renderOperasiUdara().
+-->
+<div id="view-tpl-operasi" hidden>
+
+  <div class="n-tabs" id="ops-tabs">
+    <button type="button" class="n-tab active" data-ops-tab="kapal" onclick="_opsSetTab('kapal')">Kapal</button>
+    <button type="button" class="n-tab" data-ops-tab="pesawat" onclick="_opsSetTab('pesawat')">Pesawat</button>
+  </div>
+
+  <div id="ops-tab-pane"></div>
+
+</div>

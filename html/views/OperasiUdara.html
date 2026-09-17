@@ -1,0 +1,158 @@
+<!-- html/views/OperasiUdara.html -->
+<div id="view-tpl-operasi-udara" hidden>
+
+  <!-- ── KPI STRIP & PETA ───────────────────────────────── -->
+  <div class="content-section">
+    <!-- Peta WPP Leaflet (pesawat) -->
+    <div class="n-card" style="padding:0; overflow:hidden; border-radius:var(--n-radius-lg); margin-bottom: 24px;">
+      <div id="map-ops-udara" style="height: 400px; width: 100%; background: #e5e7eb; z-index: 1;"></div>
+    </div>
+    <!-- KPI Strip -->
+    <div id="ops-udara-kpi-strip">
+      <!-- diisi _opsUdaraRenderKPI() -->
+    </div>
+  </div>
+
+  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
+  <div id="ops-udara-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="opsUdaraToggleForm()">
+      <div id="ops-udara-form-toggle-label">Input Laporan Operasi Pesawat</div>
+      <span id="ops-udara-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="ops-udara-form-body" style="margin-top:18px;">
+      <div id="ops-udara-form-msg" class="n-msg"></div>
+
+      <!-- Header: Periode & WPP -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-bottom: 24px;">
+        <div class="form-grp">
+          <label for="oud-periode-tahun">Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <select id="oud-periode-tahun"><option value="">Tahun</option></select>
+            <select id="oud-periode-bulan"><option value="">Bulan</option></select>
+            <select id="oud-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="oud-periode-hint">Periode: —</div>
+        </div>
+        <div class="form-grp">
+          <label for="oud-wpp">Wilayah Pengelolaan Perikanan (WPP)</label>
+          <select id="oud-wpp">
+            <option value="">Memuat WPP...</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
+      <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Pemantauan Udara</h3>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="oud-kii">KII Teridentifikasi</label>
+          <input type="number" id="oud-kii" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="oud-kia">KIA Teridentifikasi</label>
+          <input type="number" id="oud-kia" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="oud-sdk">Objek SDK</label>
+          <input type="number" id="oud-sdk" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="oud-rumpon">Rumpon Lokal Teridentifikasi</label>
+          <input type="number" id="oud-rumpon" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="oud-cakupan">Cakupan Wilayah Teramati (NM²)</label>
+          <input type="number" id="oud-cakupan" min="0" step="1" placeholder="0">
+        </div>
+        <div style="display:flex; gap:10px;">
+          <div class="form-grp" style="flex:1;">
+            <label for="oud-hari-jumlah">Jumlah Hari Operasi</label>
+            <input type="number" id="oud-hari-jumlah" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp" style="flex:1;">
+            <label for="oud-hari-target">Target Hari Operasi</label>
+            <input type="number" id="oud-hari-target" min="0" step="1" value="180">
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" style="margin-top:24px;" id="oud-btn-submit" onclick="opsUdaraSubmit()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <!-- ── TABEL RIWAYAT ─────────────────────────────── -->
+  <div id="ops-udara-history-section" class="content-section">
+    <div class="content-section-hd">Riwayat Laporan</div>
+    <div id="ops-udara-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="ops-udara-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL REVISI ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-oud-revisi">
+    <div class="n-modal" style="max-width: 520px; width: 100%;">
+      <h2>Revisi Laporan Pesawat</h2>
+      <div id="oud-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="oud-revisi-msg" class="n-msg"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp"><label>KII Teridentifikasi</label><input type="number" id="rv-oud-kii" min="0"></div>
+        <div class="form-grp"><label>KIA Teridentifikasi</label><input type="number" id="rv-oud-kia" min="0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp"><label>Objek SDK</label><input type="number" id="rv-oud-sdk" min="0"></div>
+        <div class="form-grp"><label>Rumpon Lokal</label><input type="number" id="rv-oud-rumpon" min="0"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp"><label>Cakupan (NM²)</label><input type="number" id="rv-oud-cakupan" min="0"></div>
+        <div style="display:flex; gap:10px;">
+          <div class="form-grp" style="flex:1;"><label>Hari Jml</label><input type="number" id="rv-oud-hari-jumlah"></div>
+          <div class="form-grp" style="flex:1;"><label>Hari Target</label><input type="number" id="rv-oud-hari-target"></div>
+        </div>
+      </div>
+
+      <div class="form-grp">
+        <label for="rv-oud-alasan">Alasan Revisi <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="rv-oud-alasan" placeholder="Alasan perubahan...">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" id="oud-btn-revisi-save" onclick="opsUdaraRevisiConfirm()">Simpan Revisi</button>
+        <button class="btn-outline" onclick="closeModal('modal-oud-revisi')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL ANULIR ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-oud-anulir">
+    <div class="n-modal">
+      <h2>Anulir Laporan Pesawat</h2>
+      <div id="oud-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="oud-anulir-msg" class="n-msg"></div>
+
+      <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--n-status-critical); padding: 12px; margin-bottom: 16px; font-size: 0.875rem; color: var(--n-text-primary);">
+        <strong>Perhatian:</strong> Komentar anulir akan terlihat oleh seluruh anggota divisi dan notifikasi akan dikirim ke publisher.
+      </div>
+
+      <div class="form-grp">
+        <label for="an-oud-alasan">Komentar/Alasan Anulir <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="an-oud-alasan" placeholder="Penjelasan mengapa dianulir...">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" style="background:var(--n-status-critical);" id="oud-btn-anulir-save" onclick="opsUdaraAnulirConfirm()">Anulir Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-oud-anulir')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+</div>

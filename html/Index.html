@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nautika — Direktorat POA, KKP RI</title>
+  <meta name="description" content="Sistem Monitoring dan Pelaporan Direktorat Pengendalian Operasi Armada, Kementerian Kelautan dan Perikanan Republik Indonesia.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <?!= html_include('html/Style'); ?>
+</head>
+<body>
+
+<!-- =========================================================
+     LOADING — tampil saat cek sesi awal
+     ========================================================= -->
+<div id="n-loading">
+  <div class="n-loading-brand">Nautika</div>
+  <div class="n-loading-spin"></div>
+</div>
+
+<!-- =========================================================
+     AUTH WRAPPER — login / register / pending
+     ========================================================= -->
+<div id="auth-wrapper" class="n-hidden">
+
+  <!-- LOGIN -->
+  <div id="v-login" class="auth-screen n-hidden">
+    <div class="auth-card">
+      <div class="auth-brand">Nautika</div>
+      <h1 class="auth-title">Masuk ke Akun</h1>
+      <div id="login-msg" class="n-msg"></div>
+      <form id="form-login" onsubmit="handleLogin(event)">
+        <div class="form-grp">
+          <label for="login-email">Email / NIP</label>
+          <input type="email" id="login-email" placeholder="nama@instansi.go.id"
+                 required autocomplete="email">
+        </div>
+        <div class="form-grp">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••"
+                 required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary" id="btn-login">Masuk</button>
+      </form>
+      <div class="auth-foot">
+        Belum punya akun? <a onclick="showAuthView('register')">Daftar</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div id="v-register" class="auth-screen n-hidden">
+    <div class="auth-card">
+      <div class="auth-brand">Nautika</div>
+      <h1 class="auth-title">Daftar Akun Baru</h1>
+      <div id="register-msg" class="n-msg"></div>
+      <form id="form-register" onsubmit="handleRegister(event)">
+        <div class="form-grp">
+          <label for="reg-nama">Nama Lengkap</label>
+          <input type="text" id="reg-nama" placeholder="Nama sesuai dokumen resmi" required>
+        </div>
+        <div class="form-grp">
+          <label for="reg-email">Email / NIP</label>
+          <input type="email" id="reg-email" placeholder="nama@instansi.go.id" required>
+        </div>
+        <div class="form-grp">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="Minimal 8 karakter"
+                 required minlength="8">
+        </div>
+        <div class="form-grp">
+          <label for="reg-divisi">Unit Kerja</label>
+          <select id="reg-divisi" required>
+            <option value="">— Pilih Unit Kerja —</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label for="reg-role">Jabatan yang Dilamar</label>
+          <select id="reg-role" required>
+            <option value="">— Pilih Jabatan —</option>
+            <option value="STAF">Staf / Pegawai</option>
+            <option value="KADIV">Kepala Divisi / Ketua Tim Kerja / Kepala Sub Direktorat</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary" id="btn-register">Kirim Permintaan</button>
+      </form>
+      <div class="auth-foot">
+        Sudah punya akun? <a onclick="showAuthView('login')">Masuk</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- PENDING -->
+  <div id="v-pending" class="auth-screen n-hidden">
+    <div class="auth-card">
+      <div class="auth-brand">Nautika</div>
+      <h1 class="auth-title">Menunggu Persetujuan</h1>
+      <div class="n-info-static">
+        Akun Anda sedang dalam proses verifikasi oleh administrator.
+        Silakan cek kembali setelah mendapat konfirmasi.
+      </div>
+      <div id="pending-info"></div>
+      <button class="btn-ghost" onclick="handleLogout()" style="margin-top:20px;">Keluar</button>
+    </div>
+  </div>
+
+</div><!-- end auth-wrapper -->
+
+<!-- =========================================================
+     APP WRAPPER — sidebar + konten
+     ========================================================= -->
+<div id="app-wrapper" class="n-hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-brand">Nautika</div>
+    <nav class="sb-nav" id="sb-nav">
+      <!-- diisi oleh _renderSidebar() -->
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-user-name" id="sb-user-name"></div>
+      <div class="sb-user-role" id="sb-user-role"></div>
+      <button class="btn-logout" onclick="handleLogout()">Keluar</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="app-main">
+    <div class="page-header" id="page-header">
+      <!-- diisi oleh _renderPageHeader() -->
+    </div>
+    <div class="page-content" id="page-content">
+      <!-- diisi oleh _renderViewContent() -->
+    </div>
+  </main>
+
+</div><!-- end app-wrapper -->
+
+<!-- =========================================================
+     MODAL — alasan penolakan registrasi
+     ========================================================= -->
+<div class="n-overlay n-hidden" id="modal-reject">
+  <div class="n-modal">
+    <h2>Tolak Registrasi</h2>
+    <div class="form-grp">
+      <label for="reject-reason">Alasan Penolakan</label>
+      <input type="text" id="reject-reason" placeholder="Tuliskan alasan penolakan">
+    </div>
+    <button class="btn-primary" id="btn-confirm-reject">Konfirmasi Penolakan</button>
+    <button class="btn-ghost" onclick="closeRejectModal()">Batal</button>
+  </div>
+</div>
+
+<!-- =========================================================
+     VIEW TEMPLATES — server-side included, disimpan hidden
+     Script_Main.html membaca innerHTML dan me-render konten
+     ========================================================= -->
+<div id="view-templates" hidden>
+  <?!= html_include('html/views/TataUsaha'); ?>
+  <?!= html_include('html/views/Operasi'); ?>
+  <?!= html_include('html/views/OperasiLaut'); ?>
+  <?!= html_include('html/views/OperasiUdara'); ?>
+  <?!= html_include('html/views/MasterData'); ?>
+</div>
+
+
+<?!= html_include('html/Script_Main'); ?>
+</body>
+</html>

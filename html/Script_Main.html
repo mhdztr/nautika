@@ -389,6 +389,8 @@ function _renderViewContent(viewId) {
   if (viewId === 'overview')    { _renderOverview(el);    return; }
   if (viewId === 'tata-usaha')  { _renderTataUsaha(el);   return; }
   if (viewId === 'operasi')     { _renderOperasi(el);     return; }
+  if (viewId === 'intelijen')   { _renderIntelijen(el);   return; }
+  if (viewId === 'pemantauan')  { _renderPemantauan(el);  return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
   if (viewId === 'riwayat')     { _renderRiwayatStub(el); return; }
   // Modul lain — stub hingga fase masing-masing
@@ -2418,6 +2420,869 @@ function opsUdaraAnulirConfirm() {
       }
     })
     .operasiUdara_anulir(APP.token, { targetRowId: _OPSUDARA.pendingRowId, alasan: alasan });
+}
+
+
+// ============================================================
+// MODUL INTELIJEN — Fase 7 (PRD §5.5, §8.2)
+// ============================================================
+var INTEL_LABELS = {
+  DREDGING:                    'Kapal Dredging / Underwater Ops',
+  PELANGGARAN_PERIZINAN:       'Pelanggaran Perizinan Berusaha',
+  PELANGGARAN_TRANSMITTER:     'Pelanggaran Mematikan Transmitter',
+  NOTA_DINAS:                  'Nota Dinas Data Intelijen',
+  KAWASAN_KONSERVASI:          'Pelanggaran Kawasan Konservasi',
+  KAPAL_PENGANGKUT_IKAN_HIDUP: 'Kapal Pengangkut Ikan Hidup'
+};
+
+var _INTEL = {
+  pendingRowId:  null,
+  kawasanData:   null,
+  kpiData:       null,
+  rows:          [],
+  kawasanFilter: null,
+  kawasanFilterNama: ''
+};
+
+function _renderIntelijen(el) {
+  var tpl = document.getElementById('view-tpl-intelijen');
+  if (!tpl) { el.innerHTML = _moduleStub('Intelijen'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _INTEL.kawasanFilter = null;
+  _INTEL.kawasanFilterNama = '';
+
+  _opsInitPeriodeUi('int-');
+  _intelLoadKawasanOptions();
+  _intelLoadKPI();
+  _intelLoadHistory();
+
+  var pHint = document.getElementById('int-periode-hint');
+  if (pHint) {
+    google.script.run.withSuccessHandler(function(res){
+      if (res) pHint.textContent = 'Periode saat ini: ' + res;
+    }).utils_getCurrentPeriode();
+  }
+}
+
+function intelToggleForm() {
+  var b = document.getElementById('int-form-body');
+  var i = document.getElementById('int-form-toggle-icon');
+  if (!b) return;
+  if (b.style.display === 'none') { b.style.display = 'block'; if (i) i.textContent = '▴'; }
+  else { b.style.display = 'none'; if (i) i.textContent = '▾'; }
+}
+
+// ── Dropdown kawasan (relasional, bukan free-text) ──
+function _intelLoadKawasanOptions() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _INTEL.kawasanData = res.data || [];
+        intelAddKawasanRow();
+      } else {
+        _msg('int-form-msg', 'error', 'Gagal memuat daftar kawasan: ' + res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _msg('int-form-msg', 'error', 'Koneksi terputus saat memuat kawasan.');
+    })
+    .master_getKawasanList(APP.token);
+}
+
+function intelAddKawasanRow() {
+  var wrap = document.getElementById('int-kawasan-rows');
+  if (!wrap) return;
+  var opts = '<option value="">(Pilih Kawasan)</option>';
+  (_INTEL.kawasanData || []).forEach(function(k) {
+    opts += '<option value="' + _esc(k.kawasanId) + '">' + _esc(k.nama) + (k.provinsi ? ' — ' + _esc(k.provinsi) : '') + '</option>';
+  });
+  var div = document.createElement('div');
+  div.className = 'int-kawasan-row';
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 0.8fr 1.6fr auto;gap:10px;margin-bottom:10px;align-items:end;';
+  div.innerHTML =
+    '<div class="form-grp" style="margin:0;"><label>Kawasan</label>' +
+      '<select class="int-kw-sel">' + opts + '</select></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Jumlah</label>' +
+      '<input type="number" class="int-kw-jml" min="0" step="1" placeholder="0"></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Keterangan</label>' +
+      '<input type="text" class="int-kw-ket" placeholder="Opsional"></div>' +
+    '<button type="button" class="btn-mini" onclick="this.closest(\'.int-kawasan-row\').remove()">Hapus</button>';
+  wrap.appendChild(div);
+}
+
+// ── KPI ──
+function _intelLoadKPI() {
+  var strip = document.getElementById('int-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(6);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _INTEL.kpiData = res.data;
+        _intelRenderKPI(res.data);
+        _intelRenderKawasanTable(res.data.kawasan || []);
+      } else if (strip) {
+        strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + _esc(res.error) + '</div>';
+      }
+    })
+    .withFailureHandler(function() {
+      if (strip) strip.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .intelijen_getKPI(APP.token, APP.filter);
+}
+
+function _intelRenderKPI(kpi) {
+  var strip = document.getElementById('int-kpi-strip');
+  if (!strip) return;
+
+  var kawasanTotal = 0;
+  if (kpi.kawasanPeriode) {
+    Object.keys(kpi.kawasanPeriode).forEach(function(k){ kawasanTotal += (kpi.kawasanPeriode[k] || 0); });
+  }
+
+  function card(label, value) {
+    return '<div class="n-card"><div class="kpi-label">' + _esc(label) + '</div>' +
+           '<div class="kpi-val">' + (value || 0) + '</div></div>';
+  }
+
+  strip.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">' +
+    card('Dredging / Underwater Ops', kpi.dredging) +
+    card('Pelanggaran Perizinan',      kpi.pelanggaranPerizinan) +
+    card('Pelanggaran Transmitter',    kpi.pelanggaranTransmitter) +
+    card('Nota Dinas',                 kpi.notaDinas) +
+    card('Pengangkut Ikan Hidup',      kpi.kapalPengangkutIkanHidup) +
+    card('Pelanggaran Kawasan',        kawasanTotal) +
+  '</div>';
+}
+
+// ── Tabel Kawasan Konservasi (§8.2) ──
+function _intelRenderKawasanTable(rows) {
+  var wrap = document.getElementById('int-kawasan-wrap');
+  if (!wrap) return;
+
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada data kawasan konservasi pada master.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Kawasan</th><th>Provinsi</th><th>Pelanggaran Periode</th><th>YTD</th><th>Tren</th><th>Laporan</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var tren = '<span style="color:var(--n-text-muted);">—</span>';
+    if (r.tren === 'NAIK')  tren = '<span style="color:var(--n-status-critical);font-weight:600;">▲ Naik</span>';
+    else if (r.tren === 'TURUN') tren = '<span style="color:var(--n-status-success);font-weight:600;">▼ Turun</span>';
+
+    t += '<tr>';
+    t += '<td>' + _esc(r.nama) + '</td>';
+    t += '<td>' + _esc(r.provinsi) + '</td>';
+    t += '<td>' + (r.pelanggaranPeriode || 0) + '</td>';
+    t += '<td>' + (r.pelanggaranYTD || 0) + '</td>';
+    t += '<td>' + tren + '</td>';
+    t += '<td><button class="btn-mini" onclick="intelSetKawasanFilter(\'' + String(r.kawasanId).replace(/[^A-Za-z0-9_-]/g,'') + '\')">Riwayat</button></td>';
+    t += '</tr>';
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function intelSetKawasanFilter(kawasanId) {
+  _INTEL.kawasanFilter = kawasanId;
+  _INTEL.kawasanFilterNama = '';
+  (_INTEL.kpiData && _INTEL.kpiData.kawasan ? _INTEL.kpiData.kawasan : []).forEach(function(k){
+    if (String(k.kawasanId) === String(kawasanId)) _INTEL.kawasanFilterNama = k.nama;
+  });
+  _intelLoadHistory();
+  var hw = document.getElementById('int-history-wrap');
+  if (hw && hw.scrollIntoView) hw.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function intelClearKawasanFilter() {
+  _INTEL.kawasanFilter = null;
+  _INTEL.kawasanFilterNama = '';
+  _intelLoadHistory();
+}
+
+// ── Riwayat ──
+function _intelLoadHistory() {
+  var wrap = document.getElementById('int-history-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat riwayat intelijen\u2026');
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) { _INTEL.rows = res.data; _intelRenderHistory(res.data); }
+      else wrap.innerHTML = '<div class="n-msg error">' + _esc(res.error) + '</div>';
+    })
+    .withFailureHandler(function() {
+      wrap.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .intelijen_getHistory(APP.token, APP.filter);
+}
+
+function _intelRenderHistory(data) {
+  var wrap = document.getElementById('int-history-wrap');
+  if (!wrap) return;
+
+  var rows = data || [];
+  if (_INTEL.kawasanFilter) {
+    rows = rows.filter(function(r){ return String(r.KawasanID || '') === String(_INTEL.kawasanFilter); });
+  }
+
+  var chip = '';
+  if (_INTEL.kawasanFilter) {
+    chip = '<div style="padding:12px 24px;border-bottom:1px solid var(--n-border-subtle);font-size:.82rem;">' +
+      'Menampilkan kawasan: <strong>' + _esc(_INTEL.kawasanFilterNama) + '</strong> ' +
+      '<button class="btn-mini" onclick="intelClearKawasanFilter()">Tampilkan Semua</button></div>';
+  }
+
+  if (rows.length === 0) {
+    wrap.innerHTML = chip + '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Tidak ada riwayat untuk periode ini.</div>';
+    return;
+  }
+
+  var isPimpinan = (APP.user && (APP.user.role === 'DIREKTUR' || APP.user.role === 'SUPERADMIN' || APP.user.role === 'KADIV'));
+  var canWrite = (APP.user && (APP.user.role === 'SUPERADMIN' || (APP.user.divisiId === 'DIV-INTEL' && (APP.user.role === 'STAF' || APP.user.role === 'KADIV'))));
+
+  var t = chip + '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Periode</th><th>Kategori</th><th>Jumlah</th><th>Detail</th><th>Tanggal</th><th>Status</th><th>Aksi</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.Status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.Status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var label = INTEL_LABELS[r.Jenis] || r.Jenis;
+    var detail = r.Jenis === 'KAWASAN_KONSERVASI' ? (r.kawasanNama || r.KawasanID || '—') : (r.Keterangan || '—');
+
+    var bRev = (r.Status === 'ACTIVE' && canWrite) ? '<button class="btn-mini" onclick="intelOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
+    var bAn  = (r.Status === 'ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="intelOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
+
+    var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + _esc(r.Periode) + '</td>';
+    t += '<td>' + _esc(label) + '</td>';
+    t += '<td>' + (Number(r.Jumlah) || 0) + '</td>';
+    t += '<td>' + _esc(detail) + '</td>';
+    t += '<td>' + ts + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if (r.Status === 'VOID' && r.VoidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="7" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.VoidReason) + ' (oleh ' + _esc(r.VoidedBy) + ')</td></tr>';
+    }
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+// ── Submit ──
+function intelSubmit(e) {
+  _msg('int-form-msg', '', '');
+  var periode = _composePeriode('int-');
+  if (!periode) { _msg('int-form-msg', 'error', 'Periode wajib dipilih.'); return; }
+
+  var items = [];
+  var numMap = [
+    ['int-dredging',  'DREDGING'],
+    ['int-perizinan', 'PELANGGARAN_PERIZINAN'],
+    ['int-transmitter','PELANGGARAN_TRANSMITTER'],
+    ['int-nota-dinas','NOTA_DINAS'],
+    ['int-pengangkut','KAPAL_PENGANGKUT_IKAN_HIDUP']
+  ];
+  numMap.forEach(function(pair) {
+    var v = _v(pair[0]);
+    if (v !== '' && v !== null) items.push({ jenis: pair[1], jumlah: parseInt(v, 10) || 0 });
+  });
+
+  var kwRows = document.querySelectorAll('#int-kawasan-rows .int-kawasan-row');
+  for (var i = 0; i < kwRows.length; i++) {
+    var sel = kwRows[i].querySelector('.int-kw-sel');
+    var jml = kwRows[i].querySelector('.int-kw-jml');
+    var ket = kwRows[i].querySelector('.int-kw-ket');
+    if (sel && sel.value) {
+      items.push({
+        jenis: 'KAWASAN_KONSERVASI',
+        kawasanId: sel.value,
+        jumlah: parseInt(jml && jml.value, 10) || 0,
+        keterangan: ket ? ket.value : ''
+      });
+    }
+  }
+
+  if (items.length === 0) { _msg('int-form-msg', 'error', 'Minimal satu angka atau kawasan wajib diisi.'); return; }
+
+  var btn = document.getElementById('int-btn-submit');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('int-form-msg', 'success', res.message);
+        _intelResetForm();
+        _intelLoadKPI();
+        _intelLoadHistory();
+        setTimeout(function(){ _msg('int-form-msg', '', ''); }, 2000);
+      } else {
+        _msg('int-form-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('int-form-msg', 'error', 'Koneksi terputus.');
+    })
+    .intelijen_submitMingguan(APP.token, { periode: periode, items: items });
+}
+
+function _intelResetForm() {
+  ['int-dredging','int-perizinan','int-transmitter','int-nota-dinas','int-pengangkut'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var wrap = document.getElementById('int-kawasan-rows');
+  if (wrap) wrap.innerHTML = '';
+  intelAddKawasanRow();
+}
+
+// ── Revisi / Anulir ──
+function _intelFindRow(rowId) {
+  for (var i = 0; i < _INTEL.rows.length; i++) {
+    if (String(_INTEL.rows[i].RowID) === String(rowId)) return _INTEL.rows[i];
+  }
+  return null;
+}
+
+function intelOpenRevisiModal(rowId) {
+  var r = _intelFindRow(rowId);
+  if (!r) return;
+  _INTEL.pendingRowId = rowId;
+
+  document.getElementById('int-revisi-info').textContent =
+    (INTEL_LABELS[r.Jenis] || r.Jenis) + ' — Periode ' + r.Periode +
+    (r.Jenis === 'KAWASAN_KONSERVASI' ? ' (' + (r.kawasanNama || r.KawasanID) + ')' : '');
+  document.getElementById('rv-int-jumlah').value = (Number(r.Jumlah) || 0);
+  document.getElementById('rv-int-keterangan').value = r.Keterangan || '';
+  document.getElementById('rv-int-alasan').value = '';
+  _msg('int-revisi-msg', '', '');
+  document.getElementById('modal-int-revisi').classList.remove('n-hidden');
+}
+
+function intelRevisiConfirm() {
+  _msg('int-revisi-msg', '', '');
+  var alasan = _v('rv-int-alasan');
+  if (!alasan) { _msg('int-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+
+  var params = {
+    targetRowId: _INTEL.pendingRowId,
+    alasanRevisi: alasan,
+    jumlah: _v('rv-int-jumlah'),
+    keterangan: _v('rv-int-keterangan')
+  };
+
+  var btn = document.getElementById('int-btn-revisi-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('int-revisi-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-int-revisi');
+          _intelLoadKPI();
+          _intelLoadHistory();
+        }, 900);
+      } else {
+        _msg('int-revisi-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('int-revisi-msg', 'error', 'Koneksi terputus.');
+    })
+    .intelijen_revisi(APP.token, params);
+}
+
+function intelOpenAnulirModal(rowId) {
+  var r = _intelFindRow(rowId);
+  if (!r) return;
+  _INTEL.pendingRowId = rowId;
+  document.getElementById('int-anulir-info').textContent =
+    (INTEL_LABELS[r.Jenis] || r.Jenis) + ' — Periode ' + r.Periode;
+  document.getElementById('an-int-alasan').value = '';
+  _msg('int-anulir-msg', '', '');
+  document.getElementById('modal-int-anulir').classList.remove('n-hidden');
+}
+
+function intelAnulirConfirm() {
+  _msg('int-anulir-msg', '', '');
+  var alasan = _v('an-int-alasan');
+  if (!alasan) { _msg('int-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+
+  var btn = document.getElementById('int-btn-anulir-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('int-anulir-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-int-anulir');
+          _intelLoadKPI();
+          _intelLoadHistory();
+        }, 900);
+      } else {
+        _msg('int-anulir-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('int-anulir-msg', 'error', 'Koneksi terputus.');
+    })
+    .intelijen_anulir(APP.token, { targetRowId: _INTEL.pendingRowId, alasan: alasan });
+}
+
+
+// ============================================================
+// MODUL PEMANTAUAN — Fase 7 (PRD §5.6)
+// ============================================================
+var PEM_LABELS = {
+  PERSETUJUAN_PENYEDIA: 'Persetujuan Penyedia SPKP',
+  USERNAME:             'Penerbitan Username',
+  SKAT:                 'Penerbitan SKAT',
+  PEMASANGAN_MIGRASI:   'Pemasangan SPKP Kapal Migrasi',
+  MARABAHAYA:           'Kapal Kondisi Marabahaya'
+};
+
+var _PEM = {
+  pendingRowId: null,
+  kapalData:    null,
+  kpiData:      null,
+  rows:         []
+};
+
+function _renderPemantauan(el) {
+  var tpl = document.getElementById('view-tpl-pemantauan');
+  if (!tpl) { el.innerHTML = _moduleStub('Pemantauan'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _opsInitPeriodeUi('pem-');
+  pemAddPenyediaRow();
+  _pemLoadKapalOptions();
+  _pemLoadKPI();
+  _pemLoadHistory();
+
+  var pHint = document.getElementById('pem-periode-hint');
+  if (pHint) {
+    google.script.run.withSuccessHandler(function(res){
+      if (res) pHint.textContent = 'Periode saat ini: ' + res;
+    }).utils_getCurrentPeriode();
+  }
+}
+
+function pemToggleForm() {
+  var b = document.getElementById('pem-form-body');
+  var i = document.getElementById('pem-form-toggle-icon');
+  if (!b) return;
+  if (b.style.display === 'none') { b.style.display = 'block'; if (i) i.textContent = '▴'; }
+  else { b.style.display = 'none'; if (i) i.textContent = '▾'; }
+}
+
+function _pemLoadKapalOptions() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _PEM.kapalData = res.data || [];
+        pemAddMarabahayaRow();
+      } else {
+        _msg('pem-form-msg', 'error', 'Gagal memuat daftar kapal: ' + res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _msg('pem-form-msg', 'error', 'Koneksi terputus saat memuat kapal.');
+    })
+    .master_getKapalList(APP.token);
+}
+
+function pemAddPenyediaRow() {
+  var wrap = document.getElementById('pem-penyedia-rows');
+  if (!wrap) return;
+  var div = document.createElement('div');
+  div.className = 'pem-penyedia-row';
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 0.8fr auto;gap:10px;margin-bottom:10px;align-items:end;';
+  div.innerHTML =
+    '<div class="form-grp" style="margin:0;"><label>Nama Penyedia</label>' +
+      '<input type="text" class="pem-penyedia-nama" placeholder="Nama penyedia SPKP"></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Jumlah</label>' +
+      '<input type="number" class="pem-penyedia-jml" min="0" step="1" placeholder="1"></div>' +
+    '<button type="button" class="btn-mini" onclick="this.closest(\'.pem-penyedia-row\').remove()">Hapus</button>';
+  wrap.appendChild(div);
+}
+
+function pemAddMarabahayaRow() {
+  var wrap = document.getElementById('pem-marabahaya-rows');
+  if (!wrap) return;
+  var opts = '<option value="">(Pilih Kapal)</option>';
+  (_PEM.kapalData || []).forEach(function(k) {
+    opts += '<option value="' + _esc(k.kapalId) + '">' + _esc(k.nama) + (k.kelas ? ' — ' + _esc(k.kelas) : '') + '</option>';
+  });
+  var div = document.createElement('div');
+  div.className = 'pem-marabahaya-row';
+  div.style.cssText = 'display:grid;grid-template-columns:2fr 1.6fr 1fr auto;gap:10px;margin-bottom:10px;align-items:end;';
+  div.innerHTML =
+    '<div class="form-grp" style="margin:0;"><label>Kapal</label>' +
+      '<select class="pem-mb-kapal">' + opts + '</select></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Kondisi Darurat</label>' +
+      '<input type="text" class="pem-mb-kondisi" placeholder="Jenis kondisi darurat"></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Status</label>' +
+      '<select class="pem-mb-status"><option value="">Pilih</option>' +
+      '<option value="DALAM_PENANGANAN">Dalam Penanganan</option><option value="SELESAI">Selesai</option></select></div>' +
+    '<button type="button" class="btn-mini" onclick="this.closest(\'.pem-marabahaya-row\').remove()">Hapus</button>';
+  wrap.appendChild(div);
+}
+
+// ── KPI + event log ──
+function _pemLoadKPI() {
+  var strip = document.getElementById('pem-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(5);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) {
+        _PEM.kpiData = res.data;
+        _pemRenderKPI(res.data);
+        _pemRenderPenyedia(res.data.penyedia || []);
+        _pemRenderMarabahaya(res.data.marabahaya || []);
+      } else if (strip) {
+        strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + _esc(res.error) + '</div>';
+      }
+    })
+    .withFailureHandler(function() {
+      if (strip) strip.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .pemantauan_getKPI(APP.token, APP.filter);
+}
+
+function _pemRenderKPI(kpi) {
+  var strip = document.getElementById('pem-kpi-strip');
+  if (!strip) return;
+
+  function card(label, periode, ytd) {
+    return '<div class="n-card"><div class="kpi-label">' + _esc(label) + '</div>' +
+           '<div class="kpi-val">' + (periode || 0) + '</div>' +
+           '<div class="kpi-sub">YTD: ' + (ytd || 0) + '</div></div>';
+  }
+  function simple(label, value, sub) {
+    return '<div class="n-card"><div class="kpi-label">' + _esc(label) + '</div>' +
+           '<div class="kpi-val">' + (value || 0) + '</div>' +
+           '<div class="kpi-sub">' + _esc(sub) + '</div></div>';
+  }
+
+  strip.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">' +
+    card('Penerbitan Username', kpi.usernamePeriode, kpi.usernameYTD) +
+    card('Penerbitan SKAT',     kpi.skatPeriode,     kpi.skatYTD) +
+    card('Pemasangan Migrasi',  kpi.pemasanganPeriode, kpi.pemasanganYTD) +
+    simple('Persetujuan Penyedia', kpi.penyediaPesan, 'penyedia periode ini') +
+    simple('Kapal Marabahaya', (kpi.marabahaya || []).length, 'entri periode ini') +
+  '</div>';
+}
+
+function _pemRenderPenyedia(rows) {
+  var wrap = document.getElementById('pem-penyedia-wrap');
+  if (!wrap) return;
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada persetujuan penyedia pada periode ini.</div>';
+    return;
+  }
+  var t = '<table class="n-table n-table-full"><thead><tr><th>Penyedia</th><th>Jumlah</th><th>Periode</th><th>Tanggal</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    t += '<tr><td>' + _esc(r.nama) + '</td><td>' + (r.jumlah || 0) + '</td><td>' + _esc(r.periode) + '</td><td>' +
+         (r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—') + '</td></tr>';
+  });
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _pemRenderMarabahaya(rows) {
+  var wrap = document.getElementById('pem-marabahaya-wrap');
+  if (!wrap) return;
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Tidak ada kapal marabahaya pada periode ini.</div>';
+    return;
+  }
+  var t = '<table class="n-table n-table-full"><thead><tr><th>Kapal</th><th>Kondisi</th><th>Status</th><th>Periode</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">—</span>';
+    if (r.statusPenanganan === 'DALAM_PENANGANAN') st = '<span class="status-badge" style="background:#fef3c7;color:#92400e;">Dalam Penanganan</span>';
+    else if (r.statusPenanganan === 'SELESAI') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-status-success);">Selesai</span>';
+    t += '<tr><td>' + _esc(r.namaKapal) + '</td><td>' + _esc(r.kondisiDarurat) + '</td><td>' + st + '</td><td>' + _esc(r.periode) + '</td></tr>';
+  });
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+// ── Riwayat ──
+function _pemLoadHistory() {
+  var wrap = document.getElementById('pem-history-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat riwayat pemantauan\u2026');
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) { _PEM.rows = res.data; _pemRenderHistory(res.data); }
+      else wrap.innerHTML = '<div class="n-msg error">' + _esc(res.error) + '</div>';
+    })
+    .withFailureHandler(function() {
+      wrap.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .pemantauan_getHistory(APP.token, APP.filter);
+}
+
+function _pemRenderHistory(data) {
+  var wrap = document.getElementById('pem-history-wrap');
+  if (!wrap) return;
+  var rows = data || [];
+
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Tidak ada riwayat untuk periode ini.</div>';
+    return;
+  }
+
+  var isPimpinan = (APP.user && (APP.user.role === 'DIREKTUR' || APP.user.role === 'SUPERADMIN' || APP.user.role === 'KADIV'));
+  var canWrite = (APP.user && (APP.user.role === 'SUPERADMIN' || (APP.user.divisiId === 'DIV-PANTAU' && (APP.user.role === 'STAF' || APP.user.role === 'KADIV'))));
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Periode</th><th>Kategori</th><th>Jumlah</th><th>Detail</th><th>Tanggal</th><th>Status</th><th>Aksi</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.Status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.Status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var label = PEM_LABELS[r.Jenis] || r.Jenis;
+    var detail = '—';
+    if (r.Jenis === 'PERSETUJUAN_PENYEDIA') detail = r.NamaPenyedia || '—';
+    else if (r.Jenis === 'MARABAHAYA') detail = (r.kapalNama || r.KapalID || '—') + (r.KondisiDarurat ? ' · ' + r.KondisiDarurat : '');
+
+    var bRev = (r.Status === 'ACTIVE' && canWrite) ? '<button class="btn-mini" onclick="pemOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
+    var bAn  = (r.Status === 'ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="pemOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
+
+    var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + _esc(r.Periode) + '</td>';
+    t += '<td>' + _esc(label) + '</td>';
+    t += '<td>' + (Number(r.Jumlah) || 0) + '</td>';
+    t += '<td>' + _esc(detail) + '</td>';
+    t += '<td>' + ts + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if (r.Status === 'VOID' && r.VoidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="7" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.VoidReason) + ' (oleh ' + _esc(r.VoidedBy) + ')</td></tr>';
+    }
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+// ── Submit ──
+function pemSubmit(e) {
+  _msg('pem-form-msg', '', '');
+  var periode = _composePeriode('pem-');
+  if (!periode) { _msg('pem-form-msg', 'error', 'Periode wajib dipilih.'); return; }
+
+  var items = [];
+  [['pem-username','USERNAME'],['pem-skat','SKAT'],['pem-migrasi','PEMASANGAN_MIGRASI']].forEach(function(pair){
+    var v = _v(pair[0]);
+    if (v !== '' && v !== null) items.push({ jenis: pair[1], jumlah: parseInt(v, 10) || 0 });
+  });
+
+  var pRows = document.querySelectorAll('#pem-penyedia-rows .pem-penyedia-row');
+  for (var i = 0; i < pRows.length; i++) {
+    var nama = pRows[i].querySelector('.pem-penyedia-nama');
+    var jml  = pRows[i].querySelector('.pem-penyedia-jml');
+    if (nama && nama.value.trim()) {
+      items.push({ jenis: 'PERSETUJUAN_PENYEDIA', namaPenyedia: nama.value.trim(), jumlah: parseInt(jml && jml.value, 10) || 1 });
+    }
+  }
+
+  var mRows = document.querySelectorAll('#pem-marabahaya-rows .pem-marabahaya-row');
+  for (var j = 0; j < mRows.length; j++) {
+    var kapal = mRows[j].querySelector('.pem-mb-kapal');
+    var kond  = mRows[j].querySelector('.pem-mb-kondisi');
+    var stat  = mRows[j].querySelector('.pem-mb-status');
+    if (kapal && kapal.value) {
+      items.push({ jenis: 'MARABAHAYA', kapalId: kapal.value, kondisiDarurat: kond ? kond.value : '', statusPenanganan: stat ? stat.value : '' });
+    }
+  }
+
+  if (items.length === 0) { _msg('pem-form-msg', 'error', 'Minimal satu data pemantauan wajib diisi.'); return; }
+
+  var btn = document.getElementById('pem-btn-submit');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('pem-form-msg', 'success', res.message);
+        _pemResetForm();
+        _pemLoadKPI();
+        _pemLoadHistory();
+        setTimeout(function(){ _msg('pem-form-msg', '', ''); }, 2000);
+      } else {
+        _msg('pem-form-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('pem-form-msg', 'error', 'Koneksi terputus.');
+    })
+    .pemantauan_submitMingguan(APP.token, { periode: periode, items: items });
+}
+
+function _pemResetForm() {
+  ['pem-username','pem-skat','pem-migrasi'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var pw = document.getElementById('pem-penyedia-rows');
+  if (pw) pw.innerHTML = '';
+  var mw = document.getElementById('pem-marabahaya-rows');
+  if (mw) mw.innerHTML = '';
+  pemAddPenyediaRow();
+  pemAddMarabahayaRow();
+}
+
+// ── Revisi / Anulir ──
+function _pemFindRow(rowId) {
+  for (var i = 0; i < _PEM.rows.length; i++) {
+    if (String(_PEM.rows[i].RowID) === String(rowId)) return _PEM.rows[i];
+  }
+  return null;
+}
+
+function pemOpenRevisiModal(rowId) {
+  var r = _pemFindRow(rowId);
+  if (!r) return;
+  _PEM.pendingRowId = rowId;
+
+  var isMarabahaya = (r.Jenis === 'MARABAHAYA');
+  document.getElementById('pem-revisi-info').textContent =
+    (PEM_LABELS[r.Jenis] || r.Jenis) + ' — Periode ' + r.Periode;
+
+  document.getElementById('rv-pem-marabahaya').hidden = !isMarabahaya;
+  document.getElementById('rv-pem-jumlah-wrap').hidden = isMarabahaya;
+
+  if (isMarabahaya) {
+    document.getElementById('rv-pem-kondisi').value = r.KondisiDarurat || '';
+    document.getElementById('rv-pem-status').value = r.StatusPenanganan || '';
+  } else {
+    document.getElementById('rv-pem-jumlah').value = (Number(r.Jumlah) || 0);
+  }
+  document.getElementById('rv-pem-alasan').value = '';
+  _msg('pem-revisi-msg', '', '');
+  document.getElementById('modal-pem-revisi').classList.remove('n-hidden');
+}
+
+function pemRevisiConfirm() {
+  _msg('pem-revisi-msg', '', '');
+  var alasan = _v('rv-pem-alasan');
+  if (!alasan) { _msg('pem-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+
+  var params = { targetRowId: _PEM.pendingRowId, alasanRevisi: alasan };
+  var r = _pemFindRow(_PEM.pendingRowId);
+  if (r && r.Jenis === 'MARABAHAYA') {
+    params.kondisiDarurat = _v('rv-pem-kondisi');
+    params.statusPenanganan = _v('rv-pem-status');
+  } else {
+    params.jumlah = _v('rv-pem-jumlah');
+  }
+
+  var btn = document.getElementById('pem-btn-revisi-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('pem-revisi-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-pem-revisi');
+          _pemLoadKPI();
+          _pemLoadHistory();
+        }, 900);
+      } else {
+        _msg('pem-revisi-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('pem-revisi-msg', 'error', 'Koneksi terputus.');
+    })
+    .pemantauan_revisi(APP.token, params);
+}
+
+function pemOpenAnulirModal(rowId) {
+  var r = _pemFindRow(rowId);
+  if (!r) return;
+  _PEM.pendingRowId = rowId;
+  document.getElementById('pem-anulir-info').textContent =
+    (PEM_LABELS[r.Jenis] || r.Jenis) + ' — Periode ' + r.Periode;
+  document.getElementById('an-pem-alasan').value = '';
+  _msg('pem-anulir-msg', '', '');
+  document.getElementById('modal-pem-anulir').classList.remove('n-hidden');
+}
+
+function pemAnulirConfirm() {
+  _msg('pem-anulir-msg', '', '');
+  var alasan = _v('an-pem-alasan');
+  if (!alasan) { _msg('pem-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+
+  var btn = document.getElementById('pem-btn-anulir-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('pem-anulir-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-pem-anulir');
+          _pemLoadKPI();
+          _pemLoadHistory();
+        }, 900);
+      } else {
+        _msg('pem-anulir-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('pem-anulir-msg', 'error', 'Koneksi terputus.');
+    })
+    .pemantauan_anulir(APP.token, { targetRowId: _PEM.pendingRowId, alasan: alasan });
 }
 
 

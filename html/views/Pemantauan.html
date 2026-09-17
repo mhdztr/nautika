@@ -1,0 +1,164 @@
+<!-- html/views/Pemantauan.html -->
+<!--
+  Modul Pemantauan (DIV-PANTAU) — PRD §5.6.
+  Di-include ke Index.html via html_include(), dirender oleh _renderPemantauan().
+-->
+<div id="view-tpl-pemantauan" hidden>
+
+  <!-- ── KPI STRIP ───────────────────────────────── -->
+  <div class="content-section">
+    <div id="pem-kpi-strip">
+      <!-- diisi _pemRenderKPI() -->
+    </div>
+  </div>
+
+  <!-- ── EVENT LOG PENYEDIA + KAPAL MARABAHAYA ────── -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;" id="pem-side-grid">
+    <div class="content-section">
+      <div class="content-section-hd">Event Persetujuan Penyedia SPKP</div>
+      <div class="n-card" style="padding:0;overflow-x:auto;" id="pem-penyedia-wrap">
+        <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat…</div>
+      </div>
+    </div>
+    <div class="content-section">
+      <div class="content-section-hd">Kapal Kondisi Marabahaya</div>
+      <div class="n-card" style="padding:0;overflow-x:auto;" id="pem-marabahaya-wrap">
+        <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
+  <div class="content-section n-card">
+    <div class="btn-form-toggle" onclick="pemToggleForm()">
+      <div id="pem-form-toggle-label">Input Laporan Pemantauan</div>
+      <span id="pem-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="pem-form-body" style="margin-top:18px;">
+      <div id="pem-form-msg" class="n-msg"></div>
+
+      <!-- Periode -->
+      <div class="form-grp" style="max-width:420px;">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+          <select id="pem-periode-tahun"><option value="">Tahun</option></select>
+          <select id="pem-periode-bulan"><option value="">Bulan</option></select>
+          <select id="pem-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="pem-periode-hint">Periode: —</div>
+      </div>
+
+      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+      <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Penerbitan Minggu Ini</h3>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="pem-username">Penerbitan Username SPKP</label>
+          <input type="number" id="pem-username" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="pem-skat">Penerbitan SKAT</label>
+          <input type="number" id="pem-skat" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="pem-migrasi">Pemasangan SPKP Kapal Migrasi</label>
+          <input type="number" id="pem-migrasi" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+
+      <!-- Persetujuan penyedia baru -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Persetujuan Penyedia Baru</h3>
+        <button type="button" class="btn-mini" onclick="pemAddPenyediaRow()">+ Tambah</button>
+      </div>
+      <div id="pem-penyedia-rows"></div>
+
+      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+
+      <!-- Kapal marabahaya baru -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Kapal Marabahaya Baru</h3>
+        <button type="button" class="btn-mini" onclick="pemAddMarabahayaRow()">+ Tambah</button>
+      </div>
+      <div id="pem-marabahaya-rows"></div>
+
+      <button class="btn-primary" style="margin-top:24px;" id="pem-btn-submit" onclick="pemSubmit()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <!-- ── TABEL RIWAYAT ─────────────────────────────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat Laporan</div>
+    <div id="pem-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="pem-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL REVISI ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-pem-revisi">
+    <div class="n-modal" style="max-width:520px;width:100%;">
+      <h2>Revisi Data Pemantauan</h2>
+      <div id="pem-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="pem-revisi-msg" class="n-msg"></div>
+
+      <div id="rv-pem-marabahaya" hidden>
+        <div class="form-grp">
+          <label for="rv-pem-kondisi">Kondisi Darurat</label>
+          <input type="text" id="rv-pem-kondisi" placeholder="Koreksi kondisi darurat">
+        </div>
+        <div class="form-grp">
+          <label for="rv-pem-status">Status Penanganan</label>
+          <select id="rv-pem-status">
+            <option value="">— Pilih —</option>
+            <option value="DALAM_PENANGANAN">Dalam Penanganan</option>
+            <option value="SELESAI">Selesai</option>
+          </select>
+        </div>
+      </div>
+      <div id="rv-pem-jumlah-wrap">
+        <div class="form-grp">
+          <label for="rv-pem-jumlah">Jumlah</label>
+          <input type="number" id="rv-pem-jumlah" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-grp">
+        <label for="rv-pem-alasan">Alasan Revisi <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="rv-pem-alasan" placeholder="Jelaskan yang diubah dan mengapa">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="pem-btn-revisi-save" onclick="pemRevisiConfirm()">Simpan Revisi</button>
+        <button class="btn-outline" onclick="closeModal('modal-pem-revisi')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL ANULIR ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-pem-anulir">
+    <div class="n-modal" style="max-width:520px;width:100%;">
+      <h2>Anulir Data Pemantauan</h2>
+      <div id="pem-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="pem-anulir-msg" class="n-msg"></div>
+
+      <div class="n-info-static" style="margin-bottom:14px;">
+        Komentar anulir terlihat oleh seluruh anggota divisi. Staf dapat melaporkan ulang setelah memperbaiki data.
+      </div>
+      <div class="form-grp">
+        <label for="an-pem-alasan">Komentar Anulir <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="an-pem-alasan" placeholder="Jelaskan apa yang perlu diperbaiki">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" style="background:var(--n-status-critical);" id="pem-btn-anulir-save" onclick="pemAnulirConfirm()">Anulir Data</button>
+        <button class="btn-outline" onclick="closeModal('modal-pem-anulir')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-pemantauan -->

@@ -775,11 +775,7 @@ function _mdSaveKapal() {
   _mdKapalModalMsg(null);
   _setLoading(btn, true);
 
-  var call = editing
-    ? google.script.run.master_updateKapal(APP.token, params)
-    : google.script.run.master_createKapal(APP.token, params);
-
-  call
+  var runner = google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
       if (!res.success) { _mdKapalModalMsg('error', res.error); return; }
@@ -792,6 +788,9 @@ function _mdSaveKapal() {
       _setLoading(btn, false);
       _mdKapalModalMsg('error', 'Terjadi kesalahan koneksi. Coba lagi.');
     });
+
+  if (editing) runner.master_updateKapal(APP.token, params);
+  else         runner.master_createKapal(APP.token, params);
 }
 
 function _mdToggleKapal(kapalId) {
@@ -924,11 +923,7 @@ function _mdSaveKawasan() {
   _mdKawasanModalMsg(null);
   _setLoading(btn, true);
 
-  var call = editing
-    ? google.script.run.master_updateKawasan(APP.token, params)
-    : google.script.run.master_createKawasan(APP.token, params);
-
-  call
+  var runner = google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
       if (!res.success) { _mdKawasanModalMsg('error', res.error); return; }
@@ -941,6 +936,9 @@ function _mdSaveKawasan() {
       _setLoading(btn, false);
       _mdKawasanModalMsg('error', 'Terjadi kesalahan koneksi. Coba lagi.');
     });
+
+  if (editing) runner.master_updateKawasan(APP.token, params);
+  else         runner.master_createKawasan(APP.token, params);
 }
 
 function _mdDeleteKawasan(kawasanId) {

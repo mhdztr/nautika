@@ -558,6 +558,17 @@ a { text-decoration: none; color: inherit; }
 .badge-neutral { background: var(--n-surface-2); color: var(--n-text-secondary); }
 .badge-super   { background: var(--n-primary-light); color: var(--n-primary); }
 
+/* Badge status pada tabel riwayat (Operasi/Intelijen/Pemantauan/Tata Usaha).
+   Kelas ini dipakai di Script_Main.html tapi sebelumnya tidak pernah didefinisikan. */
+.status-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--n-r-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ============================================================
    TABLE
    ============================================================ */

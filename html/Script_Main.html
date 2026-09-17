@@ -1265,61 +1265,42 @@ function _tuRenderHistory(items) {
     return;
   }
 
-  var rows = items.map(function (r) {
-    var badge = _tuStatusBadge(r.status);
-    var aksi  = '';
+  var t = '<table class="n-table"><thead><tr>';
+  t += '<th>Periode</th><th>Pagu Total</th><th>SP2D Minggu</th><th>Akrual Minggu</th><th>Tanggal</th><th>Status</th><th>Aksi</th>';
+  t += '</tr></thead><tbody>';
 
-    if (r.status === 'ACTIVE') {
-      if (canRevisi) {
-        aksi += '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" ' +
-          'onclick="tuOpenRevisiModal(\'' + _esc(r.rowId) + '\')">' +
-          'Revisi</button>';
-      }
-      if (canAnulir) {
-        aksi += '<button class="btn-sm btn-sm-crit" onclick="tuOpenAnulirModal(\'' + _esc(r.rowId) + '\',\'' + _esc(r.periode) + '\')">' +
-          'Anulir</button>';
-      }
-    }
+  for (var i = 0; i < items.length; i++) {
+    var r = items[i];
 
-    // Baris void: tampilkan VoidReason inline
-    var voidRow = '';
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="tuOpenRevisiModal(\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
+    var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="tuOpenAnulirModal(\'' + _esc(r.rowId) + '\',\'' + _esc(r.periode) + '\')">Anulir</button>' : '';
+
+    var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + _esc(r.periode) + '</td>';
+    t += '<td>' + _rupiah(r.paguTotal) + '</td>';
+    t += '<td>' + _rupiah(r.realisasiSP2D) + '</td>';
+    t += '<td>' + _rupiah(r.realisasiAkrual) + '</td>';
+    t += '<td>' + tgl + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
     if (r.status === 'VOID' && r.voidReason) {
-      voidRow = '<tr><td colspan="7" style="padding:0 12px 10px;background:#FEF2F2;">' +
-        '<div style="font-size:.8rem;color:var(--n-crit);border-left:3px solid var(--n-crit);padding:6px 10px;border-radius:0 4px 4px 0;">' +
-        '<strong>Komentar anulir:</strong> ' + _esc(r.voidReason) +
-        (r.voidedBy ? ' — <em>oleh ' + _esc(r.voidedBy) + '</em>' : '') +
-        '</div></td></tr>';
+      t += '<tr style="background:#fef2f2;"><td colspan="7" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
+      t += '<strong>Alasan Anulir:</strong> ' + _esc(r.voidReason) + (r.voidedBy ? ' (oleh ' + _esc(r.voidedBy) + ')' : '');
+      t += '</td></tr>';
     }
+  }
 
-    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '-';
-    return '<tr>' +
-      '<td>' + _esc(r.periode) + '</td>' +
-      '<td>' + _rupiah(r.paguTotal) + '</td>' +
-      '<td>' + _rupiah(r.realisasiSP2D) + '</td>' +
-      '<td>' + _rupiah(r.realisasiAkrual) + '</td>' +
-      '<td>' + tgl + '</td>' +
-      '<td>' + badge + '</td>' +
-      '<td>' + (aksi || '—') + '</td>' +
-    '</tr>' + voidRow;
-  }).join('');
-
-  wrap.innerHTML =
-    '<table class="n-table">' +
-      '<thead><tr>' +
-        '<th>Periode</th><th>Pagu Total</th><th>SP2D Minggu</th>' +
-        '<th>Akrual Minggu</th><th>Tanggal</th><th>Status</th><th>Aksi</th>' +
-      '</tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-    '</table>';
-}
-
-function _tuStatusBadge(status) {
-  var map = {
-    'ACTIVE':     '<span class="badge badge-ok">AKTIF</span>',
-    'SUPERSEDED': '<span class="badge badge-neutral">DIGANTI</span>',
-    'VOID':       '<span class="badge badge-crit">DIANULIR</span>'
-  };
-  return map[status] || '<span class="badge badge-neutral">' + _esc(status) + '</span>';
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
 }
 
 // ── SUBMIT ────────────────────────────────────────────────

@@ -38,6 +38,7 @@ function _loadCharts(cb) {
     // Register plugin label nilai & ujung garis, lalu theme default.
     Chart.register(_CHART_VALUE_PLUGIN);
     Chart.register(_CHART_LINEEND_PLUGIN);
+    Chart.register(_CHART_DONUT_PLUGIN);
     Chart.defaults.font.family = "'Poppins', sans-serif";
     Chart.defaults.font.size   = 12;
     Chart.defaults.color       = _CHART_COLORS.textSecondary;
@@ -224,8 +225,62 @@ var _CHART_LINEEND_PLUGIN = {
 };
 
 // ============================================================
-// BASE OPTIONS — theme + tooltip seragam, legend dimatikan
+// PLUGIN DONUT — label persen di segmen + angka tengah
+// Donut hanya untuk proporsi ≤4 kategori sebagai poin utama
+// (DESIGN.md §6 — mis. status kesiapan armada siap/tidak siap).
 // ============================================================
+var _CHART_DONUT_PLUGIN = {
+  id: 'nvDonut',
+  afterDatasetsDraw: function (chart) {
+    var cfg = (chart.config.options.plugins || {}).nvDonut;
+    if (!cfg || !cfg.enabled) return;
+    var ctx = chart.ctx;
+    var meta = chart.getDatasetMeta(0);
+    var data = (chart.data.datasets[0] || {}).data || [];
+    var total = 0;
+    data.forEach(function (v) { total += Number(v) || 0; });
+
+    ctx.save();
+    // Label persen di tiap segmen (hanya bila segmen cukup besar)
+    if (cfg.showPct !== false && total > 0) {
+      ctx.font = '600 11px Poppins, sans-serif';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      meta.data.forEach(function (arc, i) {
+        var v = Number(data[i]) || 0;
+        if (v <= 0) return;
+        var pct = (v / total) * 100;
+        if (pct < 6) return; // segmen terlalu tipis untuk label
+        var mid = (arc.startAngle + arc.endAngle) / 2;
+        var r = (arc.innerRadius + arc.outerRadius) / 2;
+        var x = arc.x + Math.cos(mid) * r;
+        var y = arc.y + Math.sin(mid) * r;
+        ctx.fillText(Math.round(pct) + '%', x, y);
+      });
+    }
+
+    // Angka tengah
+    if (cfg.center) {
+      var cx = (meta.data[0] && meta.data[0].x) || 0;
+      var cy = (meta.data[0] && meta.data[0].y) || 0;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = _CHART_COLORS.textPrimary;
+      ctx.font = '700 22px Poppins, sans-serif';
+      ctx.fillText(String(cfg.center), cx, cy - (cfg.centerSub ? 8 : 0));
+      if (cfg.centerSub) {
+        ctx.fillStyle = _CHART_COLORS.textMuted;
+        ctx.font = '500 11px Poppins, sans-serif';
+        ctx.fillText(String(cfg.centerSub), cx, cy + 12);
+      }
+    }
+    ctx.restore();
+  }
+};
+
+// ============================================================
+
 function _chartBase(opts, extra) {
   var base = {
     responsive: true,
@@ -249,7 +304,14 @@ function _chartBase(opts, extra) {
   if (!extra) return base;
   for (var k in extra) {
     if (k === 'plugins') {
-      for (var p in extra.plugins) base.plugins[p] = extra.plugins[p];
+      for (var p in extra.plugins) {
+        if (p === 'tooltip' && base.plugins.tooltip) {
+          // merge agar tema tooltip seragam tetap dipakai
+          for (var tk in extra.plugins.tooltip) base.plugins.tooltip[tk] = extra.plugins.tooltip[tk];
+        } else {
+          base.plugins[p] = extra.plugins[p];
+        }
+      }
     } else {
       base[k] = extra[k];
     }
@@ -372,6 +434,65 @@ function _chartBar(canvasId, labels, datasets, opts) {
               x: { grid: { display: false }, ticks: { color: _CHART_COLORS.textSecondary, font: { size: 11 }, autoSkip: false }, border: { display: false } },
               y: _chartYScale()
             }
+      })
+    });
+    _NAUTIKA_CHARTS[canvasId] = chart;
+  });
+}
+// ============================================================
+// BUILDER DONUT — proporsi ≤4 kategori (DESIGN §6)
+// ============================================================
+function _chartDonut(canvasId, labels, values, colors, opts) {
+  opts = opts || {};
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  _chartShow(canvasId);
+
+  var total = 0;
+  (values || []).forEach(function (v) { total += Number(v) || 0; });
+  if (total <= 0) {
+    _chartEmpty(canvasId, opts.emptyMsg || 'Belum ada data pada periode terpilih.');
+    return;
+  }
+
+  _loadCharts(function () {
+    _chartDestroy(canvasId);
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    var chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          hoverBackgroundColor: colors,
+          borderColor: '#FFFFFF',
+          borderWidth: 2,
+          hoverOffset: 4
+        }]
+      },
+      options: _chartBase(opts, {
+        cutout: '68%',
+        plugins: {
+          nvVal: { enabled: false },
+          nvEnd: { enabled: false },
+          nvDonut: {
+            enabled: true,
+            center: opts.center || _chartNum(total),
+            centerSub: opts.centerSub || 'Total',
+            showPct: opts.showPct !== false
+          },
+          tooltip: {
+            callbacks: {
+              label: function (c) {
+                var pct = total > 0 ? Math.round((Number(c.raw) / total) * 100) : 0;
+                return c.label + ': ' + _chartNum(c.raw) + ' (' + pct + '%)';
+              }
+            }
+          }
+        }
       })
     });
     _NAUTIKA_CHARTS[canvasId] = chart;

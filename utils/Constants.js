@@ -115,6 +115,34 @@ var DIVISI_ID = {
 };
 
 // ===========================================================================
+// ENUM — Modul Perawatan (Fase 9)
+// Nilai enum harus persis sama dengan DATA_SCHEMA.md.
+// ===========================================================================
+var RAWAT_LOKASI = ['PUSAT', 'UPT'];
+
+var RAWAT_TAHAP = [
+  'PROSES_PENGADAAN',
+  'TANDATANGAN_KONTRAK',
+  'PROSES_DOCKING',
+  'SELESAI'
+];
+
+var RAWAT_KATEGORI = [
+  'PROSES_PEMBAYARAN',
+  'SELESAI',
+  'PERENCANAAN'
+];
+
+// ===========================================================================
+// EVIDENCE — struktur folder & batas ukuran (PRD §11, ARCHITECTURE §6)
+// ===========================================================================
+var EVIDENCE_ROOT_FOLDER = 'Nautika_Evidence';
+var EVIDENCE_LIMIT_BYTES = {
+  FILE:  15 * 1024 * 1024,   // file umum 15MB
+  VIDEO: 50 * 1024 * 1024    // video maksimal 50MB, di atas ini ditolak
+};
+
+// ===========================================================================
 // WPP NRI — referensi dari wpp_final.geojson (source of truth geospasial)
 // Daftar ini MENGIKUTI properti `wppnri`/`name` pada file geojson WPP-NRI.
 // Dipakai untuk: (1) auto-seed sheet master `WPP` bila masih kosong,

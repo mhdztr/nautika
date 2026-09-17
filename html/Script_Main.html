@@ -392,6 +392,7 @@ function _renderViewContent(viewId) {
   if (viewId === 'operasi')     { _renderOperasi(el);     return; }
   if (viewId === 'intelijen')   { _renderIntelijen(el);   return; }
   if (viewId === 'pemantauan')  { _renderPemantauan(el);  return; }
+  if (viewId === 'perawatan')   { _renderPerawatan(el);   return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
   if (viewId === 'riwayat')     { _renderRiwayatStub(el); return; }
   // Modul lain — stub hingga fase masing-masing
@@ -3433,6 +3434,743 @@ function _pemLoadCharts() {
     })
     .withFailureHandler(function () {})
     .pemantauan_getTren(APP.token, APP.filter);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODUL PERAWATAN (Fase 9) — Kesiapan / Docking / Item Pekerjaan
+// ═══════════════════════════════════════════════════════════
+
+var _RAWAT = {
+  tab: 'kesiapan',
+  options: null,                                   // {kapal:[], docking:[]}
+  kpi: null,
+  history: { kesiapan: [], docking: [], item: [] },
+  formOpen: { kesiapan: true, docking: true, item: true },
+  revisi:   { jenis: null, rowId: null },
+  anulir:   { jenis: null, rowId: null },
+  evidence: { refSheet: null, refRowId: null }
+};
+
+var _RAWAT_SHEET  = { kesiapan: 'TX_Perawatan_Kesiapan', docking: 'TX_Perawatan_Docking', item: 'TX_Perawatan_Item' };
+var _RAWAT_LABEL  = { kesiapan: 'Kesiapan Kapal', docking: 'Docking', item: 'Item Pekerjaan' };
+var _RAWAT_PREFIX = { kesiapan: 'rawk', docking: 'rawd', item: 'rawi' };
+
+var _RAWAT_TAHAP_LABEL = {
+  PROSES_PENGADAAN: 'Proses Pengadaan',
+  TANDATANGAN_KONTRAK: 'Tanda Tangan Kontrak',
+  PROSES_DOCKING: 'Proses Docking',
+  SELESAI: 'Selesai'
+};
+var _RAWAT_LOKASI_LABEL = { PUSAT: 'Pusat', UPT: 'UPT' };
+var _RAWAT_KATEGORI_LABEL = {
+  PERENCANAAN: 'Perencanaan',
+  PROSES_PEMBAYARAN: 'Proses Pembayaran',
+  SELESAI: 'Selesai'
+};
+
+// ── RENDER UTAMA ──────────────────────────────────────────
+
+function _renderPerawatan(el) {
+  var tpl = document.getElementById('view-tpl-perawatan');
+  if (!tpl) { el.innerHTML = _moduleStub('Perawatan'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _RAWAT.tab = 'kesiapan';
+  _rawatSetTab('kesiapan');
+
+  _rawatLoadOptions();
+  _rawatLoadKPI();
+}
+
+function _rawatSyncTabState() {
+  var tabs = document.querySelectorAll('#rawat-tabs .n-tab');
+  tabs.forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-rawat-tab') === _RAWAT.tab);
+  });
+}
+
+function _rawatSetTab(name) {
+  if (name !== 'kesiapan' && name !== 'docking' && name !== 'item') return;
+  _RAWAT.tab = name;
+  _rawatSyncTabState();
+
+  // Chart pane lama dibersihkan sebelum DOM pane di-rebuild
+  _chartDestroy('rawd-chart-tahap');
+  _chartDestroy('rawi-chart-kategori');
+
+  var pane = document.getElementById('rawat-tab-pane');
+  if (!pane) return;
+  var tpl = document.getElementById('view-tpl-rawat-' + name);
+  pane.innerHTML = tpl ? tpl.innerHTML : '';
+  _rawatInitPane(name);
+}
+
+// RBAC UI mengikuti server: write = SUPERADMIN atau (KADIV/STAF DIV-RAWAT);
+// anulir = SUPERADMIN/DIREKTUR atau KADIV DIV-RAWAT.
+function _rawatCanWrite() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || (u.divisiId === 'DIV-RAWAT' && (u.role === 'STAF' || u.role === 'KADIV'));
+}
+
+function _rawatCanAnulir() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || u.role === 'DIREKTUR' || (u.divisiId === 'DIV-RAWAT' && u.role === 'KADIV');
+}
+
+function _rawatInitPane(name) {
+  var prefix = _RAWAT_PREFIX[name] + '-';
+
+  var formSection = document.getElementById(prefix + '-form-section');
+  if (formSection) formSection.style.display = _rawatCanWrite() ? '' : 'none';
+
+  var fbody = document.getElementById(prefix + '-form-body');
+  var ficon = document.getElementById(prefix + '-form-toggle-icon');
+  if (fbody) fbody.style.display = _RAWAT.formOpen[name] ? 'block' : 'none';
+  if (ficon) ficon.textContent = _RAWAT.formOpen[name] ? '\u25be' : '\u25b8';
+
+  _opsInitPeriodeUi(prefix);
+  ['tahun', 'bulan', 'minggu'].forEach(function (k) {
+    var sel = document.getElementById(prefix + 'periode-' + k);
+    if (sel) sel.onchange = function () { _rawatUpdatePeriodeHint(name); };
+  });
+  _rawatUpdatePeriodeHint(name);
+
+  _rawatPopulateOptions();
+  _rawatFetchHistory(name);
+  _rawatBuildPaneCharts();
+
+  if (name === 'kesiapan') _rawatKesiapanStatusChange();
+}
+
+function _rawatUpdatePeriodeHint(name) {
+  var hint = document.getElementById(_RAWAT_PREFIX[name] + '-periode-hint');
+  if (hint) hint.textContent = _composePeriode(_RAWAT_PREFIX[name] + '-') || '—';
+}
+
+function _rawatToggleForm(name) {
+  var prefix = _RAWAT_PREFIX[name];
+  var body = document.getElementById(prefix + '-form-body');
+  var icon = document.getElementById(prefix + '-form-toggle-icon');
+  if (!body) return;
+  _RAWAT.formOpen[name] = !_RAWAT.formOpen[name];
+  body.style.display = _RAWAT.formOpen[name] ? 'block' : 'none';
+  if (icon) icon.textContent = _RAWAT.formOpen[name] ? '▾' : '▸';
+}
+
+// ── OPTIONS ───────────────────────────────────────────────
+
+function _rawatLoadOptions() {
+  if (_RAWAT.options) { _rawatPopulateOptions(); return; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      _RAWAT.options = res.data;
+      _rawatPopulateOptions();
+    })
+    .withFailureHandler(function () {})
+    .perawatan_getOptions(APP.token);
+}
+
+function _rawatPopulateOptions() {
+  if (!_RAWAT.options) return;
+  var kapal = _RAWAT.options.kapal || [];
+
+  ['rawk-kapal', 'rawd-kapal'].forEach(function (id) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">(Pilih Kapal)</option>';
+    kapal.forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k.kapalId;
+      o.textContent = k.nama + (k.aktif ? '' : ' (non-aktif)');
+      sel.appendChild(o);
+    });
+    if (prev) sel.value = prev;
+  });
+
+  var dSel = document.getElementById('rawi-docking');
+  if (dSel) {
+    var pd = dSel.value;
+    dSel.innerHTML = '<option value="">— Tidak terkait baris docking —</option>';
+    (_RAWAT.options.docking || []).forEach(function (d) {
+      var o = document.createElement('option');
+      o.value = d.rowId;
+      o.textContent = d.label;
+      dSel.appendChild(o);
+    });
+    if (pd) dSel.value = pd;
+  }
+}
+
+// ── KPI ───────────────────────────────────────────────────
+
+function _rawatLoadKPI() {
+  var strip = document.getElementById('rawat-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _msg('rawk-history-msg', 'error', res.error); return; }
+      _RAWAT.kpi = res.data;
+      _rawatRenderKPI(res.data);
+      _rawatBuildCharts();
+      _rawatBuildPaneCharts();
+    })
+    .withFailureHandler(function () {
+      var s = document.getElementById('rawat-kpi-strip');
+      if (s) s.innerHTML = '<div class="n-msg error show">Gagal memuat KPI Perawatan.</div>';
+    })
+    .perawatan_getKPI(APP.token, APP.filter);
+}
+
+function _rawatRenderKPI(d) {
+  var el = document.getElementById('rawat-kpi-strip');
+  if (!el) return;
+  var k = d.kesiapan, dk = d.docking, it = d.item;
+
+  var dockingAktif = 0;
+  Object.keys(dk.byTahap).forEach(function (t) { if (t !== 'SELESAI') dockingAktif += dk.byTahap[t]; });
+
+  el.innerHTML =
+    '<div class="ov-kpi-row">' +
+      _kpiHeadline('Armada Siap Operasi', k.siap, 'kapal', k.pctSiap + '% dari ' + k.totalArmada + ' armada aktif') +
+      _kpiHeadline('Kapal Tidak Siap', k.tidakSiap, 'kapal', k.tidakSiap > 0 ? 'Perlu perhatian' : 'Seluruh armada siap') +
+      _kpiHeadline('Docking Berjalan', dockingAktif, 'kapal', dk.total + ' kapal terdokumentasi') +
+      _kpiHeadline('Nilai Item Pekerjaan', _rupiah(it.totalNilai), '', it.total + ' item tercatat') +
+    '</div>';
+}
+
+// ── CHARTS ────────────────────────────────────────────────
+
+function _rawatBuildCharts() {
+  var k = (_RAWAT.kpi || {}).kesiapan;
+  if (k) {
+    _chartDonut('rawat-chart-kesiapan', ['Siap', 'Tidak Siap'], [k.siap, k.tidakSiap],
+      [_CHART_COLORS.ok, _CHART_COLORS.crit],
+      { center: k.pctSiap + '%', centerSub: 'Siap Operasi', emptyMsg: 'Belum ada status kesiapan pada periode ini.' });
+  }
+  _rawatLoadTren();
+}
+
+function _rawatLoadTren() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('rawat-chart-tren', labels, [
+        { label: 'Siap',        data: d.siap,      color: _CHART_COLORS.ok },
+        { label: 'Tidak Siap',  data: d.tidakSiap, color: _CHART_COLORS.crit }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada status kesiapan pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .perawatan_getTren(APP.token, APP.filter);
+}
+
+function _rawatBuildPaneCharts() {
+  var kpi = _RAWAT.kpi;
+  if (!kpi) return;
+
+  var dk = kpi.docking;
+  var tahapKeys = ['PROSES_PENGADAAN', 'TANDATANGAN_KONTRAK', 'PROSES_DOCKING', 'SELESAI'];
+  _chartBar('rawd-chart-tahap',
+    tahapKeys.map(function (t) { return _RAWAT_TAHAP_LABEL[t] || t; }),
+    [{ label: 'Kapal', data: tahapKeys.map(function (t) { return dk.byTahap[t] || 0; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada progres docking pada periode ini.' }
+  );
+
+  var it = kpi.item;
+  var katKeys = ['PERENCANAAN', 'PROSES_PEMBAYARAN', 'SELESAI'];
+  _chartDonut('rawi-chart-kategori',
+    katKeys.map(function (k) { return _RAWAT_KATEGORI_LABEL[k] || k; }),
+    katKeys.map(function (k) { return (it.byKategori[k] || {}).count || 0; }),
+    [_CHART_COLORS.primary, _CHART_COLORS.warn, _CHART_COLORS.ok],
+    { center: it.total, centerSub: 'Item', emptyMsg: 'Belum ada item pekerjaan pada periode ini.' }
+  );
+}
+
+// ── HISTORY ───────────────────────────────────────────────
+
+// Endpoint getter per jenis (ditulis eksplisit agar google.script.run aman)
+function _rawatFetchHistory(jenis) {
+  var prefix = _RAWAT_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        _msg(prefix + '-history-msg', 'error', res.error);
+        if (wrap) wrap.innerHTML = '';
+        return;
+      }
+      _RAWAT.history[jenis] = res.data;
+      _rawatRenderHistory(jenis, res.data);
+      _rawatLoadEvidenceCounts(jenis, res.data);
+    })
+    .withFailureHandler(function () {
+      _msg(prefix + '-history-msg', 'error', 'Gagal memuat riwayat.');
+    });
+
+  if (jenis === 'kesiapan')      runner.perawatan_getKesiapan(APP.token, APP.filter);
+  else if (jenis === 'docking')  runner.perawatan_getDocking(APP.token, APP.filter);
+  else                           runner.perawatan_getItem(APP.token, APP.filter);
+}
+
+function _rawatRenderHistory(jenis, items) {
+  var prefix = _RAWAT_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (!wrap) return;
+
+  var canRevisi = _rawatCanWrite();
+  var canAnulir = _rawatCanAnulir();
+
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada laporan untuk periode ini.</div>';
+    return;
+  }
+
+  var cols = _rawatColumns(jenis);
+  var t = '<table class="n-table"><thead><tr>';
+  cols.forEach(function (c) { t += '<th>' + c + '</th>'; });
+  t += '<th>Tanggal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
+
+  items.forEach(function (r) {
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="_rawatOpenRevisi(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
+    var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_rawatOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
+    var bEv  = '<button class="btn-mini" onclick="_rawatOpenEvidence(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Lampiran<span id="evc-' + jenis + '-' + _esc(r.rowId) + '"></span></button>';
+
+    var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    _rawatCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
+    t += '<td>' + tgl + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + bEv + '</div></td>';
+    t += '</tr>';
+
+    if (r.status === 'VOID' && r.voidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="' + (cols.length + 3) + '" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.voidReason) + (r.voidedBy ? ' (oleh ' + _esc(r.voidedBy) + ')' : '') +
+        '</td></tr>';
+    }
+  });
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _rawatColumns(jenis) {
+  if (jenis === 'kesiapan') return ['Periode', 'Kapal', 'Status', 'Penyebab'];
+  if (jenis === 'docking')  return ['Periode', 'Kapal', 'Lokasi', 'Tahap', 'Nilai Kontrak', 'Kontraktor'];
+  return ['Periode', 'Nama Pekerjaan', 'Kategori', 'Nilai', 'Terkait Docking'];
+}
+
+function _rawatCells(jenis, r) {
+  if (jenis === 'kesiapan') {
+    var badge = r.statusSiap
+      ? '<span class="status-badge" style="background:#dcfce7;color:#166534;">SIAP</span>'
+      : '<span class="status-badge" style="background:#fee2e2;color:#b91c1c;">TIDAK SIAP</span>';
+    return [_esc(r.periode), _esc(r.kapalNama), badge, _esc(r.penyebab || '—')];
+  }
+  if (jenis === 'docking') {
+    return [
+      _esc(r.periode),
+      _esc(r.kapalNama),
+      _esc(_RAWAT_LOKASI_LABEL[r.lokasi] || r.lokasi),
+      _esc(_RAWAT_TAHAP_LABEL[r.tahap] || r.tahap),
+      _rupiah(r.nilaiKontrak),
+      _esc(r.kontraktor || '—')
+    ];
+  }
+  return [
+    _esc(r.periode),
+    _esc(r.namaPekerjaan),
+    _esc(_RAWAT_KATEGORI_LABEL[r.kategori] || r.kategori),
+    _rupiah(r.nilai),
+    _esc(r.dockingLabel || '—')
+  ];
+}
+
+// ── EVIDENCE COUNT BADGE ──────────────────────────────────
+
+function _rawatLoadEvidenceCounts(jenis, items) {
+  if (!items || !items.length) return;
+  var ids = items.map(function (r) { return r.rowId; });
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res || !res.success) return;
+      var map = res.data || {};
+      Object.keys(map).forEach(function (rid) {
+        var el = document.getElementById('evc-' + jenis + '-' + rid);
+        if (el) el.textContent = ' (' + map[rid].length + ')';
+      });
+    })
+    .withFailureHandler(function () {})
+    .evidence_listBatch(APP.token, _RAWAT_SHEET[jenis], ids);
+}
+
+// ── SUBMIT ────────────────────────────────────────────────
+
+function _rawatKesiapanStatusChange() {
+  var st = _v('rawk-status');
+  var grp = document.getElementById('rawk-penyebab-grp');
+  if (grp) grp.style.display = (st === 'false') ? 'block' : 'none';
+}
+
+function _rawatSubmitKesiapan() {
+  var btn = document.getElementById('rawk-btn-submit');
+  _msg('rawk-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:   _composePeriode('rawk-'),
+    kapalId:   _v('rawk-kapal'),
+    statusSiap: _v('rawk-status') === 'true',
+    penyebab:  _v('rawk-penyebab')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('rawk-form-msg', 'error', res.error); return; }
+      _msg('rawk-form-msg', 'success', res.data.message);
+      document.getElementById('rawk-penyebab').value = '';
+      _rawatLoadKPI();
+      _rawatFetchHistory('kesiapan');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('rawk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .perawatan_submitKesiapan(APP.token, params);
+}
+
+function _rawatSubmitDocking() {
+  var btn = document.getElementById('rawd-btn-submit');
+  _msg('rawd-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:      _composePeriode('rawd-'),
+    kapalId:      _v('rawd-kapal'),
+    lokasi:       _v('rawd-lokasi'),
+    tahap:        _v('rawd-tahap'),
+    nilaiKontrak: _v('rawd-nilai'),
+    kontraktor:   _v('rawd-kontraktor')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('rawd-form-msg', 'error', res.error); return; }
+      _msg('rawd-form-msg', 'success', res.data.message);
+      document.getElementById('rawd-nilai').value = '';
+      document.getElementById('rawd-kontraktor').value = '';
+      _rawatLoadKPI();
+      _rawatFetchHistory('docking');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('rawd-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .perawatan_submitDocking(APP.token, params);
+}
+
+function _rawatSubmitItem() {
+  var btn = document.getElementById('rawi-btn-submit');
+  _msg('rawi-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:        _composePeriode('rawi-'),
+    namaPekerjaan:  _v('rawi-nama'),
+    kategori:       _v('rawi-kategori'),
+    nilai:          _v('rawi-nilai'),
+    dockingRowId:   _v('rawi-docking')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('rawi-form-msg', 'error', res.error); return; }
+      _msg('rawi-form-msg', 'success', res.data.message);
+      document.getElementById('rawi-nama').value = '';
+      document.getElementById('rawi-nilai').value = '';
+      _rawatLoadKPI();
+      _rawatFetchHistory('item');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('rawi-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .perawatan_submitItem(APP.token, params);
+}
+
+// ── REVISI ────────────────────────────────────────────────
+
+function _rawatOpenRevisi(jenis, rowId) {
+  var row = (_RAWAT.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _RAWAT.revisi = { jenis: jenis, rowId: rowId };
+
+  var info = document.getElementById('rawat-revisi-info');
+  if (info) info.textContent = 'Merevisi ' + _RAWAT_LABEL[jenis] + ' periode ' + row.periode + '.';
+
+  var fields = document.getElementById('rawat-revisi-fields');
+  fields.innerHTML = _rawatRevisiFieldsHtml(jenis, row);
+
+  document.getElementById('rawat-revisi-alasan').value = '';
+  _msg('rawat-revisi-msg', null);
+  document.getElementById('modal-rawat-revisi').classList.remove('n-hidden');
+}
+
+function _rawatRevisiFieldsHtml(jenis, row) {
+  if (jenis === 'kesiapan') {
+    return '<div class="form-grp"><label>Kapal</label>' +
+      '<input type="text" value="' + _esc(row.kapalNama) + '" disabled></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+        '<div class="form-grp"><label>Status</label>' +
+          '<select id="rv-rawk-status">' +
+            '<option value="true"' + (row.statusSiap ? ' selected' : '') + '>Siap Operasi</option>' +
+            '<option value="false"' + (row.statusSiap ? '' : ' selected') + '>Tidak Siap</option>' +
+          '</select></div>' +
+        '<div class="form-grp"><label>Penyebab (jika tidak siap)</label>' +
+          '<input type="text" id="rv-rawk-penyebab" value="' + _esc(row.penyebab || '') + '"></div>' +
+      '</div>';
+  }
+  if (jenis === 'docking') {
+    var lok = ['PUSAT', 'UPT'].map(function (v) {
+      return '<option value="' + v + '"' + (row.lokasi === v ? ' selected' : '') + '>' + _RAWAT_LOKASI_LABEL[v] + '</option>';
+    }).join('');
+    var tah = ['PROSES_PENGADAAN', 'TANDATANGAN_KONTRAK', 'PROSES_DOCKING', 'SELESAI'].map(function (v) {
+      return '<option value="' + v + '"' + (row.tahap === v ? ' selected' : '') + '>' + _RAWAT_TAHAP_LABEL[v] + '</option>';
+    }).join('');
+    return '<div class="form-grp"><label>Kapal</label>' +
+      '<input type="text" value="' + _esc(row.kapalNama) + '" disabled></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+        '<div class="form-grp"><label>Lokasi</label><select id="rv-rawd-lokasi">' + lok + '</select></div>' +
+        '<div class="form-grp"><label>Tahap</label><select id="rv-rawd-tahap">' + tah + '</select></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+        '<div class="form-grp"><label>Nilai Kontrak (Rp)</label><input type="number" id="rv-rawd-nilai" min="0" value="' + (row.nilaiKontrak || 0) + '"></div>' +
+        '<div class="form-grp"><label>Kontraktor</label><input type="text" id="rv-rawd-kontraktor" value="' + _esc(row.kontraktor || '') + '"></div>' +
+      '</div>';
+  }
+  var kat = ['PERENCANAAN', 'PROSES_PEMBAYARAN', 'SELESAI'].map(function (v) {
+    return '<option value="' + v + '"' + (row.kategori === v ? ' selected' : '') + '>' + _RAWAT_KATEGORI_LABEL[v] + '</option>';
+  }).join('');
+  var dockOpts = '<option value="">— Tidak terkait —</option>' +
+    ((_RAWAT.options && _RAWAT.options.docking) || []).map(function (d) {
+      return '<option value="' + _esc(d.rowId) + '"' + (row.dockingRowId === d.rowId ? ' selected' : '') + '>' + _esc(d.label) + '</option>';
+    }).join('');
+  return '<div class="form-grp"><label>Nama Pekerjaan</label>' +
+    '<input type="text" id="rv-rawi-nama" value="' + _esc(row.namaPekerjaan) + '"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div class="form-grp"><label>Kategori</label><select id="rv-rawi-kategori">' + kat + '</select></div>' +
+      '<div class="form-grp"><label>Nilai (Rp)</label><input type="number" id="rv-rawi-nilai" min="0" value="' + (row.nilai || 0) + '"></div>' +
+    '</div>' +
+    '<div class="form-grp"><label>Terkait Docking</label><select id="rv-rawi-docking">' + dockOpts + '</select></div>';
+}
+
+function _rawatRevisiConfirm() {
+  var jenis = _RAWAT.revisi.jenis;
+  var btn = document.getElementById('rawat-btn-revisi-save');
+  var alasan = _v('rawat-revisi-alasan');
+  _msg('rawat-revisi-msg', null);
+  if (!alasan.trim()) { _msg('rawat-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  var params = { targetRowId: _RAWAT.revisi.rowId, alasanRevisi: alasan };
+  if (jenis === 'kesiapan') {
+    params.statusSiap = _v('rv-rawk-status') === 'true';
+    params.penyebab   = _v('rv-rawk-penyebab');
+  } else if (jenis === 'docking') {
+    params.lokasi = _v('rv-rawd-lokasi');
+    params.tahap = _v('rv-rawd-tahap');
+    params.nilaiKontrak = _v('rv-rawd-nilai');
+    params.kontraktor = _v('rv-rawd-kontraktor');
+  } else {
+    params.namaPekerjaan = _v('rv-rawi-nama');
+    params.kategori = _v('rv-rawi-kategori');
+    params.nilai = _v('rv-rawi-nilai');
+    params.dockingRowId = _v('rv-rawi-docking');
+  }
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _rawatCloseRevisi();
+      if (!res.success) { _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _rawatLoadKPI();
+      _rawatFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('rawat-revisi-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    });
+
+  if (jenis === 'kesiapan')      runner.perawatan_revisiKesiapan(APP.token, params);
+  else if (jenis === 'docking')  runner.perawatan_revisiDocking(APP.token, params);
+  else                           runner.perawatan_revisiItem(APP.token, params);
+}
+
+function _rawatCloseRevisi() {
+  _RAWAT.revisi = { jenis: null, rowId: null };
+  closeModal('modal-rawat-revisi');
+}
+
+// ── ANULIR ────────────────────────────────────────────────
+
+function _rawatOpenAnulir(jenis, rowId) {
+  var row = (_RAWAT.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _RAWAT.anulir = { jenis: jenis, rowId: rowId };
+  var info = document.getElementById('rawat-anulir-info');
+  if (info) info.textContent = 'Akan menganulir ' + _RAWAT_LABEL[jenis] + ' periode ' + row.periode + ' (ID: ' + rowId + ').';
+  document.getElementById('rawat-anulir-alasan').value = '';
+  _msg('rawat-anulir-msg', null);
+  document.getElementById('modal-rawat-anulir').classList.remove('n-hidden');
+}
+
+function _rawatAnulirConfirm() {
+  var jenis = _RAWAT.anulir.jenis;
+  var btn = document.getElementById('rawat-btn-anulir-save');
+  var alasan = _v('rawat-anulir-alasan');
+  _msg('rawat-anulir-msg', null);
+  if (!alasan.trim()) { _msg('rawat-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _rawatCloseAnulir();
+      if (!res.success) { _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _rawatLoadKPI();
+      _rawatFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('rawat-anulir-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    })
+    .perawatan_anulir(APP.token, {
+      jenis: jenis.toUpperCase(),
+      targetRowId: _RAWAT.anulir.rowId,
+      voidReason: alasan
+    });
+}
+
+function _rawatCloseAnulir() {
+  _RAWAT.anulir = { jenis: null, rowId: null };
+  closeModal('modal-rawat-anulir');
+}
+
+// ── EVIDENCE ──────────────────────────────────────────────
+
+function _rawatOpenEvidence(jenis, rowId) {
+  _RAWAT.evidence = { refSheet: _RAWAT_SHEET[jenis], refRowId: rowId };
+  var info = document.getElementById('rawat-evidence-info');
+  if (info) info.textContent = 'Lampiran untuk ' + _RAWAT_LABEL[jenis] + ' (RowID: ' + rowId + ').';
+  _msg('rawat-evidence-msg', null);
+  var f = document.getElementById('rawat-evidence-file');
+  if (f) f.value = '';
+  var l = document.getElementById('rawat-evidence-link');
+  if (l) l.value = '';
+  _rawatLoadEvidence();
+  document.getElementById('modal-rawat-evidence').classList.remove('n-hidden');
+}
+
+function _rawatCloseEvidence() {
+  _RAWAT.evidence = { refSheet: null, refRowId: null };
+  closeModal('modal-rawat-evidence');
+}
+
+function _rawatLoadEvidence() {
+  var ev = _RAWAT.evidence;
+  var list = document.getElementById('rawat-evidence-list');
+  if (!ev.refSheet || !list) return;
+  list.innerHTML = _loadingInline('Memuat lampiran\u2026');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { list.innerHTML = '<div class="n-msg error show">' + _esc(res.error) + '</div>'; return; }
+      if (!res.data.length) { list.innerHTML = '<div style="color:var(--n-text-muted);font-size:.85rem;">Belum ada lampiran.</div>'; return; }
+      list.innerHTML = res.data.map(function (e) {
+        var tgl = e.uploadedAt ? new Date(e.uploadedAt).toLocaleString('id-ID') : '';
+        return '<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--n-border-subtle);">' +
+          '<a href="' + _esc(e.viewUrl) + '" target="_blank" style="color:var(--n-primary);font-size:.85rem;">' + _esc(e.fileName) + '</a>' +
+          '<span style="font-size:.75rem;color:var(--n-text-muted);">' + _esc(e.sourceMode) + ' · ' + tgl + '</span>' +
+        '</div>';
+      }).join('');
+    })
+    .withFailureHandler(function () { list.innerHTML = '<div class="n-msg error show">Gagal memuat lampiran.</div>'; })
+    .evidence_list(APP.token, ev.refSheet, ev.refRowId);
+}
+
+function _rawatEvidenceUploadFile() {
+  var ev = _RAWAT.evidence;
+  var fileEl = document.getElementById('rawat-evidence-file');
+  var btn = document.getElementById('rawat-btn-evidence-upload');
+  _msg('rawat-evidence-msg', null);
+  if (!fileEl || !fileEl.files || !fileEl.files.length) {
+    _msg('rawat-evidence-msg', 'error', 'Pilih file terlebih dahulu.');
+    return;
+  }
+  var file = fileEl.files[0];
+  var isVideo = /^video\//i.test(file.type);
+  var limit = isVideo ? 50 * 1024 * 1024 : 15 * 1024 * 1024;
+  if (file.size > limit) {
+    _msg('rawat-evidence-msg', 'error', isVideo
+      ? 'Ukuran video melebihi 50MB. Kompres terlebih dahulu.'
+      : 'Ukuran file melebihi 15MB. Pilih file yang lebih kecil.');
+    return;
+  }
+
+  _setLoading(btn, true);
+  var reader = new FileReader();
+  reader.onload = function () {
+    var base64 = String(reader.result).split(',')[1] || '';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        _setLoading(btn, false);
+        if (!res.success) { _msg('rawat-evidence-msg', 'error', res.error); return; }
+        _msg('rawat-evidence-msg', 'success', res.data.message);
+        fileEl.value = '';
+        _rawatLoadEvidence();
+        _rawatRefreshEvidenceCount(ev.refSheet, ev.refRowId);
+      })
+      .withFailureHandler(function () { _setLoading(btn, false); _msg('rawat-evidence-msg', 'error', 'Gagal mengunggah file. Coba lagi.'); })
+      .evidence_upload(APP.token, {
+        refSheet: ev.refSheet,
+        refRowId: ev.refRowId,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        dataBase64: base64
+      });
+  };
+  reader.onerror = function () { _setLoading(btn, false); _msg('rawat-evidence-msg', 'error', 'Gagal membaca file.'); };
+  reader.readAsDataURL(file);
+}
+
+function _rawatEvidenceUploadLink() {
+  var ev = _RAWAT.evidence;
+  var btn = document.getElementById('rawat-btn-evidence-link');
+  var url = _v('rawat-evidence-link');
+  _msg('rawat-evidence-msg', null);
+  if (!url.trim()) { _msg('rawat-evidence-msg', 'error', 'Tempel link Google Drive terlebih dahulu.'); return; }
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('rawat-evidence-msg', 'error', res.error); return; }
+      _msg('rawat-evidence-msg', 'success', res.data.message);
+      document.getElementById('rawat-evidence-link').value = '';
+      _rawatLoadEvidence();
+      _rawatRefreshEvidenceCount(ev.refSheet, ev.refRowId);
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('rawat-evidence-msg', 'error', 'Gagal menyalin file. Coba lagi.'); })
+    .evidence_uploadFromLink(APP.token, { refSheet: ev.refSheet, refRowId: ev.refRowId, url: url });
+}
+
+function _rawatRefreshEvidenceCount(refSheet, refRowId) {
+  var jenis = null;
+  Object.keys(_RAWAT_SHEET).forEach(function (j) { if (_RAWAT_SHEET[j] === refSheet) jenis = j; });
+  if (!jenis) return;
+  _rawatLoadEvidenceCounts(jenis, _RAWAT.history[jenis]);
 }
 
 </script>

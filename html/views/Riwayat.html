@@ -1,0 +1,33 @@
+<!-- html/views/Riwayat.html -->
+<!--
+  Halaman Riwayat Laporan — PRD §7.5.
+  Feed kronologis lintas modul (semua sheet TX_*), mencakup ACTIVE, SUPERSEDED,
+  dan VOID, dengan status jelas dan komentar anulir tampil inline.
+  Data diagregasi server-side oleh riwayat_getAll() — client hanya merender.
+  Di-include ke Index.html via html_include(), dirender oleh _renderRiwayat().
+-->
+<div id="view-tpl-riwayat" hidden>
+
+  <!-- ── KPI STRIP ───────────────────────────────── -->
+  <div class="content-section">
+    <div id="riw-kpi-strip">
+      <!-- diisi _riwRenderKPI() -->
+    </div>
+  </div>
+
+  <!-- ── FEED LINTAS MODUL ──────────────────────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Seluruh Entri (& incl. SUPERSEDED &amp; VOID)</div>
+    <div class="n-tabs" id="riw-status-tabs" style="margin-bottom:16px;">
+      <button type="button" class="n-tab" data-status="ALL" onclick="_riwSetTab('ALL')">Semua</button>
+      <button type="button" class="n-tab" data-status="ACTIVE" onclick="_riwSetTab('ACTIVE')">Aktif</button>
+      <button type="button" class="n-tab" data-status="SUPERSEDED" onclick="_riwSetTab('SUPERSEDED')">Ditimpa</button>
+      <button type="button" class="n-tab" data-status="VOID" onclick="_riwSetTab('VOID')">Dianulir</button>
+    </div>
+    <div id="riw-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="riw-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-riwayat -->

@@ -111,7 +111,7 @@ var NAV_SECTIONS = [
       { id: 'perawatan',     label: 'Perawatan',           divisiId: 'DIV-RAWAT',  minRoles: null },
       { id: 'logistik',      label: 'Logistik',            divisiId: 'DIV-LOG',    minRoles: null },
       { id: 'pengawakan',    label: 'Pengawakan',          divisiId: 'DIV-AWAK',   minRoles: null },
-      { id: 'kegiatan',      label: 'Kegiatan Direktorat', divisiId: null,         minRoles: null }
+      { id: 'kegiatan',      label: 'Kegiatan Direktorat', divisiId: null,         minRoles: ['SUPERADMIN','DIREKTUR','KADIV'] }
     ]
   },
   {
@@ -376,7 +376,7 @@ function _routeTo(viewId) {
 // ── PAGE HEADER ───────────────────────────────────────────
 function _renderPageHeader(viewId) {
   // filter tidak tampil di master-data (tidak relevan)
-  var noFilter = (viewId === 'master-data' || viewId === 'riwayat');
+  var noFilter = (viewId === 'master-data');
   var filterHtml = noFilter ? '' : _buildFilterHtml();
 
   document.getElementById('page-header').innerHTML =
@@ -458,7 +458,8 @@ function _renderViewContent(viewId) {
   if (viewId === 'logistik')    { _renderLogistik(el);    return; }
   if (viewId === 'pengawakan')  { _renderPengawakan(el);  return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
-  if (viewId === 'riwayat')     { _renderRiwayatStub(el); return; }
+  if (viewId === 'riwayat')     { _renderRiwayat(el);    return; }
+  if (viewId === 'kegiatan')    { _renderKegiatan(el);    return; }
   // Modul lain — stub hingga fase masing-masing
   el.innerHTML = _moduleStub(_viewTitle(viewId));
 }
@@ -1202,11 +1203,164 @@ function _mdOpsiToggle(kode, label, aktif) {
     .master_setOpsiJenisAktif(APP.token, { kode: kode, label: label, aktif: aktif });
 }
 
-function _renderRiwayatStub(el) {
-  el.innerHTML = '<div class="module-stub">' +
-    '<div class="module-stub-title">Riwayat Laporan</div>' +
-    '<p>Riwayat seluruh laporan yang pernah dikirim, termasuk revisi dan anulir.<br>Aktif pada Fase 11.</p>' +
+// ── Halaman Riwayat Laporan (PRD §7.5) ──────────────
+var _RIW = { rows: [], statusTab: 'ALL' };
+
+function _renderRiwayat(el) {
+  var tpl = document.getElementById('view-tpl-riwayat');
+  if (!tpl) { el.innerHTML = _moduleStub('Riwayat Laporan'); return; }
+  el.innerHTML = tpl.innerHTML;
+  _RIW.rows = [];
+  _RIW.statusTab = 'ALL';
+  _riwSyncTabs();
+  _riwLoad();
+}
+
+function _riwFmtTS(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('id-ID');
+}
+
+function _riwSyncTabs() {
+  var tabs = document.querySelectorAll('#riw-status-tabs .n-tab');
+  var counts = _riwStatusCounts();
+  for (var i = 0; i < tabs.length; i++) {
+    var st = tabs[i].getAttribute('data-status');
+    tabs[i].classList.toggle('active', st === _RIW.statusTab);
+    var c = counts[st] || 0;
+    var base = tabs[i].textContent.split(' (')[0];
+    tabs[i].textContent = base + ' (' + c + ')';
+  }
+}
+
+function _riwStatusCounts() {
+  var c = { ALL: _RIW.rows.length, ACTIVE: 0, SUPERSEDED: 0, VOID: 0 };
+  for (var i = 0; i < _RIW.rows.length; i++) {
+    var st = _RIW.rows[i].status;
+    if (c[st] !== undefined) c[st]++;
+  }
+  return c;
+}
+
+function _riwSetTab(status) {
+  _RIW.statusTab = status;
+  _riwSyncTabs();
+  _riwRender();
+}
+
+function _riwLoad() {
+  var wrap = document.getElementById('riw-history-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat riwayat seluruh laporan\u2026');
+
+  var stripKPI = document.getElementById('riw-kpi-strip');
+  if (stripKPI) stripKPI.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) { _RIW.rows = res.data || []; _riwSyncTabs(); _riwRenderKPI(); _riwRender(); }
+      else {
+        wrap.innerHTML = '<div class="n-msg error">' + _esc(res.error) + '</div>';
+        if (stripKPI) stripKPI.innerHTML = '';
+      }
+    })
+    .withFailureHandler(function() {
+      wrap.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+      if (stripKPI) stripKPI.innerHTML = '';
+    })
+    .riwayat_getAll(APP.token, APP.filter);
+}
+
+function _riwRenderKPI() {
+  var strip = document.getElementById('riw-kpi-strip');
+  if (!strip) return;
+
+  function card(label, value, sub) {
+    return '<div class="n-card"><div class="kpi-label">' + _esc(label) + '</div>' +
+           '<div class="kpi-val">' + (value || 0) + '</div>' +
+           '<div class="kpi-sub">' + _esc(sub || '') + '</div></div>';
+  }
+
+  var c = _riwStatusCounts();
+  var modules = {};
+  for (var i = 0; i < _RIW.rows.length; i++) modules[_RIW.rows[i].sheetLabel] = true;
+  var nModul = Object.keys(modules).length;
+
+  strip.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">' +
+    card('Total Entri',   c.ALL, 'Dalam rentang filter') +
+    card('Modul',         nModul, 'Lintas divisi') +
+    card('Aktif',         c.ACTIVE, 'Status berlaku') +
+    card('Ditimpa',       c.SUPERSEDED, 'Berlaku saat ini') +
+    card('Dianulir',      c.VOID, 'Dibatalkan') +
   '</div>';
+}
+
+function _riwRender() {
+  var wrap = document.getElementById('riw-history-wrap');
+  if (!wrap) return;
+  _hdReset();
+
+  var rows = _RIW.rows;
+  if (_RIW.statusTab !== 'ALL') {
+    rows = rows.filter(function(r){ return r.status === _RIW.statusTab; });
+  }
+
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Tidak ada laporan pada rentang ini.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Periode</th><th>Modul</th><th>Ringkasan</th><th>Divisi</th><th>Dikirim</th><th>Status</th><th>Aksi</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var st = '';
+    if (r.status === 'ACTIVE')      st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.status === 'SUPERSEDED') st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    else if (r.status === 'VOID')   st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var fields = [
+      ['Periode', _esc(r.periode || '—')],
+      ['Modul', _esc(r.sheetLabel || '—')],
+      ['Divisi', _esc(r.divisiNama || r.divisiId || '—')],
+      ['Dikirim', _esc(_riwFmtTS(r.timestamp))],
+      ['Dikirim oleh', _esc(r.submittedByName || r.submittedBy || '—')],
+      ['Status', _esc(r.status)]
+    ];
+    for (var f = 0; f < (r.detail || []).length; f++) {
+      fields.push([_esc(r.detail[f][0]), _esc(r.detail[f][1])]);
+    }
+    if (r.status === 'VOID') {
+      fields.push(['Alasan Anulir', _esc(r.voidReason || '—')]);
+      fields.push(['Dianulir oleh', _esc(r.voidedByName || r.voidedBy || '—')]);
+    }
+
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush(r.sheet, r.rowId, r.sheetLabel + ' — ' + (r.periode || ''), fields) + ')">Lihat</button>';
+
+    var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + _esc(r.periode || '—') + '</td>';
+    t += '<td>' + _esc(r.sheetLabel || '—') + '</td>';
+    t += '<td>' + _esc(r.ringkasan || '—') + '</td>';
+    t += '<td>' + _esc(r.divisiNama || r.divisiId || '—') + '</td>';
+    t += '<td>' + _esc(r.submittedByName || r.submittedBy || '—') + '<br><span style="font-size:.75rem;color:var(--n-text-muted);">' + _esc(_riwFmtTS(r.timestamp)) + '</span></td>';
+    t += '<td>' + st + '</td>';
+    t += '<td>' + bLk + '</td>';
+    t += '</tr>';
+
+    if (r.status === 'VOID' && r.voidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="7" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.voidReason) + ' (oleh ' + _esc(r.voidedByName || r.voidedBy || '—') + ')</td></tr>';
+    }
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
 }
 
 // ── UTILITIES ─────────────────────────────────────────────
@@ -3459,6 +3613,336 @@ function intelAnulirConfirm() {
       _msg('int-anulir-msg', 'error', 'Koneksi terputus.');
     })
     .intelijen_anulir(APP.token, { targetRowId: _INTEL.pendingRowId, alasan: alasan });
+}
+
+
+// ============================================================
+// MODUL KEGIATAN DIREKTORAT — Fase 11 (PRD §5.10)
+// Lintas-divisi (Direktur + semua Kadiv), feed kronologis per tanggal.
+// Form input memakai POLA POPUP (backlog A).
+// ============================================================
+var _KGD = {
+  pendingRowId: null,
+  rows:         []
+};
+
+function _renderKegiatan(el) {
+  var tpl = document.getElementById('view-tpl-kegiatan');
+  if (!tpl) { el.innerHTML = _moduleStub('Kegiatan Direktorat'); return; }
+  el.innerHTML = tpl.innerHTML;
+  _attachInit('kgd', { refSheet: 'TX_KegiatanDirektorat' });
+
+  _KGD.rows = [];
+
+  var tglInput = document.getElementById('kgd-tanggal');
+  if (tglInput) {
+    var now = new Date();
+    tglInput.value = now.getFullYear() + '-' +
+      (now.getMonth() < 9 ? '0' : '') + (now.getMonth() + 1) + '-' +
+      (now.getDate() < 10 ? '0' : '') + now.getDate();
+  }
+
+  _kgdLoadKPI();
+  _kgdLoadHistory();
+}
+
+function _kgdFmtDate(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function _kgdDateInput(v) {
+  if (!v) return '';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  var y = d.getFullYear();
+  var m = (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1);
+  var dd = (d.getDate() < 10 ? '0' : '') + d.getDate();
+  return y + '-' + m + '-' + dd;
+}
+
+// ── KPI ──
+function _kgdLoadKPI() {
+  var strip = document.getElementById('kgd-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(3);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) _kgdRenderKPI(res.data);
+      else if (strip) strip.innerHTML = '<div class="n-msg error">Gagal memuat KPI: ' + _esc(res.error) + '</div>';
+    })
+    .withFailureHandler(function() {
+      if (strip) strip.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .kegiatanDirektorat_getKPI(APP.token, APP.filter);
+}
+
+function _kgdRenderKPI(kpi) {
+  var strip = document.getElementById('kgd-kpi-strip');
+  if (!strip) return;
+
+  function card(label, value, sub) {
+    return '<div class="n-card"><div class="kpi-label">' + _esc(label) + '</div>' +
+           '<div class="kpi-val">' + (value || 0) + '</div>' +
+           '<div class="kpi-sub">' + _esc(sub || '') + '</div></div>';
+  }
+
+  strip.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;">' +
+    card('Kegiatan Periode Ini', _idNum(kpi.kegiatanPeriode), 'Dalam rentang filter') +
+    card('Kegiatan YTD',        _idNum(kpi.kegiatanYtd),     'Sejak awal tahun terpilih') +
+    card('Terakhir Dicatat',    kpi.terakhirDicatat ? _kgdFmtDate(kpi.terakhirDicatat) : '—', 'Entri aktif terbaru') +
+  '</div>';
+}
+
+// ── FEED KRONOLOGIS ──
+function _kgdLoadHistory() {
+  var wrap = document.getElementById('kgd-history-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat kegiatan direktorat\u2026');
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.success) { _KGD.rows = res.data; _kgdRenderHistory(res.data); }
+      else wrap.innerHTML = '<div class="n-msg error">' + _esc(res.error) + '</div>';
+    })
+    .withFailureHandler(function() {
+      wrap.innerHTML = '<div class="n-msg error">Koneksi terputus.</div>';
+    })
+    .kegiatanDirektorat_getHistory(APP.token, APP.filter);
+}
+
+function _kgdRenderHistory(data) {
+  var wrap = document.getElementById('kgd-history-wrap');
+  if (!wrap) return;
+  _hdReset();
+
+  var rows = data || [];
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada kegiatan direktorat pada rentang ini.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Tanggal</th><th>Judul Kegiatan</th><th>Divisi</th><th>Pihak Hadir</th><th>Status</th><th>Aksi</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.Status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.Status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.Status === 'ACTIVE') ? '<button class="btn-mini" onclick="kgdOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
+    var bAn  = (r.Status === 'ACTIVE') ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="kgdOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
+
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_KegiatanDirektorat', r.RowID, 'Kegiatan — ' + r.JudulKegiatan, [
+      ['Tanggal', _kgdFmtDate(r.Tanggal)],
+      ['Judul', _esc(r.JudulKegiatan || '—')],
+      ['Deskripsi', _esc(r.Deskripsi || '—')],
+      ['Pihak Hadir', _esc(r.PihakHadir || '—')],
+      ['Divisi', _esc(r.divisiNama || r.DivisiID || '—')],
+      ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', _esc(r.Status)]
+    ]) + ')">Lihat</button>';
+
+    var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+
+    t += '<tr ' + rowCls + '>';
+    t += '<td>' + _kgdFmtDate(r.Tanggal) + '</td>';
+    t += '<td>' + _esc(r.JudulKegiatan || '—') + '</td>';
+    t += '<td>' + _esc(r.divisiNama || r.DivisiID || '—') + '</td>';
+    t += '<td>' + _esc(r.PihakHadir || '—') + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if (r.Status === 'VOID' && r.VoidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="6" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.VoidReason) + ' (oleh ' + _esc(r.VoidedBy) + ')</td></tr>';
+    }
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+// ── FORM POPUP (BACKLOG A) ──
+function kgdOpenForm() {
+  var judul = document.getElementById('kgd-judul');
+  var desk = document.getElementById('kgd-deskripsi');
+  var pihak = document.getElementById('kgd-pihak');
+  if (judul) judul.value = '';
+  if (desk) desk.value = '';
+  if (pihak) pihak.value = '';
+  var tgl = document.getElementById('kgd-tanggal');
+  if (tgl) {
+    var now = new Date();
+    tgl.value = now.getFullYear() + '-' +
+      (now.getMonth() < 9 ? '0' : '') + (now.getMonth() + 1) + '-' +
+      (now.getDate() < 10 ? '0' : '') + now.getDate();
+  }
+  _msg('kgd-form-msg', '', '');
+  _attachInit('kgd', { refSheet: 'TX_KegiatanDirektorat' });
+  var m = document.getElementById('modal-kgd-form');
+  if (m) m.classList.remove('n-hidden');
+}
+
+function kgdSubmit() {
+  _msg('kgd-form-msg', '', '');
+  var judul = _v('kgd-judul');
+  var tanggal = _v('kgd-tanggal');
+  var deskripsi = _v('kgd-deskripsi');
+  var pihak = _v('kgd-pihak');
+
+  if (!judul || !judul.trim()) { _msg('kgd-form-msg', 'error', 'Judul kegiatan wajib diisi.'); return; }
+  if (!tanggal) { _msg('kgd-form-msg', 'error', 'Tanggal kegiatan wajib diisi.'); return; }
+  if (!deskripsi || !deskripsi.trim()) { _msg('kgd-form-msg', 'error', 'Deskripsi kegiatan wajib diisi.'); return; }
+
+  var attachErr = _attachValidate('kgd');
+  if (attachErr) { _msg('kgd-form-msg', 'error', attachErr); return; }
+
+  var btn = document.getElementById('kgd-btn-submit');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('kgd-form-msg', 'success', res.data.message);
+        var rowIds = (res.data && res.data.rowIds) || [];
+        _attachUploadAll('kgd', rowIds, function() {
+          closeModal('modal-kgd-form');
+          _kgdLoadKPI();
+          _kgdLoadHistory();
+        });
+      } else {
+        _msg('kgd-form-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('kgd-form-msg', 'error', 'Koneksi terputus.');
+    })
+    .kegiatanDirektorat_submit(APP.token, {
+      judul: judul,
+      tanggal: tanggal,
+      deskripsi: deskripsi,
+      pihakHadir: pihak || ''
+    });
+}
+
+// ── Revisi / Anulir ──
+function _kgdFindRow(rowId) {
+  for (var i = 0; i < _KGD.rows.length; i++) {
+    if (String(_KGD.rows[i].RowID) === String(rowId)) return _KGD.rows[i];
+  }
+  return null;
+}
+
+function kgdOpenRevisiModal(rowId) {
+  var r = _kgdFindRow(rowId);
+  if (!r) return;
+  _KGD.pendingRowId = rowId;
+
+  document.getElementById('kgd-revisi-info').textContent =
+    (r.JudulKegiatan || '—') + ' — ' + _kgdFmtDate(r.Tanggal);
+  document.getElementById('rv-kgd-judul').value = r.JudulKegiatan || '';
+  document.getElementById('rv-kgd-tanggal').value = _kgdDateInput(r.Tanggal);
+  document.getElementById('rv-kgd-deskripsi').value = r.Deskripsi || '';
+  document.getElementById('rv-kgd-pihak').value = r.PihakHadir || '';
+  document.getElementById('rv-kgd-alasan').value = '';
+  _msg('kgd-revisi-msg', '', '');
+  document.getElementById('modal-kgd-revisi').classList.remove('n-hidden');
+}
+
+function kgdRevisiConfirm() {
+  _msg('kgd-revisi-msg', '', '');
+  var alasan = _v('rv-kgd-alasan');
+  if (!alasan || !alasan.trim()) { _msg('kgd-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+
+  var judul = _v('rv-kgd-judul');
+  var tanggal = _v('rv-kgd-tanggal');
+  var deskripsi = _v('rv-kgd-deskripsi');
+  var pihak = _v('rv-kgd-pihak');
+  if (!judul || !judul.trim()) { _msg('kgd-revisi-msg', 'error', 'Judul kegiatan wajib diisi.'); return; }
+  if (!tanggal) { _msg('kgd-revisi-msg', 'error', 'Tanggal kegiatan wajib diisi.'); return; }
+  if (!deskripsi || !deskripsi.trim()) { _msg('kgd-revisi-msg', 'error', 'Deskripsi kegiatan wajib diisi.'); return; }
+
+  var params = {
+    targetRowId: _KGD.pendingRowId,
+    alasanRevisi: alasan,
+    judul: judul,
+    tanggal: tanggal,
+    deskripsi: deskripsi,
+    pihakHadir: pihak || ''
+  };
+
+  var btn = document.getElementById('kgd-btn-revisi-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('kgd-revisi-msg', 'success', res.data.message);
+        _attachCarry('TX_KegiatanDirektorat', params.targetRowId, res.data.rowId);
+        setTimeout(function(){
+          closeModal('modal-kgd-revisi');
+          _kgdLoadKPI();
+          _kgdLoadHistory();
+        }, 900);
+      } else {
+        _msg('kgd-revisi-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('kgd-revisi-msg', 'error', 'Koneksi terputus.');
+    })
+    .kegiatanDirektorat_revisi(APP.token, params);
+}
+
+function kgdOpenAnulirModal(rowId) {
+  var r = _kgdFindRow(rowId);
+  if (!r) return;
+  _KGD.pendingRowId = rowId;
+  document.getElementById('kgd-anulir-info').textContent =
+    (r.JudulKegiatan || '—') + ' — ' + _kgdFmtDate(r.Tanggal);
+  document.getElementById('an-kgd-alasan').value = '';
+  _msg('kgd-anulir-msg', '', '');
+  document.getElementById('modal-kgd-anulir').classList.remove('n-hidden');
+}
+
+function kgdAnulirConfirm() {
+  _msg('kgd-anulir-msg', '', '');
+  var alasan = _v('an-kgd-alasan');
+  if (!alasan || !alasan.trim()) { _msg('kgd-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+
+  var btn = document.getElementById('kgd-btn-anulir-save');
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _setLoading(btn, false);
+      if (res.success) {
+        _msg('kgd-anulir-msg', 'success', res.message);
+        setTimeout(function(){
+          closeModal('modal-kgd-anulir');
+          _kgdLoadKPI();
+          _kgdLoadHistory();
+        }, 900);
+      } else {
+        _msg('kgd-anulir-msg', 'error', res.error);
+      }
+    })
+    .withFailureHandler(function() {
+      _setLoading(btn, false);
+      _msg('kgd-anulir-msg', 'error', 'Koneksi terputus.');
+    })
+    .kegiatanDirektorat_anulir(APP.token, { targetRowId: _KGD.pendingRowId, alasan: alasan });
 }
 
 

@@ -1,0 +1,118 @@
+<!-- html/views/Kegiatan.html -->
+<!--
+  Modul Kegiatan Direktorat — PRD §5.10.
+  Lintas-divisi (Direktur + semua Kadiv), feed kronologis per tanggal.
+  Di-include ke Index.html via html_include(), dirender oleh _renderKegiatan().
+  Form input memakai POLA POPUP (backlog A) — injector modal di Script_Main.html.
+-->
+<div id="view-tpl-kegiatan" hidden>
+
+  <!-- ── KPI STRIP ───────────────────────────────── -->
+  <div class="content-section">
+    <div id="kgd-kpi-strip">
+      <!-- diisi _kgdRenderKPI() -->
+    </div>
+  </div>
+
+  <!-- ── FEED KRONOLOGIS ────────────────────────── -->
+  <div class="content-section">
+    <div class="content-section-hd" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Feed Kegiatan Direktorat</span>
+      <button type="button" class="btn-primary" id="kgd-btn-open-form" onclick="kgdOpenForm()">+ Catat Kegiatan</button>
+    </div>
+    <div id="kgd-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="kgd-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat kegiatan…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL — CATAT KEGIATAN (POPUP, BACKLOG A) ── -->
+  <div class="n-overlay n-hidden" id="modal-kgd-form">
+    <div class="n-modal" style="max-width:560px;width:100%;">
+      <h2>Catat Kegiatan Direktorat</h2>
+      <div id="kgd-form-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label for="kgd-judul">Judul Kegiatan <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="kgd-judul" placeholder="Contoh: Rapat Persiapan Pre-Award Meeting" maxlength="200">
+      </div>
+      <div class="form-grp">
+        <label for="kgd-tanggal">Tanggal <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="date" id="kgd-tanggal">
+      </div>
+      <div class="form-grp">
+        <label for="kgd-deskripsi">Deskripsi <span style="color:var(--n-status-critical);">*</span></label>
+        <textarea id="kgd-deskripsi" rows="3" placeholder="Latar belakang & hasil kegiatan"></textarea>
+      </div>
+      <div class="form-grp">
+        <label for="kgd-pihak">Pihak yang Hadir <span style="color:var(--n-text-muted);font-weight:400;">(opsional)</span></label>
+        <input type="text" id="kgd-pihak" placeholder="Contoh: Kadiv Pengawakan, Tim ABT, rekanan">
+      </div>
+
+      <div id="kgd-attach" style="margin-top:6px;"></div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="kgd-btn-submit" onclick="kgdSubmit()">Simpan Kegiatan</button>
+        <button class="btn-outline" onclick="closeModal('modal-kgd-form')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL REVISI ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-kgd-revisi">
+    <div class="n-modal" style="max-width:560px;width:100%;">
+      <h2>Revisi Kegiatan</h2>
+      <div id="kgd-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="kgd-revisi-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label for="rv-kgd-judul">Judul Kegiatan <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="rv-kgd-judul" maxlength="200">
+      </div>
+      <div class="form-grp">
+        <label for="rv-kgd-tanggal">Tanggal <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="date" id="rv-kgd-tanggal">
+      </div>
+      <div class="form-grp">
+        <label for="rv-kgd-deskripsi">Deskripsi <span style="color:var(--n-status-critical);">*</span></label>
+        <textarea id="rv-kgd-deskripsi" rows="3"></textarea>
+      </div>
+      <div class="form-grp">
+        <label for="rv-kgd-pihak">Pihak yang Hadir</label>
+        <input type="text" id="rv-kgd-pihak">
+      </div>
+      <div class="form-grp">
+        <label for="rv-kgd-alasan">Alasan Revisi <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="rv-kgd-alasan" placeholder="Jelaskan yang diubah dan mengapa">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="kgd-btn-revisi-save" onclick="kgdRevisiConfirm()">Simpan Revisi</button>
+        <button class="btn-outline" onclick="closeModal('modal-kgd-revisi')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL ANULIR ──────────────────────────────── -->
+  <div class="n-overlay n-hidden" id="modal-kgd-anulir">
+    <div class="n-modal" style="max-width:520px;width:100%;">
+      <h2>Anulir Kegiatan</h2>
+      <div id="kgd-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="kgd-anulir-msg" class="n-msg"></div>
+
+      <div class="n-info-static" style="margin-bottom:14px;">
+        Komentar anulir terlihat oleh seluruh pengguna dengan akses modul ini. Entri yang dianulir tetap tampil di feed dengan status Dianulir.
+      </div>
+      <div class="form-grp">
+        <label for="an-kgd-alasan">Komentar Anulir <span style="color:var(--n-status-critical);">*</span></label>
+        <input type="text" id="an-kgd-alasan" placeholder="Jelaskan alasan pembatalan">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" style="background:var(--n-status-critical);" id="kgd-btn-anulir-save" onclick="kgdAnulirConfirm()">Anulir Kegiatan</button>
+        <button class="btn-outline" onclick="closeModal('modal-kgd-anulir')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-kegiatan -->

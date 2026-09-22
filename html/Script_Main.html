@@ -31,6 +31,44 @@ var APP = {
   }
 };
 
+// ── BUSY GLOBAL — indikator loading di samping filter periode ──
+// Setiap google.script.run otomatis memunculkan spinner selama call in-flight,
+// apa pun sheet/server function-nya (patch di bawah mem-bungkus withSuccessHandler
+// & withFailureHandler yang per dokumentasi GS mengembalikan object yang sama).
+var _BUSY = 0;
+function _busyInc() { _BUSY++; _syncBusy(); }
+function _busyDec() { if (_BUSY > 0) _BUSY--; _syncBusy(); }
+function _syncBusy() {
+  var el = document.getElementById('filter-busy');
+    if (el) el.style.display = (_BUSY > 0) ? 'flex' : 'none';
+}
+(function () {
+  try {
+    var g = window.google && google.script && google.script.run;
+    if (!g || g.__nBusyPatched) return;
+    g.__nBusyPatched = true;
+    var oWsh = g.withSuccessHandler;
+    var oWfh = g.withFailureHandler;
+    g.withSuccessHandler = function (h) {
+      if (!this.__nBusy) this.__nBusy = 0;
+      this.__nBusy++;
+      _busyInc();
+      return oWsh.call(this, function (res) {
+        try { return h ? h(res) : res; }
+        finally { if (this.__nBusy > 0) { this.__nBusy--; _busyDec(); } }
+      });
+    };
+    g.withFailureHandler = function (h) {
+      return oWfh.call(this, function (err) {
+        try { return h ? h(err) : err; }
+        finally { if (this.__nBusy > 0) { this.__nBusy--; _busyDec(); } }
+      });
+    };
+  } catch (e) {
+    // patch gagal → spinner tidak tampil, call tetap berjalan normal (tidak wajib)
+  }
+})();
+
 // ── NAVIGASI: section + items ─────────────────────────────
 // divisiId: null = semua role; string = DIV-* untuk Kadiv/Staf
 // minRoles: null = semua APPROVED; array = hanya role tsb
@@ -322,8 +360,12 @@ function _renderPageHeader(viewId) {
   document.getElementById('page-header').innerHTML =
     '<div class="page-header-inner">' +
       '<h1 class="page-title">' + _esc(_viewTitle(viewId)) + '</h1>' +
-      (filterHtml ? '<div class="filter-periode" id="filter-periode">' + filterHtml + '</div>' : '') +
+      '<div class="filter-periode">' +
+        (filterHtml ? '<div class="filter-box">' + filterHtml + '</div>' : '') +
+        '<span id="filter-busy" class="filter-busy" title="Memuat data&hellip;"></span>' +
+      '</div>' +
     '</div>';
+  _syncBusy();
 }
 
 // ── FILTER PERIODE ────────────────────────────────────────
@@ -344,6 +386,12 @@ function _buildFilterHtml() {
     return '<option value="' + val + '"' + (f.month === val ? ' selected' : '') + '>' + m + '</option>';
   }).join('');
 
+  var mode =
+    '<div class="filter-mode">' +
+      '<button type="button" class="filter-mode-btn' + (f.mode==='monthly'?' active':'') + '" onclick="_setFilterMode(\'monthly\')">Bulanan</button>' +
+      '<button type="button" class="filter-mode-btn' + (f.mode==='range'  ?' active':'') + '" onclick="_setFilterMode(\'range\')">Rentang</button>' +
+    '</div>';
+
   var monthlyInputs =
     '<div class="filter-inputs" id="filter-monthly" ' + (f.mode !== 'monthly' ? 'style="display:none"' : '') + '>' +
       '<select class="filter-sel" onchange="_setFilterMonth(this.value)">' + monthOpts + '</select>' +
@@ -357,24 +405,16 @@ function _buildFilterHtml() {
       '<input type="date" class="filter-date" value="' + (f.dateTo||'') + '"   onchange="_setFilterTo(this.value)">' +
     '</div>';
 
-  var toggle =
-    '<div class="filter-toggle">' +
-      '<button class="filter-toggle-btn' + (f.mode==='monthly'?' active':'') + '" onclick="_setFilterMode(\'monthly\')">Bulanan</button>' +
-      '<button class="filter-toggle-btn' + (f.mode==='range'  ?' active':'') + '" onclick="_setFilterMode(\'range\')"  >Rentang</button>' +
-    '</div>';
-
-  return toggle + monthlyInputs + rangeInputs;
+  return mode + '<div class="filter-mode-sep"></div>' + monthlyInputs + rangeInputs;
 }
 
 function _setFilterMode(mode) {
   APP.filter.mode = mode;
   var ml = document.getElementById('filter-monthly');
   var rl = document.getElementById('filter-range');
-  if (ml && rl) {
-    ml.style.display = (mode === 'monthly') ? 'flex' : 'none';
-    rl.style.display = (mode === 'range')   ? 'flex' : 'none';
-  }
-  document.querySelectorAll('.filter-toggle-btn').forEach(function(btn, i){
+  if (ml) ml.style.display = (mode === 'monthly') ? '' : 'none';
+  if (rl) rl.style.display = (mode === 'range')   ? '' : 'none';
+  document.querySelectorAll('.filter-mode-btn').forEach(function(btn, i){
     btn.classList.toggle('active', (i===0 && mode==='monthly') || (i===1 && mode==='range'));
   });
 }

@@ -33,35 +33,57 @@ var APP = {
 
 // ── BUSY GLOBAL — indikator loading di samping filter periode ──
 // Setiap google.script.run otomatis memunculkan spinner selama call in-flight,
-// apa pun sheet/server function-nya (patch di bawah mem-bungkus withSuccessHandler
-// & withFailureHandler yang per dokumentasi GS mengembalikan object yang sama).
+// apa pun sheet/server function-nya. Strategi (stabil, tanpa bergantung this):
+//  - withSuccessHandler  : +1 saat setup call; -1 di dalam handler sukses.
+//  - withFailureHandler  : tidak menaikkan, hanya -1 di dalam handler gagal.
+// Karena GS hanya memanggil SATU handler (sukses ATAU gagal, tidak keduanya),
+// setiap rantai = tepat +1 dan tepat -1 → selalu balik ke 0.
 var _BUSY = 0;
-function _busyInc() { _BUSY++; _syncBusy(); }
-function _busyDec() { if (_BUSY > 0) _BUSY--; _syncBusy(); }
+var _BUSY_LAST = 0;
+var _BUSY_WATCHDOG = null;
+function _busyPushActivity() { _BUSY_LAST = Date.now(); }
+function _busyInc() { _BUSY++; _busyPushActivity(); _syncBusy(); }
+function _busyDec() {
+  if (_BUSY > 0) _BUSY--;
+  _busyPushActivity();
+  _syncBusy();
+}
 function _syncBusy() {
   var el = document.getElementById('filter-busy');
-    if (el) el.style.display = (_BUSY > 0) ? 'flex' : 'none';
+  if (el) el.style.display = (_BUSY > 0) ? 'flex' : 'none';
+  if (_BUSY > 0 && !_BUSY_WATCHDOG) {
+    // Jaring pengaman: force-reset jika counter nyangkut (mis. call tanpa
+    // failure-handler lalu GAGAL, sehingga tak ada handler yang menurunkan).
+    _BUSY_WATCHDOG = setInterval(function () {
+      if (_BUSY > 0 && (Date.now() - _BUSY_LAST) > 20000) {
+        _BUSY = 0;
+        _syncBusy();
+      }
+    }, 1000);
+  } else if (_BUSY === 0 && _BUSY_WATCHDOG) {
+    clearInterval(_BUSY_WATCHDOG);
+    _BUSY_WATCHDOG = null;
+  }
 }
 (function () {
   try {
     var g = window.google && google.script && google.script.run;
-    if (!g || g.__nBusyPatched) return;
-    g.__nBusyPatched = true;
+    if (!g) return;
     var oWsh = g.withSuccessHandler;
     var oWfh = g.withFailureHandler;
+    if (g.__nBusyPatched) return;
+    g.__nBusyPatched = true;
     g.withSuccessHandler = function (h) {
-      if (!this.__nBusy) this.__nBusy = 0;
-      this.__nBusy++;
       _busyInc();
       return oWsh.call(this, function (res) {
         try { return h ? h(res) : res; }
-        finally { if (this.__nBusy > 0) { this.__nBusy--; _busyDec(); } }
+        finally { _busyDec(); }
       });
     };
     g.withFailureHandler = function (h) {
       return oWfh.call(this, function (err) {
         try { return h ? h(err) : err; }
-        finally { if (this.__nBusy > 0) { this.__nBusy--; _busyDec(); } }
+        finally { _busyDec(); }
       });
     };
   } catch (e) {

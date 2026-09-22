@@ -143,6 +143,50 @@ var EVIDENCE_LIMIT_BYTES = {
 };
 
 // ===========================================================================
+// ENUM — Modul Logistik (Fase 10)
+// Nilai harus persis sama dengan DATA_SCHEMA.md (kolom enum).
+// ===========================================================================
+var LOG_JENIS_AMUNISI = [
+  'PISTOL_P3A',
+  'PM1_A2',
+  'SS1V5_SS2',
+  'SM5',
+  'SS1V5_SS2_HAMPA'
+];
+
+var LOG_JENIS_BBM = ['REGULER', 'ABT'];
+
+var LOG_KOMPONEN_PERSONIL = [
+  'NATURA',
+  'BPDT',
+  'AIR_BERSIH',
+  'DELEGASI',
+  'JAGA_SANDAR'
+];
+
+// Mode submit Baris Logistik — disimpan tersirat (tidak ada kolom):
+//   'BASELINE'     → baris inisialisasi siklus tahunan (isi StokAwal / Pagu;
+//                    kolom penggunaan/realisasi = 0). Satu baris ACTIVE per
+//                    jenis per tahun; revisi via supersede.
+//   'PENGGUNAAN'   → baris mingguan biasa (isi Penggunaan_Minggu /
+//                    Realisasi_Minggu). Satu baris ACTIVE per jenis per periode.
+var LOG_MODE_BASELINE = 'BASELINE';
+var LOG_MODE_USAGE    = 'PENGGUNAAN';
+
+// ===========================================================================
+// ENUM — Modul Pengawakan (Fase 10)
+// ===========================================================================
+var AWAK_SCOPE = ['KESELURUHAN', 'POA'];
+
+var AWAK_KATEGORI_PERSONIL = [
+  'PNS',
+  'PPPK_FUNGSIONAL',
+  'PPPK_PELAKSANA',
+  'PPPK_PARUH_WAKTU',
+  'PJLP'
+];
+
+// ===========================================================================
 // WPP NRI — referensi dari wpp_final.geojson (source of truth geospasial)
 // Daftar ini MENGIKUTI properti `wppnri`/`name` pada file geojson WPP-NRI.
 // Dipakai untuk: (1) auto-seed sheet master `WPP` bila masih kosong,

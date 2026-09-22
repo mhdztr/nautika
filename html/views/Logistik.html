@@ -1,0 +1,308 @@
+<!-- html/views/Logistik.html
+     Template modul Logistik (Fase 10) — 3 sub-struktur independen:
+     Amunisi / BBM / Logistik Personil.
+     Di-include ke Index.html via html_include(), disimpan dalam
+     <div id="view-tpl-logistik" hidden>. Pane tiap tab disalin ke
+     #log-tab-pane oleh _logSetTab() di Script_Main.html.
+     Modal diletakkan di dalam #view-tpl-logistik agar ikut ter-clone
+     ke #page-content (pola sama dengan Perawatan.html).
+     Mode BASELINE (StokAwal/Pagu, setahun sekali) vs PENGGUNAAN (mingguan). -->
+<div id="view-tpl-logistik" hidden>
+
+  <!-- ── KPI STRIP (lintas ketiga sub-modul) ───────────── -->
+  <div id="log-kpi-strip" class="content-section">
+    <!-- diisi _logRenderKPI() -->
+  </div>
+
+  <!-- ── KONTEKS LOGISTIK (CHART — DESIGN §6) ──────────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Konteks Logistik</div>
+    <div class="chart-grid-2">
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Stok Akhir Amunisi</div>
+            <div class="chart-cell-sub">StokAwal dikurangi penggunaan kumulatif tahun berjalan</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="log-chart-stok"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Tren Penggunaan &amp; Realisasi</div>
+            <div class="chart-cell-sub">Total per bulan pada rentang filter</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="log-chart-tren"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TABS ──────────────────────────────────────────── -->
+  <div class="n-tabs" id="log-tabs">
+    <button type="button" class="n-tab active" data-log-tab="amunisi" onclick="_logSetTab('amunisi')">Amunisi</button>
+    <button type="button" class="n-tab" data-log-tab="bbm" onclick="_logSetTab('bbm')">BBM</button>
+    <button type="button" class="n-tab" data-log-tab="personil" onclick="_logSetTab('personil')">Logistik Personil</button>
+  </div>
+
+  <div id="log-tab-pane"></div>
+
+  <!-- ============================================================
+       MODAL GLOBAL: REVISI (field dinamis per jenis & mode)
+       ============================================================ -->
+  <div class="n-overlay n-hidden" id="modal-log-revisi">
+    <div class="n-modal" style="max-width:560px;width:100%;">
+      <h2>Revisi Laporan Logistik</h2>
+      <div id="log-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="log-revisi-msg" class="n-msg"></div>
+      <div id="log-revisi-fields"></div>
+      <div class="form-grp">
+        <label for="log-revisi-alasan">Alasan Revisi <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="log-revisi-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" id="log-btn-revisi-save" onclick="_logRevisiConfirm()">Simpan Revisi</button>
+        <button class="btn-outline" onclick="_logCloseRevisi()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL GLOBAL: ANULIR
+       ============================================================ -->
+  <div class="n-overlay n-hidden" id="modal-log-anulir">
+    <div class="n-modal">
+      <h2>Anulir Laporan Logistik</h2>
+      <div id="log-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div class="n-info-static" style="margin-bottom:14px;">
+        Komentar anulir akan terlihat oleh seluruh anggota divisi.
+        Staf dapat mengunggah laporan baru setelah memperbaiki data.
+      </div>
+      <div id="log-anulir-msg" class="n-msg"></div>
+      <div class="form-grp">
+        <label for="log-anulir-alasan">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="log-anulir-alasan" placeholder="Jelaskan apa yang perlu diperbaiki staf">
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" style="background:var(--n-crit);" id="log-btn-anulir-save" onclick="_logAnulirConfirm()">Konfirmasi Anulir</button>
+        <button class="btn-outline" onclick="_logCloseAnulir()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-logistik -->
+
+
+<!-- ============================================================
+     PANE: AMUNISI
+     ============================================================ -->
+<div id="view-tpl-log-amunisi" hidden>
+
+  <div id="lga-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="_logToggleForm('amunisi')">
+      <div id="lga-form-toggle-label">Input Penggunaan Amunisi</div>
+      <span id="lga-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="lga-form-body" style="margin-top:18px;">
+      <div id="lga-form-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+          <select id="lga-periode-tahun"><option value="">Tahun</option></select>
+          <select id="lga-periode-bulan"><option value="">Bulan</option></select>
+          <select id="lga-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="lga-periode-hint">—</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="lga-mode">Jenis Input</label>
+          <select id="lga-mode" onchange="_logAmunisiModeChange()">
+            <option value="PENGGUNAAN">Penggunaan Mingguan</option>
+            <option value="BASELINE">Stok Awal Tahun (baseline)</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label for="lga-jenis">Jenis Amunisi</label>
+          <select id="lga-jenis"><option value="">Memuat jenis amunisi…</option></select>
+        </div>
+      </div>
+
+      <div class="form-grp" id="lga-stok-grp" style="display:none;">
+        <label for="lga-stok">Stok Awal Tahun <span style="color:var(--n-crit)">*</span> <span style="color:var(--n-text-muted);font-weight:400;">(dibuat sekali per jenis per tahun)</span></label>
+        <input type="number" id="lga-stok" min="0" step="1" placeholder="0">
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">StokAkhir = StokAwal − total penggunaan. Stok negatif hanya peringatan, tetap dapat disimpan.</div>
+      </div>
+
+      <div class="form-grp" id="lga-penggunaan-grp" style="display:none;">
+        <label for="lga-penggunaan">Penggunaan Minggu Ini <span style="color:var(--n-crit)">*</span></label>
+        <input type="number" id="lga-penggunaan" min="0" step="1" placeholder="0">
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Perkiraan stok akhir = StokAwal − (total penggunaan s.d minggu lalu) − penggunaan minggu ini.</div>
+      </div>
+
+      <button class="btn-primary" style="margin-top:20px;" id="lga-btn-submit" onclick="_logSubmitAmunisi()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Sisa vs Terpakai</div>
+    <div class="n-card">
+      <div class="chart-box" style="height:220px;"><canvas id="lga-chart-donut"></canvas></div>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat Amunisi</div>
+    <div id="lga-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="lga-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-log-amunisi -->
+
+
+<!-- ============================================================
+     PANE: BBM
+     ============================================================ -->
+<div id="view-tpl-log-bbm" hidden>
+
+  <div id="lgb-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="_logToggleForm('bbm')">
+      <div id="lgb-form-toggle-label">Input Realisasi BBM</div>
+      <span id="lgb-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="lgb-form-body" style="margin-top:18px;">
+      <div id="lgb-form-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+          <select id="lgb-periode-tahun"><option value="">Tahun</option></select>
+          <select id="lgb-periode-bulan"><option value="">Bulan</option></select>
+          <select id="lgb-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="lgb-periode-hint">—</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="lgb-mode">Jenis Input</label>
+          <select id="lgb-mode" onchange="_logBbmModeChange()">
+            <option value="PENGGUNAAN">Realisasi Mingguan</option>
+            <option value="BASELINE">Pagu Tahun (baseline)</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label for="lgb-jenis">Jenis BBM</label>
+          <select id="lgb-jenis">
+            <option value="REGULER">Reguler</option>
+            <option value="ABT">ABT</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grp" id="lgb-pagu-grp" style="display:none;">
+        <label for="lgb-pagu">Pagu Tahun <span style="color:var(--n-crit)">*</span> <span style="color:var(--n-text-muted);font-weight:400;">(dibuat sekali per jenis per tahun)</span></label>
+        <input type="number" id="lgb-pagu" min="0" step="1" placeholder="0">
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Sisa = Pagu − total realisasi. Realisasi melebihi Pagu hanya peringatan, tetap dapat disimpan.</div>
+      </div>
+
+      <div class="form-grp" id="lgb-realisasi-grp" style="display:none;">
+        <label for="lgb-realisasi">Realisasi Minggu Ini <span style="color:var(--n-crit)">*</span></label>
+        <input type="number" id="lgb-realisasi" min="0" step="1" placeholder="0">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;" id="lgb-info-grp">
+        <div class="form-grp">
+          <label for="lgb-harga">Harga Acuan / Liter</label>
+          <input type="number" id="lgb-harga" min="0" step="1" placeholder="0">
+        </div>
+        <div class="form-grp">
+          <label for="lgb-tunggakan">Status Tunggakan</label>
+          <input type="text" id="lgb-tunggakan" placeholder="Cth: Tidak ada / menunggu SPBU">
+        </div>
+      </div>
+
+      <button class="btn-primary" style="margin-top:20px;" id="lgb-btn-submit" onclick="_logSubmitBbm()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Realisasi terhadap Pagu</div>
+    <div class="n-card">
+      <div class="chart-box" style="height:220px;"><canvas id="lgb-chart-pct"></canvas></div>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat BBM</div>
+    <div id="lgb-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="lgb-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-log-bbm -->
+
+
+<!-- ============================================================
+     PANE: LOGISTIK PERSONIL
+     ============================================================ -->
+<div id="view-tpl-log-personil" hidden>
+
+  <div id="lgp-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="_logToggleForm('personil')">
+      <div id="lgp-form-toggle-label">Input Logistik Personil</div>
+      <span id="lgp-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="lgp-form-body" style="margin-top:18px;">
+      <div id="lgp-form-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+          <select id="lgp-periode-tahun"><option value="">Tahun</option></select>
+          <select id="lgp-periode-bulan"><option value="">Bulan</option></select>
+          <select id="lgp-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="lgp-periode-hint">—</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="lgp-komponen">Komponen</label>
+          <select id="lgp-komponen"><option value="">Memuat komponen…</option></select>
+        </div>
+        <div class="form-grp">
+          <label for="lgp-nilai">Nilai Minggu Ini (Rp)</label>
+          <input type="number" id="lgp-nilai" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <button class="btn-primary" style="margin-top:20px;" id="lgp-btn-submit" onclick="_logSubmitPersonil()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Nilai per Komponen</div>
+    <div class="n-card">
+      <div class="chart-box" style="height:240px;"><canvas id="lgp-chart-komponen"></canvas></div>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat Logistik Personil</div>
+    <div id="lgp-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="lgp-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-log-personil -->

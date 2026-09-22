@@ -1,0 +1,234 @@
+<!-- html/views/Pengawakan.html
+     Template modul Pengawakan (Fase 10) — 2 sub-struktur independen:
+     Komposisi AKN (Keseluruhan vs POA) / Kegiatan Personel.
+     Di-include ke Index.html via html_include(), disimpan dalam
+     <div id="view-tpl-pengawakan" hidden>. Pane tiap tab disalin ke
+     #awak-tab-pane oleh _awkSetTab() di Script_Main.html.
+     Modal diletakkan di dalam #view-tpl-pengawakan agar ikut ter-clone
+     ke #page-content (pola sama dengan Perawatan.html).
+     Jumlah AKN bersifat SNAPSHOT TOTAL: input total terbaru per (Scope, Kategori). -->
+<div id="view-tpl-pengawakan" hidden>
+
+  <!-- ── KPI STRIP ──────────────────────────────────────── -->
+  <div id="awak-kpi-strip" class="content-section">
+    <!-- diisi _awkRenderKPI() -->
+  </div>
+
+  <!-- ── KONTEKS PENGAWAKAN (CHART — DESIGN §6) ─────────── -->
+  <div class="content-section">
+    <div class="content-section-hd">Konteks Pengawakan</div>
+    <div class="chart-grid-2">
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Komposisi AKN Keseluruhan</div>
+            <div class="chart-cell-sub">Snapshot tahun berjalan per kategori personil</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="awak-chart-komposisi"></canvas></div>
+      </div>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Tren Total AKN &amp; Kegiatan</div>
+            <div class="chart-cell-sub">Total personil (carry-forward) dan jumlah kegiatan per bulan</div>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="awak-chart-tren"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TABS ──────────────────────────────────────────── -->
+  <div class="n-tabs" id="awak-tabs">
+    <button type="button" class="n-tab active" data-awak-tab="akn" onclick="_awkSetTab('akn')">Komposisi AKN</button>
+    <button type="button" class="n-tab" data-awak-tab="kegiatan" onclick="_awkSetTab('kegiatan')">Kegiatan Personel</button>
+  </div>
+
+  <div id="awak-tab-pane"></div>
+
+  <!-- ============================================================
+       MODAL GLOBAL: REVISI (field dinamis per jenis)
+       ============================================================ -->
+  <div class="n-overlay n-hidden" id="modal-awak-revisi">
+    <div class="n-modal" style="max-width:560px;width:100%;">
+      <h2>Revisi Laporan Pengawakan</h2>
+      <div id="awak-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div id="awak-revisi-msg" class="n-msg"></div>
+      <div id="awak-revisi-fields"></div>
+      <div class="form-grp">
+        <label for="awak-revisi-alasan">Alasan Revisi <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="awak-revisi-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" id="awak-btn-revisi-save" onclick="_awkRevisiConfirm()">Simpan Revisi</button>
+        <button class="btn-outline" onclick="_awkCloseRevisi()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL GLOBAL: ANULIR
+       ============================================================ -->
+  <div class="n-overlay n-hidden" id="modal-awak-anulir">
+    <div class="n-modal">
+      <h2>Anulir Laporan Pengawakan</h2>
+      <div id="awak-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
+      <div class="n-info-static" style="margin-bottom:14px;">
+        Komentar anulir akan terlihat oleh seluruh anggota divisi.
+        Staf dapat mengunggah laporan baru setelah memperbaiki data.
+      </div>
+      <div id="awak-anulir-msg" class="n-msg"></div>
+      <div class="form-grp">
+        <label for="awak-anulir-alasan">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="awak-anulir-alasan" placeholder="Jelaskan apa yang perlu diperbaiki staf">
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button class="btn-primary" style="background:var(--n-crit);" id="awak-btn-anulir-save" onclick="_awkAnulirConfirm()">Konfirmasi Anulir</button>
+        <button class="btn-outline" onclick="_awkCloseAnulir()">Batal</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-pengawakan -->
+
+
+<!-- ============================================================
+     PANE: KOMPOSISI AKN
+     ============================================================ -->
+<div id="view-tpl-awak-akn" hidden>
+
+  <div id="akn-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="_awkToggleForm('akn')">
+      <div id="akn-form-toggle-label">Input Perubahan Komposisi AKN</div>
+      <span id="akn-form-toggle-icon" class="toggle-icon">▾</span>
+    </div>
+
+    <div id="akn-form-body" style="margin-top:18px;">
+      <div id="akn-form-msg" class="n-msg"></div>
+
+      <div class="n-info-static" style="margin-bottom:16px;">
+        Komposisi AKN diinput sebagai <strong>total terbaru</strong> per (Scope, Kategori),
+        bukan selisih. Sistem memakai nilai terakhir tiap kategori untuk penghitungan tahun berjalan.
+      </div>
+
+      <div class="form-grp">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+          <select id="akn-periode-tahun"><option value="">Tahun</option></select>
+          <select id="akn-periode-bulan"><option value="">Bulan</option></select>
+          <select id="akn-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akn-periode-hint">—</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="akn-scope">Scope</label>
+          <select id="akn-scope">
+            <option value="KESELURUHAN">Keseluruhan</option>
+            <option value="POA">POA</option>
+          </select>
+        </div>
+        <div class="form-grp">
+          <label for="akn-kategori">Kategori Personil</label>
+          <select id="akn-kategori"><option value="">Memuat kategori…</option></select>
+        </div>
+      </div>
+
+      <div class="form-grp">
+        <label for="akn-jumlah">Jumlah (Total Terbaru) <span style="color:var(--n-crit)">*</span></label>
+        <input type="number" id="akn-jumlah" min="0" step="1" placeholder="0">
+      </div>
+
+      <button class="btn-primary" style="margin-top:20px;" id="akn-btn-submit" onclick="_awkSubmitAkn()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Komposisi Tahun Berjalan per Kategori</div>
+    <div id="akn-komposisi-wrap" class="n-card">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat komposisi…</div>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat Komposisi AKN</div>
+    <div id="akn-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="akn-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-awak-akn -->
+
+
+<!-- ============================================================
+     PANE: KEGIATAN PERSONEL
+     ============================================================ -->
+<div id="view-tpl-awak-kegiatan" hidden>
+
+  <div id="akk-form-section" class="content-section n-card">
+    <div class="btn-form-toggle" onclick="_awkToggleForm('kegiatan')">
+      <div id="akk-form-toggle-label">Input Kegiatan Personel</div>
+      <span id="akk-form-toggle-icon" class="toggle-icon">▸</span>
+    </div>
+
+    <div id="akk-form-body" style="margin-top:18px;">
+      <div id="akk-form-msg" class="n-msg"></div>
+
+      <div class="form-grp">
+        <label>Periode Laporan</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+          <select id="akk-periode-tahun"><option value="">Tahun</option></select>
+          <select id="akk-periode-bulan"><option value="">Bulan</option></select>
+          <select id="akk-periode-minggu"><option value="">Minggu Ke-</option></select>
+        </div>
+        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akk-periode-hint">—</span></div>
+      </div>
+
+      <div class="form-grp">
+        <label for="akk-judul">Judul Kegiatan <span style="color:var(--n-crit)">*</span></label>
+        <input type="text" id="akk-judul" placeholder="Cth: Pembekalan ABK, latihan navigasi, apel gelar">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="akk-tglmulai">Tanggal Mulai <span style="color:var(--n-crit)">*</span></label>
+          <input type="date" id="akk-tglmulai">
+        </div>
+        <div class="form-grp">
+          <label for="akk-tglselesai">Tanggal Selesai</label>
+          <input type="date" id="akk-tglselesai">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="akk-wilayah">Wilayah</label>
+          <input type="text" id="akk-wilayah" placeholder="Cth: Dermaga Menteng, Perairan Sumatera">
+        </div>
+        <div class="form-grp">
+          <label for="akk-peserta">Jumlah Peserta</label>
+          <input type="number" id="akk-peserta" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+
+      <div class="form-grp">
+        <label for="akk-deskripsi">Deskripsi Kegiatan</label>
+        <textarea id="akk-deskripsi" rows="3" placeholder="Latar belakang & hasil kegiatan"></textarea>
+      </div>
+
+      <button class="btn-primary" style="margin-top:20px;" id="akk-btn-submit" onclick="_awkSubmitKegiatan()">Simpan Laporan</button>
+    </div>
+  </div>
+
+  <div class="content-section">
+    <div class="content-section-hd">Riwayat Kegiatan Personel</div>
+    <div id="akk-history-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow-x:auto;" id="akk-history-wrap">
+      <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-awak-kegiatan -->

@@ -393,6 +393,8 @@ function _renderViewContent(viewId) {
   if (viewId === 'intelijen')   { _renderIntelijen(el);   return; }
   if (viewId === 'pemantauan')  { _renderPemantauan(el);  return; }
   if (viewId === 'perawatan')   { _renderPerawatan(el);   return; }
+  if (viewId === 'logistik')    { _renderLogistik(el);    return; }
+  if (viewId === 'pengawakan')  { _renderPengawakan(el);  return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
   if (viewId === 'riwayat')     { _renderRiwayatStub(el); return; }
   // Modul lain — stub hingga fase masing-masing
@@ -4171,6 +4173,1153 @@ function _rawatRefreshEvidenceCount(refSheet, refRowId) {
   Object.keys(_RAWAT_SHEET).forEach(function (j) { if (_RAWAT_SHEET[j] === refSheet) jenis = j; });
   if (!jenis) return;
   _rawatLoadEvidenceCounts(jenis, _RAWAT.history[jenis]);
+}
+
+// ============================================================
+// MODUL LOGISTIK (Fase 10) — DIV-LOG
+// Amunisi / BBM / Logistik Personil (mingguan + baseline tahunan)
+// ============================================================
+
+var _LOG = {
+  tab: 'amunisi',
+  options: null,
+  kpi: null,
+  history: { amunisi: [], bbm: [], personil: [] },
+  formOpen: { amunisi: true, bbm: true, personil: true },
+  revisi: { jenis: null, rowId: null, mode: null },
+  anulir: { jenis: null, rowId: null }
+};
+var _LOG_LABEL  = { amunisi: 'Amunisi', bbm: 'BBM', personil: 'Logistik Personil' };
+var _LOG_PREFIX = { amunisi: 'lga', bbm: 'lgb', personil: 'lgp' };
+var _LOG_MODE_LABEL = { BASELINE: 'Baseline', PENGGUNAAN: 'Penggunaan' };
+var _LOG_KOM_LABEL = {
+  NATURA: 'Natura', BPDT: 'BPDT', AIR_BERSIH: 'Air Bersih', DELEGASI: 'Delegasi', JAGA_SANDAR: 'Jaga Sandar'
+};
+
+function _idNum(v) {
+  var n = Number(v);
+  return isNaN(n) ? '0' : n.toLocaleString('id-ID');
+}
+
+// ── RENDER UTAMA ────────────────────────────────────────
+
+function _renderLogistik(el) {
+  var tpl = document.getElementById('view-tpl-logistik');
+  if (!tpl) { el.innerHTML = _moduleStub('Logistik'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _LOG.tab = 'amunisi';
+  _logSetTab('amunisi');
+
+  _logLoadOptions();
+  _logLoadKPI();
+}
+
+function _logSyncTabState() {
+  var tabs = document.querySelectorAll('#log-tabs .n-tab');
+  tabs.forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-log-tab') === _LOG.tab);
+  });
+}
+
+function _logSetTab(name) {
+  if (!_LOG_LABEL[name]) return;
+  _LOG.tab = name;
+  _logSyncTabState();
+
+  _logDestroyPaneCharts();
+
+  var pane = document.getElementById('log-tab-pane');
+  if (!pane) return;
+  var tpl = document.getElementById('view-tpl-log-' + name);
+  pane.innerHTML = tpl ? tpl.innerHTML : '';
+  _logInitPane(name);
+}
+
+// RBAC UI mengikuti server: write = SUPERADMIN atau (KADIV/STAF DIV-LOG);
+// anulir = SUPERADMIN/DIREKTUR atau KADIV DIV-LOG.
+function _logCanWrite() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || (u.divisiId === 'DIV-LOG' && (u.role === 'STAF' || u.role === 'KADIV'));
+}
+
+function _logCanAnulir() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || u.role === 'DIREKTUR' || (u.divisiId === 'DIV-LOG' && u.role === 'KADIV');
+}
+
+function _logInitPane(name) {
+  var prefix = _LOG_PREFIX[name] + '-';
+
+  var formSection = document.getElementById(prefix + 'form-section');
+  if (formSection) formSection.style.display = _logCanWrite() ? '' : 'none';
+
+  var fbody = document.getElementById(prefix + 'form-body');
+  var ficon = document.getElementById(prefix + 'form-toggle-icon');
+  if (fbody) fbody.style.display = _LOG.formOpen[name] ? 'block' : 'none';
+  if (ficon) ficon.textContent = _LOG.formOpen[name] ? '\u25be' : '\u25b8';
+
+  _opsInitPeriodeUi(prefix);
+  ['tahun', 'bulan', 'minggu'].forEach(function (k) {
+    var sel = document.getElementById(prefix + 'periode-' + k);
+    if (sel) sel.onchange = function () { _logUpdatePeriodeHint(name); };
+  });
+  _logUpdatePeriodeHint(name);
+
+  _logPopulateOptions();
+  if (name === 'amunisi') _logAmunisiModeChange();
+  if (name === 'bbm')     _logBbmModeChange();
+
+  _logFetchHistory(name);
+  _logBuildPaneCharts();
+}
+
+function _logUpdatePeriodeHint(name) {
+  var hint = document.getElementById(_LOG_PREFIX[name] + '-periode-hint');
+  if (hint) hint.textContent = _composePeriode(_LOG_PREFIX[name] + '-') || '—';
+}
+
+function _logToggleForm(name) {
+  var prefix = _LOG_PREFIX[name];
+  var body = document.getElementById(prefix + '-form-body');
+  var icon = document.getElementById(prefix + '-form-toggle-icon');
+  if (!body) return;
+  _LOG.formOpen[name] = !_LOG.formOpen[name];
+  body.style.display = _LOG.formOpen[name] ? 'block' : 'none';
+  if (icon) icon.textContent = _LOG.formOpen[name] ? '▾' : '▸';
+}
+
+// ── OPTIONS ───────────────────────────────────────────────
+
+function _logLoadOptions() {
+  if (_LOG.options) { _logPopulateOptions(); return; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      _LOG.options = res.data;
+      _logPopulateOptions();
+    })
+    .withFailureHandler(function () {})
+    .logistik_getOptions(APP.token);
+}
+
+function _logPopulateOptions() {
+  if (!_LOG.options) return;
+
+  var aSel = document.getElementById('lga-jenis');
+  if (aSel) {
+    var pa = aSel.value;
+    aSel.innerHTML = '<option value="">(Pilih Jenis Amunisi)</option>';
+    (_LOG.options.amunisi || []).forEach(function (j) {
+      var o = document.createElement('option');
+      o.value = j;
+      o.textContent = j;
+      aSel.appendChild(o);
+    });
+    if (pa) aSel.value = pa;
+  }
+
+  var pSel = document.getElementById('lgp-komponen');
+  if (pSel) {
+    var pp = pSel.value;
+    pSel.innerHTML = '<option value="">(Pilih Komponen)</option>';
+    (_LOG.options.personil || []).forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k;
+      o.textContent = _LOG_KOM_LABEL[k] || k;
+      pSel.appendChild(o);
+    });
+    if (pp) pSel.value = pp;
+  }
+}
+
+// ── MODE BASELINE / PENGGUNAAN ───────────────────────────
+
+function _logAmunisiModeChange() {
+  var base = _v('lga-mode') === 'BASELINE';
+  var sg = document.getElementById('lga-stok-grp');
+  var pg = document.getElementById('lga-penggunaan-grp');
+  if (sg) sg.style.display = base ? 'block' : 'none';
+  if (pg) pg.style.display = base ? 'none' : 'block';
+  var lbl = document.getElementById('lga-form-toggle-label');
+  if (lbl) lbl.textContent = base ? 'Input Stok Awal Tahun (baseline)' : 'Input Penggunaan Amunisi';
+}
+
+function _logBbmModeChange() {
+  var base = _v('lgb-mode') === 'BASELINE';
+  var pg = document.getElementById('lgb-pagu-grp');
+  var rg = document.getElementById('lgb-realisasi-grp');
+  var ig = document.getElementById('lgb-info-grp');
+  if (pg) pg.style.display = base ? 'block' : 'none';
+  if (rg) rg.style.display = base ? 'none' : 'block';
+  if (ig) ig.style.display = base ? 'none' : 'grid';
+  var lbl = document.getElementById('lgb-form-toggle-label');
+  if (lbl) lbl.textContent = base ? 'Input Pagu Tahun (baseline)' : 'Input Realisasi BBM';
+}
+
+// ── KPI ───────────────────────────────────────────────────
+
+function _logLoadKPI() {
+  var strip = document.getElementById('log-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _msg('lga-history-msg', 'error', res.error); return; }
+      _LOG.kpi = res.data;
+      _logRenderKPI(res.data);
+      _logBuildCharts();
+      _logBuildPaneCharts();
+    })
+    .withFailureHandler(function () {
+      var s = document.getElementById('log-kpi-strip');
+      if (s) s.innerHTML = '<div class="n-msg error show">Gagal memuat KPI Logistik.</div>';
+    })
+    .logistik_getKPI(APP.token, APP.filter);
+}
+
+function _logRenderKPI(d) {
+  var el = document.getElementById('log-kpi-strip');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="ov-kpi-row">' +
+      _kpiHeadline('Stok Akhir Amunisi', _idNum(d.totalStokAkhir), 'tembakan', d.amunisi.length + ' jenis terpantau') +
+      _kpiHeadline('Realisasi BBM', _idNum(d.totalBBMRealisasi), 'liter', 'Kumulatif tahun berjalan') +
+      _kpiHeadline('Sisa Pagu BBM', _idNum(d.totalBBMSisa), 'liter', 'Pagu dikurangi realisasi') +
+      _kpiHeadline('Logistik Personil', _rupiah(d.totalPersonil), '', 'Jumlah dalam rentang filter') +
+    '</div>';
+}
+
+// ── CHARTS ────────────────────────────────────────────────
+
+function _logDestroyPaneCharts() {
+  _chartDestroy('lga-chart-donut');
+  _chartDestroy('lgb-chart-pct');
+  _chartDestroy('lgp-chart-komponen');
+}
+
+function _logBuildCharts() {
+  var k = _LOG.kpi;
+  if (!k) return;
+
+  // Stok akhir amunisi per jenis (ranking horizontal)
+  _chartBar('log-chart-stok',
+    k.amunisi.map(function (x) { return x.jenis; }),
+    [{ label: 'Stok Akhir', data: k.amunisi.map(function (x) { return x.stokAkhir; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada baseline amunisi pada tahun berjalan.' }
+  );
+
+  _logLoadTren();
+}
+
+function _logLoadTren() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      var amTot = d.months.map(function (_, i) {
+        return Object.keys(d.amunisi).reduce(function (s, j) { return s + (d.amunisi[j][i] || 0); }, 0);
+      });
+      var bbTot = d.months.map(function (_, i) {
+        return Object.keys(d.bbm).reduce(function (s, j) { return s + (d.bbm[j][i] || 0); }, 0);
+      });
+      _chartLine('log-chart-tren', labels, [
+        { label: 'Penggunaan Amunisi', data: amTot, color: _CHART_COLORS.primary },
+        { label: 'Realisasi BBM',       data: bbTot, color: _CHART_COLORS.warn }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada penggunaan/realisasi pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .logistik_getTren(APP.token, APP.filter);
+}
+
+function _logBuildPaneCharts() {
+  var k = _LOG.kpi;
+  if (!k) return;
+
+  // Donut sisa vs terpakai (semua jenis amunisi)
+  var sisa = k.amunisi.reduce(function (s, x) { return s + x.stokAkhir; }, 0);
+  var terpakai = k.amunisi.reduce(function (s, x) { return s + x.penggunaan; }, 0);
+  _chartDonut('lga-chart-donut', ['Sisa', 'Terpakai'], [sisa, terpakai],
+    [_CHART_COLORS.ok, _CHART_COLORS.warn],
+    { center: _idNum(sisa), centerSub: 'Sisa Stok', emptyMsg: 'Belum ada baseline amunisi.' });
+
+  // Bar % realisasi terhadap pagu per jenis BBM
+  _chartBar('lgb-chart-pct',
+    k.bbm.map(function (x) { return x.jenis; }),
+    [{ label: 'Realisasi % Pagu', data: k.bbm.map(function (x) { return x.pct; }), color: _CHART_COLORS.primary }],
+    { horizontal: false, fmt: function (v) { return v + '%'; }, emptyMsg: 'Belum ada pagu BBM tahun berjalan.' }
+  );
+
+  // Bar nilai personil per komponen
+  _chartBar('lgp-chart-komponen',
+    k.personil.map(function (x) { return _LOG_KOM_LABEL[x.komponen] || x.komponen; }),
+    [{ label: 'Nilai', data: k.personil.map(function (x) { return x.total; }), color: _CHART_COLORS.primary }],
+    { horizontal: true, fmt: _rupiah, emptyMsg: 'Belum ada nilai logistik personil pada periode ini.' }
+  );
+}
+
+// ── HISTORY ───────────────────────────────────────────────
+
+function _logFetchHistory(jenis) {
+  var prefix = _LOG_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        _msg(prefix + '-history-msg', 'error', res.error);
+        if (wrap) wrap.innerHTML = '';
+        return;
+      }
+      _LOG.history[jenis] = res.data;
+      _logRenderHistory(jenis, res.data);
+    })
+    .withFailureHandler(function () {
+      _msg(prefix + '-history-msg', 'error', 'Gagal memuat riwayat.');
+    });
+
+  if (jenis === 'amunisi')  runner.logistik_getAmunisi(APP.token, APP.filter);
+  else if (jenis === 'bbm') runner.logistik_getBBM(APP.token, APP.filter);
+  else                      runner.logistik_getPersonil(APP.token, APP.filter);
+}
+
+function _logModeBadge(mode) {
+  if (mode === 'BASELINE') return '<span class="status-badge" style="background:#fef3c7;color:#92400e;">BASELINE</span>';
+  return '<span class="status-badge" style="background:#f1f5f9;color:#475569;">PENGGUNAAN</span>';
+}
+
+function _logRenderHistory(jenis, items) {
+  var prefix = _LOG_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (!wrap) return;
+
+  var canRevisi = _logCanWrite();
+  var canAnulir = _logCanAnulir();
+
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada laporan untuk periode ini.</div>';
+    return;
+  }
+
+  var cols = _logColumns(jenis);
+  var t = '<table class="n-table"><thead><tr>';
+  cols.forEach(function (c) { t += '<th>' + c + '</th>'; });
+  t += '<th>Tanggal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
+
+  items.forEach(function (r) {
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="_logOpenRevisi(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
+    var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_logOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
+
+    var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    _logCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
+    t += '<td>' + tgl + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if (r.status === 'VOID' && r.voidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="' + (cols.length + 3) + '" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.voidReason) + (r.voidedBy ? ' (oleh ' + _esc(r.voidedBy) + ')' : '') +
+        '</td></tr>';
+    }
+  });
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _logColumns(jenis) {
+  if (jenis === 'amunisi')  return ['Periode', 'Jenis', 'Mode', 'StokAwal', 'Penggunaan Minggu'];
+  if (jenis === 'bbm')      return ['Periode', 'Jenis', 'Mode', 'Pagu', 'Realisasi', 'Harga Acuan', 'Tunggakan'];
+  return ['Periode', 'Komponen', 'Nilai (Rp)'];
+}
+
+function _logCells(jenis, r) {
+  if (jenis === 'amunisi') {
+    return [
+      _esc(r.periode),
+      _esc(r.jenis),
+      _logModeBadge(r.mode),
+      r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—',
+      r.mode === 'PENGGUNAAN' ? _idNum(r.penggunaan) : '—'
+    ];
+  }
+  if (jenis === 'bbm') {
+    return [
+      _esc(r.periode),
+      _esc(r.jenis),
+      _logModeBadge(r.mode),
+      r.mode === 'BASELINE' ? _idNum(r.pagu) : '—',
+      r.mode === 'PENGGUNAAN' ? _idNum(r.realisasi) : '—',
+      _esc(r.hargaAcuan || '—'),
+      _esc(r.tunggakan || '—')
+    ];
+  }
+  return [
+    _esc(r.periode),
+    _esc(_LOG_KOM_LABEL[r.komponen] || r.komponen),
+    _rupiah(r.nilai)
+  ];
+}
+
+// ── SUBMIT ────────────────────────────────────────────────
+
+function _logSubmitAmunisi() {
+  var btn = document.getElementById('lga-btn-submit');
+  _msg('lga-form-msg', null);
+  _setLoading(btn, true);
+  var base = _v('lga-mode') === 'BASELINE';
+  var params = {
+    periode: _composePeriode('lga-'),
+    jenis:   _v('lga-jenis'),
+    mode:    base ? 'BASELINE' : 'PENGGUNAAN'
+  };
+  if (base) params.stokAwal = _v('lga-stok');
+  else params.penggunaan = _v('lga-penggunaan');
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('lga-form-msg', 'error', res.error); return; }
+      _msg('lga-form-msg', 'success', res.data.message);
+      (res.data.warnings || []).forEach(function (w) { _msg('lga-form-msg', 'warn', w); });
+      document.getElementById('lga-penggunaan').value = '';
+      document.getElementById('lga-stok').value = '';
+      _logLoadKPI();
+      _logFetchHistory('amunisi');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('lga-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .logistik_submitAmunisi(APP.token, params);
+}
+
+function _logSubmitBbm() {
+  var btn = document.getElementById('lgb-btn-submit');
+  _msg('lgb-form-msg', null);
+  _setLoading(btn, true);
+  var base = _v('lgb-mode') === 'BASELINE';
+  var params = {
+    periode: _composePeriode('lgb-'),
+    jenis:   _v('lgb-jenis'),
+    mode:    base ? 'BASELINE' : 'PENGGUNAAN'
+  };
+  if (base) params.pagu = _v('lgb-pagu');
+  else {
+    params.realisasi = _v('lgb-realisasi');
+    params.hargaAcuan = _v('lgb-harga');
+    params.tunggakanStatus = _v('lgb-tunggakan');
+  }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('lgb-form-msg', 'error', res.error); return; }
+      _msg('lgb-form-msg', 'success', res.data.message);
+      (res.data.warnings || []).forEach(function (w) { _msg('lgb-form-msg', 'warn', w); });
+      document.getElementById('lgb-realisasi').value = '';
+      document.getElementById('lgb-pagu').value = '';
+      _logLoadKPI();
+      _logFetchHistory('bbm');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('lgb-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .logistik_submitBBM(APP.token, params);
+}
+
+function _logSubmitPersonil() {
+  var btn = document.getElementById('lgp-btn-submit');
+  _msg('lgp-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:  _composePeriode('lgp-'),
+    komponen: _v('lgp-komponen'),
+    nilai:    _v('lgp-nilai')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('lgp-form-msg', 'error', res.error); return; }
+      _msg('lgp-form-msg', 'success', res.data.message);
+      document.getElementById('lgp-nilai').value = '';
+      _logLoadKPI();
+      _logFetchHistory('personil');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('lgp-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .logistik_submitPersonil(APP.token, params);
+}
+
+// ── REVISI ────────────────────────────────────────────────
+
+function _logOpenRevisi(jenis, rowId) {
+  var row = (_LOG.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _LOG.revisi = { jenis: jenis, rowId: rowId, mode: row.mode || 'PENGGUNAAN' };
+
+  var info = document.getElementById('log-revisi-info');
+  if (info) info.textContent = 'Merevisi ' + _LOG_LABEL[jenis] + ' periode ' + row.periode +
+    ' (' + (_LOG_MODE_LABEL[_LOG.revisi.mode] || _LOG.revisi.mode) + ').';
+
+  var fields = document.getElementById('log-revisi-fields');
+  fields.innerHTML = _logRevisiFieldsHtml(jenis, row);
+
+  document.getElementById('log-revisi-alasan').value = '';
+  _msg('log-revisi-msg', null);
+  document.getElementById('modal-log-revisi').classList.remove('n-hidden');
+}
+
+function _logRevisiFieldsHtml(jenis, row) {
+  var m = row.mode || 'PENGGUNAAN';
+  if (jenis === 'amunisi') {
+    if (m === 'BASELINE') {
+      return '<div class="form-grp"><label>Jenis Amunisi</label>' +
+        '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+        '<div class="form-grp"><label>Stok Awal Tahun</label>' +
+        '<input type="number" id="rv-lga-stok" min="0" step="1" value="' + (row.stokAwal || 0) + '"></div>';
+    }
+    return '<div class="form-grp"><label>Jenis Amunisi</label>' +
+      '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+      '<div class="form-grp"><label>Penggunaan Minggu Ini</label>' +
+      '<input type="number" id="rv-lga-penggunaan" min="0" step="1" value="' + (row.penggunaan || 0) + '"></div>';
+  }
+  if (jenis === 'bbm') {
+    if (m === 'BASELINE') {
+      return '<div class="form-grp"><label>Jenis BBM</label>' +
+        '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+        '<div class="form-grp"><label>Pagu Tahun</label>' +
+        '<input type="number" id="rv-lgb-pagu" min="0" step="1" value="' + (row.pagu || 0) + '"></div>';
+    }
+    return '<div class="form-grp"><label>Jenis BBM</label>' +
+      '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+        '<div class="form-grp"><label>Realisasi</label>' +
+        '<input type="number" id="rv-lgb-realisasi" min="0" step="1" value="' + (row.realisasi || 0) + '"></div>' +
+        '<div class="form-grp"><label>Harga Acuan</label>' +
+        '<input type="number" id="rv-lgb-harga" min="0" step="1" value="' + _esc(row.hargaAcuan || '') + '"></div>' +
+      '</div>' +
+      '<div class="form-grp"><label>Status Tunggakan</label>' +
+      '<input type="text" id="rv-lgb-tunggakan" value="' + _esc(row.tunggakan || '') + '"></div>';
+  }
+  return '<div class="form-grp"><label>Komponen</label>' +
+    '<input type="text" value="' + _esc(_LOG_KOM_LABEL[row.komponen] || row.komponen) + '" disabled></div>' +
+    '<div class="form-grp"><label>Nilai (Rp)</label>' +
+    '<input type="number" id="rv-lgp-nilai" min="0" step="1" value="' + (row.nilai || 0) + '"></div>';
+}
+
+function _logRevisiConfirm() {
+  var jenis = _LOG.revisi.jenis;
+  var btn = document.getElementById('log-btn-revisi-save');
+  var alasan = _v('log-revisi-alasan');
+  _msg('log-revisi-msg', null);
+  if (!alasan.trim()) { _msg('log-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  var params = { targetRowId: _LOG.revisi.rowId, alasanRevisi: alasan };
+  if (jenis === 'amunisi') {
+    if (_LOG.revisi.mode === 'BASELINE') params.stokAwal = _v('rv-lga-stok');
+    else params.penggunaan = _v('rv-lga-penggunaan');
+  } else if (jenis === 'bbm') {
+    if (_LOG.revisi.mode === 'BASELINE') params.pagu = _v('rv-lgb-pagu');
+    else {
+      params.realisasi = _v('rv-lgb-realisasi');
+      params.hargaAcuan = _v('rv-lgb-harga');
+      params.tunggakanStatus = _v('rv-lgb-tunggakan');
+    }
+  } else {
+    params.nilai = _v('rv-lgp-nilai');
+  }
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _logCloseRevisi();
+      if (!res.success) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_LOG_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      (res.data.warnings || []).forEach(function (w) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'warn', w); });
+      _logLoadKPI();
+      _logFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('log-revisi-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    });
+
+  if (jenis === 'amunisi')  runner.logistik_revisiAmunisi(APP.token, params);
+  else if (jenis === 'bbm') runner.logistik_revisiBBM(APP.token, params);
+  else                      runner.logistik_revisiPersonil(APP.token, params);
+}
+
+function _logCloseRevisi() {
+  _LOG.revisi = { jenis: null, rowId: null, mode: null };
+  closeModal('modal-log-revisi');
+}
+
+// ── ANULIR ────────────────────────────────────────────────
+
+function _logOpenAnulir(jenis, rowId) {
+  var row = (_LOG.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _LOG.anulir = { jenis: jenis, rowId: rowId };
+  var info = document.getElementById('log-anulir-info');
+  if (info) info.textContent = 'Akan menganulir laporan ' + _LOG_LABEL[jenis] + ' periode ' + row.periode + ' (ID: ' + rowId + ').';
+  document.getElementById('log-anulir-alasan').value = '';
+  _msg('log-anulir-msg', null);
+  document.getElementById('modal-log-anulir').classList.remove('n-hidden');
+}
+
+function _logAnulirConfirm() {
+  var jenis = _LOG.anulir.jenis;
+  var btn = document.getElementById('log-btn-anulir-save');
+  var alasan = _v('log-anulir-alasan');
+  _msg('log-anulir-msg', null);
+  if (!alasan.trim()) { _msg('log-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _logCloseAnulir();
+      if (!res.success) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_LOG_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _logLoadKPI();
+      _logFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('log-anulir-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    })
+    .logistik_anulir(APP.token, {
+      jenis: jenis.toUpperCase(),
+      targetRowId: _LOG.anulir.rowId,
+      voidReason: alasan
+    });
+}
+
+function _logCloseAnulir() {
+  _LOG.anulir = { jenis: null, rowId: null };
+  closeModal('modal-log-anulir');
+}
+
+// ============================================================
+// MODUL PENGAWAKAN (Fase 10) — DIV-AWAK
+// Komposisi AKN (snapshot total) / Kegiatan Personel
+// ============================================================
+
+var _AWK = {
+  tab: 'akn',
+  options: null,
+  kpi: null,
+  history: { akn: [], kegiatan: [] },
+  formOpen: { akn: true, kegiatan: false },
+  revisi: { jenis: null, rowId: null },
+  anulir: { jenis: null, rowId: null }
+};
+var _AWK_LABEL  = { akn: 'Komposisi AKN', kegiatan: 'Kegiatan Personel' };
+var _AWK_PREFIX = { akn: 'akn', kegiatan: 'akk' };
+var _AWK_SCOPE_LABEL = { KESELURUHAN: 'Keseluruhan', POA: 'POA' };
+var _AWK_KAT_ORDER = ['PNS', 'PPPK_FUNGSIONAL', 'PPPK_PELAKSANA', 'PPPK_PARUH_WAKTU', 'PJLP'];
+var _AWK_KAT_LABEL = {
+  PNS: 'PNS',
+  PPPK_FUNGSIONAL: 'PPPK Fungsional',
+  PPPK_PELAKSANA: 'PPPK Pelaksana',
+  PPPK_PARUH_WAKTU: 'PPPK Paruh Waktu',
+  PJLP: 'PJLP'
+};
+
+// ── RENDER UTAMA ────────────────────────────────────────
+
+function _renderPengawakan(el) {
+  var tpl = document.getElementById('view-tpl-pengawakan');
+  if (!tpl) { el.innerHTML = _moduleStub('Pengawakan'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  _AWK.tab = 'akn';
+  _awkSetTab('akn');
+
+  _awkLoadOptions();
+  _awkLoadKPI();
+}
+
+function _awkSyncTabState() {
+  var tabs = document.querySelectorAll('#awak-tabs .n-tab');
+  tabs.forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-awak-tab') === _AWK.tab);
+  });
+}
+
+function _awkSetTab(name) {
+  if (!_AWK_LABEL[name]) return;
+  _AWK.tab = name;
+  _awkSyncTabState();
+
+  var pane = document.getElementById('awak-tab-pane');
+  if (!pane) return;
+  var tpl = document.getElementById('view-tpl-awak-' + name);
+  pane.innerHTML = tpl ? tpl.innerHTML : '';
+  _awkInitPane(name);
+}
+
+// RBAC UI mengikuti server: write = SUPERADMIN atau (KADIV/STAF DIV-AWAK);
+// anulir = SUPERADMIN/DIREKTUR atau KADIV DIV-AWAK.
+function _awkCanWrite() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || (u.divisiId === 'DIV-AWAK' && (u.role === 'STAF' || u.role === 'KADIV'));
+}
+
+function _awkCanAnulir() {
+  var u = APP.user || {};
+  return u.role === 'SUPERADMIN' || u.role === 'DIREKTUR' || (u.divisiId === 'DIV-AWAK' && u.role === 'KADIV');
+}
+
+function _awkInitPane(name) {
+  var prefix = _AWK_PREFIX[name] + '-';
+
+  var formSection = document.getElementById(prefix + 'form-section');
+  if (formSection) formSection.style.display = _awkCanWrite() ? '' : 'none';
+
+  var fbody = document.getElementById(prefix + 'form-body');
+  var ficon = document.getElementById(prefix + 'form-toggle-icon');
+  if (fbody) fbody.style.display = _AWK.formOpen[name] ? 'block' : 'none';
+  if (ficon) ficon.textContent = _AWK.formOpen[name] ? '\u25be' : '\u25b8';
+
+  _opsInitPeriodeUi(prefix);
+  ['tahun', 'bulan', 'minggu'].forEach(function (k) {
+    var sel = document.getElementById(prefix + 'periode-' + k);
+    if (sel) sel.onchange = function () { _awkUpdatePeriodeHint(name); };
+  });
+  _awkUpdatePeriodeHint(name);
+
+  _awkPopulateOptions();
+  _awkRenderKomposisi(_AWK.kpi);
+
+  _awkFetchHistory(name);
+}
+
+function _awkUpdatePeriodeHint(name) {
+  var hint = document.getElementById(_AWK_PREFIX[name] + '-periode-hint');
+  if (hint) hint.textContent = _composePeriode(_AWK_PREFIX[name] + '-') || '—';
+}
+
+function _awkToggleForm(name) {
+  var prefix = _AWK_PREFIX[name];
+  var body = document.getElementById(prefix + '-form-body');
+  var icon = document.getElementById(prefix + '-form-toggle-icon');
+  if (!body) return;
+  _AWK.formOpen[name] = !_AWK.formOpen[name];
+  body.style.display = _AWK.formOpen[name] ? 'block' : 'none';
+  if (icon) icon.textContent = _AWK.formOpen[name] ? '▾' : '▸';
+}
+
+// ── OPTIONS ───────────────────────────────────────────────
+
+function _awkLoadOptions() {
+  if (_AWK.options) { _awkPopulateOptions(); return; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      _AWK.options = res.data;
+      _awkPopulateOptions();
+    })
+    .withFailureHandler(function () {})
+    .awak_getOptions(APP.token);
+}
+
+function _awkPopulateOptions() {
+  if (!_AWK.options) return;
+  var kSel = document.getElementById('akn-kategori');
+  if (kSel) {
+    var prev = kSel.value;
+    kSel.innerHTML = '<option value="">(Pilih Kategori)</option>';
+    (_AWK.options.kategori || []).forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k;
+      o.textContent = _AWK_KAT_LABEL[k] || k;
+      kSel.appendChild(o);
+    });
+    if (prev) kSel.value = prev;
+  }
+}
+
+// ── KPI ───────────────────────────────────────────────────
+
+function _awkLoadKPI() {
+  var strip = document.getElementById('awak-kpi-strip');
+  if (strip) strip.innerHTML = _kpiSkeleton(4);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _msg('akn-history-msg', 'error', res.error); return; }
+      _AWK.kpi = res.data;
+      _awkRenderKPI(res.data);
+      _awkBuildCharts();
+      _awkRenderKomposisi(res.data);
+    })
+    .withFailureHandler(function () {
+      var s = document.getElementById('awak-kpi-strip');
+      if (s) s.innerHTML = '<div class="n-msg error show">Gagal memuat KPI Pengawakan.</div>';
+    })
+    .awak_getKPI(APP.token, APP.filter);
+}
+
+function _awkRenderKPI(d) {
+  var el = document.getElementById('awak-kpi-strip');
+  if (!el) return;
+  el.innerHTML =
+    '<div class="ov-kpi-row">' +
+      _kpiHeadline('Total AKN Keseluruhan', _idNum(d.akn.totalKeseluruhan), 'orang', 'Komposisi tahun berjalan') +
+      _kpiHeadline('Total AKN POA', _idNum(d.akn.totalPoa), 'orang', 'Komposisi tahun berjalan') +
+      _kpiHeadline('Kegiatan Personel', _idNum(d.kegiatan.count), 'kegiatan', 'Dalam rentang filter') +
+      _kpiHeadline('Total Peserta Kegiatan', _idNum(d.kegiatan.totalPeserta), 'peserta', 'Dalam rentang filter') +
+    '</div>';
+}
+
+// ── CHARTS & KOMPOSISI ───────────────────────────────────
+
+function _awkBuildCharts() {
+  var k = _AWK.kpi;
+  if (!k) return;
+
+  var kat = _AWK_KAT_ORDER.filter(function (x) { return _AWK_KAT_LABEL[x]; });
+  var kes = k.akn.perKategori;
+  _chartBar('awak-chart-komposisi',
+    kat.map(function (x) { return _AWK_KAT_LABEL[x]; }),
+    [
+      { label: 'Keseluruhan', data: kat.map(function (x) { return (kes[x] || {}).keseluruhan || 0; }), color: _CHART_COLORS.primary },
+      { label: 'POA',         data: kat.map(function (x) { return (kes[x] || {}).poa || 0; }),          color: _CHART_COLORS.warn }
+    ],
+    { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada komposisi AKN tahun berjalan.' }
+  );
+
+  _awkLoadTren();
+}
+
+function _awkLoadTren() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) return;
+      var d = res.data;
+      var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
+      _chartLine('awak-chart-tren', labels, [
+        { label: 'Total AKN Keseluruhan', data: d.aknKeseluruhan, color: _CHART_COLORS.primary },
+        { label: 'Total AKN POA',         data: d.aknPoa,          color: _CHART_COLORS.warn }
+      ], { fmt: _chartNum, emptyMsg: 'Belum ada komposisi AKN pada rentang terpilih.' });
+    })
+    .withFailureHandler(function () {})
+    .awak_getTren(APP.token, APP.filter);
+}
+
+function _awkRenderKomposisi(d) {
+  var el = document.getElementById('akn-komposisi-wrap');
+  if (!el) return;
+  if (!d) { el.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat komposisi…</div>'; return; }
+  var rows = d.akn.rows || [];
+  if (!rows.length) {
+    el.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada komposisi AKN tercatat untuk tahun berjalan.</div>';
+    return;
+  }
+  rows.sort(function (a, b) {
+    var so = a.scope === b.scope ? 0 : (a.scope === 'KESELURUHAN' ? -1 : 1);
+    if (so !== 0) return so;
+    return _AWK_KAT_ORDER.indexOf(a.kategori) - _AWK_KAT_ORDER.indexOf(b.kategori);
+  });
+  var t = '<table class="n-table"><thead><tr><th>Scope</th><th>Kategori</th><th>Jumlah</th><th>Periode Terakhir</th></tr></thead><tbody>';
+  rows.forEach(function (r) {
+    t += '<tr><td>' + _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope) + '</td>' +
+      '<td>' + _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori) + '</td>' +
+      '<td>' + _idNum(r.jumlah) + '</td>' +
+      '<td>' + _esc(r.periode) + '</td></tr>';
+  });
+  t += '</tbody></table>';
+  el.innerHTML = t;
+}
+
+// ── HISTORY ───────────────────────────────────────────────
+
+function _awkFetchHistory(jenis) {
+  var prefix = _AWK_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        _msg(prefix + '-history-msg', 'error', res.error);
+        if (wrap) wrap.innerHTML = '';
+        return;
+      }
+      _AWK.history[jenis] = res.data;
+      _awkRenderHistory(jenis, res.data);
+    })
+    .withFailureHandler(function () {
+      _msg(prefix + '-history-msg', 'error', 'Gagal memuat riwayat.');
+    });
+
+  if (jenis === 'akn')       runner.awak_getAKN(APP.token, APP.filter);
+  else                       runner.awak_getKegiatan(APP.token, APP.filter);
+}
+
+function _awkRenderHistory(jenis, items) {
+  var prefix = _AWK_PREFIX[jenis];
+  var wrap = document.getElementById(prefix + '-history-wrap');
+  if (!wrap) return;
+
+  var canRevisi = _awkCanWrite();
+  var canAnulir = _awkCanAnulir();
+
+  if (!items || items.length === 0) {
+    wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada laporan untuk periode ini.</div>';
+    return;
+  }
+
+  var cols = _awkColumns(jenis);
+  var t = '<table class="n-table"><thead><tr>';
+  cols.forEach(function (c) { t += '<th>' + c + '</th>'; });
+  t += '<th>Tanggal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
+
+  items.forEach(function (r) {
+    var st = '<span class="status-badge" style="background:#f3f4f6;color:#374151;">DITIMPA</span>';
+    if (r.status === 'ACTIVE') st = '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">AKTIF</span>';
+    else if (r.status === 'VOID') st = '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DIANULIR</span>';
+
+    var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="_awkOpenRevisi(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
+    var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_awkOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
+
+    var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
+    var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
+
+    t += '<tr ' + rowCls + '>';
+    _awkCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
+    t += '<td>' + tgl + '</td>';
+    t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + '</div></td>';
+    t += '</tr>';
+
+    if (r.status === 'VOID' && r.voidReason) {
+      t += '<tr style="background:#fef2f2;"><td colspan="' + (cols.length + 3) + '" style="padding-top:0;border-bottom:1px solid #fee2e2;color:var(--n-status-critical);font-size:13px;">' +
+        '<strong>Alasan Anulir:</strong> ' + _esc(r.voidReason) + (r.voidedBy ? ' (oleh ' + _esc(r.voidedBy) + ')' : '') +
+        '</td></tr>';
+    }
+  });
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _awkColumns(jenis) {
+  if (jenis === 'akn') return ['Periode', 'Scope', 'Kategori', 'Jumlah'];
+  return ['Periode', 'Judul Kegiatan', 'Mulai', 'Selesai', 'Wilayah', 'Peserta'];
+}
+
+function _awkCells(jenis, r) {
+  if (jenis === 'akn') {
+    return [
+      _esc(r.periode),
+      _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope),
+      _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori),
+      _idNum(r.jumlah)
+    ];
+  }
+  return [
+    _esc(r.periode),
+    _esc(r.judul || '—'),
+    r.tanggalMulai ? new Date(r.tanggalMulai).toLocaleDateString('id-ID') : '—',
+    r.tanggalSelesai ? new Date(r.tanggalSelesai).toLocaleDateString('id-ID') : '—',
+    _esc(r.wilayah || '—'),
+    _idNum(r.jumlahPeserta)
+  ];
+}
+
+// ── SUBMIT ────────────────────────────────────────────────
+
+function _awkSubmitAkn() {
+  var btn = document.getElementById('akn-btn-submit');
+  _msg('akn-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:  _composePeriode('akn-'),
+    scope:    _v('akn-scope'),
+    kategori: _v('akn-kategori'),
+    jumlah:   _v('akn-jumlah')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('akn-form-msg', 'error', res.error); return; }
+      _msg('akn-form-msg', 'success', res.data.message);
+      document.getElementById('akn-jumlah').value = '';
+      _awkLoadKPI();
+      _awkFetchHistory('akn');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('akn-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .awak_submitAKN(APP.token, params);
+}
+
+function _awkSubmitKegiatan() {
+  var btn = document.getElementById('akk-btn-submit');
+  _msg('akk-form-msg', null);
+  _setLoading(btn, true);
+  var params = {
+    periode:        _composePeriode('akk-'),
+    judul:          _v('akk-judul'),
+    tanggalMulai:   _v('akk-tglmulai'),
+    tanggalSelesai: _v('akk-tglselesai'),
+    wilayah:        _v('akk-wilayah'),
+    jumlahPeserta:  _v('akk-peserta'),
+    deskripsi:      _v('akk-deskripsi')
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('akk-form-msg', 'error', res.error); return; }
+      _msg('akk-form-msg', 'success', res.data.message);
+      document.getElementById('akk-judul').value = '';
+      document.getElementById('akk-wilayah').value = '';
+      document.getElementById('akk-peserta').value = '';
+      _awkLoadKPI();
+      _awkFetchHistory('kegiatan');
+    })
+    .withFailureHandler(function () { _setLoading(btn, false); _msg('akk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
+    .awak_submitKegiatan(APP.token, params);
+}
+
+// ── REVISI ────────────────────────────────────────────────
+
+function _awkOpenRevisi(jenis, rowId) {
+  var row = (_AWK.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _AWK.revisi = { jenis: jenis, rowId: rowId };
+
+  var info = document.getElementById('awak-revisi-info');
+  if (info) info.textContent = 'Merevisi ' + _AWK_LABEL[jenis] + ' periode ' + row.periode + '.';
+
+  var fields = document.getElementById('awak-revisi-fields');
+  fields.innerHTML = _awkRevisiFieldsHtml(jenis, row);
+
+  document.getElementById('awak-revisi-alasan').value = '';
+  _msg('awak-revisi-msg', null);
+  document.getElementById('modal-awak-revisi').classList.remove('n-hidden');
+}
+
+function _awkRevisiFieldsHtml(jenis, row) {
+  if (jenis === 'akn') {
+    return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">' +
+        '<div class="form-grp"><label>Scope</label>' +
+        '<input type="text" value="' + _esc(_AWK_SCOPE_LABEL[row.scope] || row.scope) + '" disabled></div>' +
+        '<div class="form-grp"><label>Kategori</label>' +
+        '<input type="text" value="' + _esc(_AWK_KAT_LABEL[row.kategori] || row.kategori) + '" disabled></div>' +
+      '</div>' +
+      '<div class="form-grp"><label>Jumlah (Total Terbaru)</label>' +
+      '<input type="number" id="rv-akn-jumlah" min="0" step="1" value="' + (row.jumlah || 0) + '"></div>';
+  }
+  return '<div class="form-grp"><label>Judul Kegiatan</label>' +
+    '<input type="text" id="rv-akk-judul" value="' + _esc(row.judul || '') + '"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div class="form-grp"><label>Tanggal Mulai</label>' +
+      '<input type="date" id="rv-akk-tglmulai" value="' + (row.tanggalMulai ? row.tanggalMulai.substring(0, 10) : '') + '"></div>' +
+      '<div class="form-grp"><label>Tanggal Selesai</label>' +
+      '<input type="date" id="rv-akk-tglselesai" value="' + (row.tanggalSelesai ? row.tanggalSelesai.substring(0, 10) : '') + '"></div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+      '<div class="form-grp"><label>Wilayah</label>' +
+      '<input type="text" id="rv-akk-wilayah" value="' + _esc(row.wilayah || '') + '"></div>' +
+      '<div class="form-grp"><label>Jumlah Peserta</label>' +
+      '<input type="number" id="rv-akk-peserta" min="0" step="1" value="' + (row.jumlahPeserta || 0) + '"></div>' +
+    '</div>' +
+    '<div class="form-grp"><label>Deskripsi</label>' +
+    '<textarea id="rv-akk-deskripsi" rows="3">' + _esc(row.deskripsi || '') + '</textarea></div>';
+}
+
+function _awkRevisiConfirm() {
+  var jenis = _AWK.revisi.jenis;
+  var btn = document.getElementById('awak-btn-revisi-save');
+  var alasan = _v('awak-revisi-alasan');
+  _msg('awak-revisi-msg', null);
+  if (!alasan.trim()) { _msg('awak-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  var params = { targetRowId: _AWK.revisi.rowId, alasanRevisi: alasan };
+  if (jenis === 'akn') {
+    params.jumlah = _v('rv-akn-jumlah');
+  } else {
+    params.judul = _v('rv-akk-judul');
+    params.tanggalMulai = _v('rv-akk-tglmulai');
+    params.tanggalSelesai = _v('rv-akk-tglselesai');
+    params.wilayah = _v('rv-akk-wilayah');
+    params.jumlahPeserta = _v('rv-akk-peserta');
+    params.deskripsi = _v('rv-akk-deskripsi');
+  }
+
+  var runner = google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _awkCloseRevisi();
+      if (!res.success) { _msg(_AWK_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_AWK_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _awkLoadKPI();
+      _awkFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('awak-revisi-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    });
+
+  if (jenis === 'akn') runner.awak_revisiAKN(APP.token, params);
+  else                 runner.awak_revisiKegiatan(APP.token, params);
+}
+
+function _awkCloseRevisi() {
+  _AWK.revisi = { jenis: null, rowId: null };
+  closeModal('modal-awak-revisi');
+}
+
+// ── ANULIR ────────────────────────────────────────────────
+
+function _awkOpenAnulir(jenis, rowId) {
+  var row = (_AWK.history[jenis] || []).filter(function (r) { return r.rowId === rowId; })[0];
+  if (!row) return;
+  _AWK.anulir = { jenis: jenis, rowId: rowId };
+  var info = document.getElementById('awak-anulir-info');
+  if (info) info.textContent = 'Akan menganulir laporan ' + _AWK_LABEL[jenis] + ' periode ' + row.periode + ' (ID: ' + rowId + ').';
+  document.getElementById('awak-anulir-alasan').value = '';
+  _msg('awak-anulir-msg', null);
+  document.getElementById('modal-awak-anulir').classList.remove('n-hidden');
+}
+
+function _awkAnulirConfirm() {
+  var jenis = _AWK.anulir.jenis;
+  var btn = document.getElementById('awak-btn-anulir-save');
+  var alasan = _v('awak-anulir-alasan');
+  _msg('awak-anulir-msg', null);
+  if (!alasan.trim()) { _msg('awak-anulir-msg', 'error', 'Komentar anulir wajib diisi.'); return; }
+  _setLoading(btn, true);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      _awkCloseAnulir();
+      if (!res.success) { _msg(_AWK_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
+      _msg(_AWK_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _awkLoadKPI();
+      _awkFetchHistory(jenis);
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('awak-anulir-msg', 'error', 'Terjadi kesalahan. Coba lagi.');
+    })
+    .awak_anulir(APP.token, {
+      jenis: jenis.toUpperCase(),
+      targetRowId: _AWK.anulir.rowId,
+      voidReason: alasan
+    });
+}
+
+function _awkCloseAnulir() {
+  _AWK.anulir = { jenis: null, rowId: null };
+  closeModal('modal-awak-anulir');
 }
 
 </script>

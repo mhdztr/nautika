@@ -25,7 +25,7 @@
 
 // ── PEMETAAN JENIS ────────────────────────────────────────
 
-var _LOG_DIVISI_ID = DIVISI_ID.LOG;
+function _logDivisiId() { return DIVISI_ID.LOG; }
 
 function _logJenisMeta(jenis) {
   var j = String(jenis || '').toUpperCase();
@@ -52,7 +52,7 @@ function _logAssertRead(session) {
 }
 
 function _logAssertWrite(session) {
-  assertScope(session, [ROLE.SUPERADMIN, ROLE.KADIV, ROLE.STAF], _LOG_DIVISI_ID);
+  assertScope(session, [ROLE.SUPERADMIN, ROLE.KADIV, ROLE.STAF], _logDivisiId());
 }
 
 function _logAssertAnulir(session) {
@@ -60,7 +60,7 @@ function _logAssertAnulir(session) {
     throw new Error('UNAUTHORIZED: Akun belum aktif.');
   }
   if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) return;
-  if (session.role === ROLE.KADIV && session.divisiId === _LOG_DIVISI_ID) return;
+  if (session.role === ROLE.KADIV && session.divisiId === _logDivisiId()) return;
   throw new Error('FORBIDDEN: Hanya SUPERADMIN, DIREKTUR, atau KADIV DIV-LOG yang dapat menganulir.');
 }
 
@@ -601,7 +601,7 @@ function logistik_getTren(token, filter) {
 function _logStdRow(periode, userId) {
   return {
     'RowID':           '',
-    'DivisiID':        _LOG_DIVISI_ID,
+    'DivisiID':        _logDivisiId(),
     'Periode':         periode,
     'SubmittedBy':     userId,
     'Timestamp':       new Date(),

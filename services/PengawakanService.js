@@ -21,7 +21,7 @@
 
 // ── PEMETAAN JENIS ────────────────────────────────────────
 
-var _AWAK_DIVISI_ID = DIVISI_ID.AWAK;
+function _awakDivisiId() { return DIVISI_ID.AWAK; }
 
 function _awakJenisMeta(jenis) {
   var j = String(jenis || '').toUpperCase();
@@ -47,7 +47,7 @@ function _awakAssertRead(session) {
 }
 
 function _awakAssertWrite(session) {
-  assertScope(session, [ROLE.SUPERADMIN, ROLE.KADIV, ROLE.STAF], _AWAK_DIVISI_ID);
+  assertScope(session, [ROLE.SUPERADMIN, ROLE.KADIV, ROLE.STAF], _awakDivisiId());
 }
 
 function _awakAssertAnulir(session) {
@@ -55,7 +55,7 @@ function _awakAssertAnulir(session) {
     throw new Error('UNAUTHORIZED: Akun belum aktif.');
   }
   if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) return;
-  if (session.role === ROLE.KADIV && session.divisiId === _AWAK_DIVISI_ID) return;
+  if (session.role === ROLE.KADIV && session.divisiId === _awakDivisiId()) return;
   throw new Error('FORBIDDEN: Hanya SUPERADMIN, DIREKTUR, atau KADIV DIV-AWAK yang dapat menganulir.');
 }
 
@@ -473,7 +473,7 @@ function awak_getTren(token, filter) {
 function _awakStdRow(periode, userId) {
   return {
     'RowID':           '',
-    'DivisiID':        _AWAK_DIVISI_ID,
+    'DivisiID':        _awakDivisiId(),
     'Periode':         periode,
     'SubmittedBy':     userId,
     'Timestamp':       new Date(),

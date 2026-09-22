@@ -167,6 +167,37 @@ a { text-decoration: none; color: inherit; }
   padding-right: 36px;
 }
 
+/* ── LAMPIRAN INLINE (revisi Fase 10) ─────────────────── */
+.attach-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.attach-check {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 0.875rem; color: var(--n-text-primary); cursor: pointer; user-select: none;
+}
+.attach-check input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: var(--n-primary); cursor: pointer; margin: 0;
+}
+.attach-fields { display: grid; gap: 12px; }
+.attach-fields .form-grp { margin-bottom: 0; }
+.attach-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--n-surface-2); border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm); padding: 5px 10px; font-size: 0.8125rem; color: var(--n-text-primary);
+}
+.attach-chip b { font-weight: 600; letter-spacing: 0.03em; }
+.attach-chip button {
+  background: none; border: 0; cursor: pointer; color: var(--n-text-muted); font-size: 0.9rem; line-height: 1; padding: 0;
+}
+.attach-chip button:hover { color: var(--n-crit); }
+.attach-retry {
+  display: inline-flex; gap: 8px; align-items: center; margin-top: 6px;
+  background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; border-radius: var(--n-r-sm);
+  padding: 7px 12px; font-size: 0.8125rem;
+}
+.attach-retry button {
+  background: none; border: 0; color: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0;
+}
+
 /* ============================================================
    BUTTONS
    ============================================================ */
@@ -677,6 +708,24 @@ a { text-decoration: none; color: inherit; }
   font-weight: 700; font-size: 1.05rem;
   color: var(--n-text-primary);
   margin-bottom: 16px;
+}
+
+.n-modal-hd { width: 620px; max-width: 94vw; padding: 24px; }
+.n-modal-hd .n-modal-hd-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 16px;
+}
+.n-modal-hd .n-modal-hd-head h2 { margin-bottom: 0; overflow-wrap: break-word; }
+.n-modal-hd-scroll { max-height: 66vh; overflow-y: auto; }
+.n-modal-hd-scroll .n-table { margin-bottom: 0; }
+.n-modal-hd-scroll .hd-k {
+  width: 42%; color: var(--n-text-muted); font-size: .82rem; font-weight: 500;
+  vertical-align: top; padding: 8px 12px 8px 0;
+}
+.n-modal-hd-scroll .hd-v {
+  color: var(--n-text-primary); font-size: .85rem; font-weight: 500;
+  vertical-align: top; padding: 8px 0;
+  overflow-wrap: break-word;
 }
 
 /* ============================================================

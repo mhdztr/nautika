@@ -350,7 +350,7 @@ function pemantauan_submitMingguan(token, params) {
         _pantaAuditLog(session.userId, 'CREATE', rowId, 'Submit Pemantauan periode ' + periode + ' (' + rowsOut[w].jenis + ')');
       }
 
-      return { success: true, message: 'Laporan Pemantauan periode ' + periode + ' berhasil disimpan (' + rowIds.length + ' baris).' };
+      return { success: true, data: { rowIds: rowIds, message: 'Laporan Pemantauan periode ' + periode + ' berhasil disimpan (' + rowIds.length + ' baris).' } };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -420,7 +420,7 @@ function pemantauan_revisi(token, params) {
       });
 
       _pantaAuditLog(session.userId, 'UPDATE', newRowId, 'Revisi baris ' + targetRowId + ': ' + alasanRevisi);
-      return { success: true, message: 'Revisi berhasil disimpan.' };
+      return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }

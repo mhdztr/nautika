@@ -286,6 +286,134 @@ function evidence_uploadFromLink(token, params) {
   }
 }
 
+// ── PUBLIC: BATCH (satu file → banyak baris tujuan) ──────
+// Dipakai form yang submit beberapa baris sekaligus (Intelijen & Pemantauan):
+// file di-copy SATU KALI ke Drive, lalu dicatat sebagai baris TX_Evidence untuk
+// setiap RowID hasil submit (DriveFileID sama — tanpa duplikasi penyimpanan).
+
+/**
+ * @param {string} token
+ * @param {{refSheet:string, refRowIds:Array<string>, fileName:string, mimeType:string, dataBase64:string}} params
+ */
+function evidence_uploadBatch(token, params) {
+  try {
+    var session = _evRequireSession(token);
+    var p = params || {};
+
+    var refSheet  = _evReqText(p.refSheet, 'RefSheet');
+    var refRowIds = _evReqRows(p.refRowIds, 'RefRowID');
+    var fileName  = _evReqText(p.fileName, 'Nama file');
+    var mimeType  = _evReqText(p.mimeType, 'Tipe file');
+    var dataBase64 = String(p.dataBase64 || '').replace(/^data:[^;]+;base64,/, '').trim();
+    if (!dataBase64) return { success: false, error: 'Data file kosong atau gagal dibaca.' };
+
+    _evValidateSize(mimeType, _evBase64ByteLength(dataBase64));
+
+    var ctx = _evResolveContextByRows(refSheet, refRowIds, session);
+    if (!ctx) return { success: false, error: 'Baris tujuan tidak ditemukan.' };
+
+    return withLock(function () {
+      var folder = _evTargetFolder(ctx);
+      var blob   = Utilities.newBlob(Utilities.base64Decode(dataBase64), mimeType, fileName);
+      var file   = folder.createFile(blob);
+      _evAppendForRows(refSheet, refRowIds, file.getId(), fileName, mimeType, 'UPLOAD', session.userId);
+      _evAuditLog(session.userId, 'CREATE', refRowIds.join(','),
+        'Upload lampiran batch: ' + fileName + ' → ' + ctx.konteks + ' (' + refRowIds.length + ' baris)');
+      return { success: true, data: { fileName: fileName, driveFileId: file.getId(), rows: refRowIds.length, message: 'Lampiran berhasil diunggah (' + refRowIds.length + ' baris).' } };
+    });
+  } catch (e) {
+    Logger.log('[evidence_uploadBatch] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * @param {string} token
+ * @param {{refSheet:string, refRowIds:Array<string>, url:string, fileName:string}} params
+ */
+function evidence_uploadFromLinkBatch(token, params) {
+  try {
+    var session = _evRequireSession(token);
+    var p = params || {};
+
+    var refSheet  = _evReqText(p.refSheet, 'RefSheet');
+    var refRowIds = _evReqRows(p.refRowIds, 'RefRowID');
+    var url       = _evReqText(p.url, 'Link Google Drive');
+    var fileId    = _evExtractDriveId(url);
+    if (!fileId) {
+      return { success: false, error: 'Link Google Drive tidak valid. Tempel link file (bukan folder) yang dapat diakses.' };
+    }
+
+    var ctx = _evResolveContextByRows(refSheet, refRowIds, session);
+    if (!ctx) return { success: false, error: 'Baris tujuan tidak ditemukan.' };
+
+    var src;
+    try {
+      src = DriveApp.getFileById(fileId);
+    } catch (e) {
+      return { success: false, error: 'File sumber tidak dapat diakses. Pastikan file dibagikan (minimal viewer) ke akun sistem.' };
+    }
+
+    var mimeType = src.getMimeType();
+    var size = 0;
+    try { size = src.getSize() || 0; } catch (eSize) { size = 0; }
+    if (size > 0) _evValidateSize(mimeType, size);
+
+    return withLock(function () {
+      var folder = _evTargetFolder(ctx);
+      var fileName = String(p.fileName || '').trim() || src.getName();
+      var copy = src.makeCopy(fileName, folder);
+      _evAppendForRows(refSheet, refRowIds, copy.getId(), fileName, mimeType, 'DRIVE_LINK_COPY', session.userId);
+      _evAuditLog(session.userId, 'CREATE', refRowIds.join(','),
+        'Salin lampiran batch dari Drive: ' + fileName + ' → ' + ctx.konteks + ' (' + refRowIds.length + ' baris)');
+      return { success: true, data: { fileName: fileName, driveFileId: copy.getId(), rows: refRowIds.length, message: 'Lampiran berhasil disalin (' + refRowIds.length + ' baris).' } };
+    });
+  } catch (e) {
+    Logger.log('[evidence_uploadFromLinkBatch] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ── PUBLIC: CARRY (bawa lampiran lama ke baris revisi baru) ─
+
+/**
+ * Setelah revisi membuat baris baru (lama → SUPERSEDED), lampiran baris lama
+ * dibawa ke baris baru agar tidak tampak "hilang". File tidak di-copy ulang —
+ * hanya baris TX_Evidence baru yang mereferensikan DriveFileID sama.
+ * @param {string} token
+ * @param {{refSheet:string, fromRowId:string, toRowId:string}} params
+ */
+function evidence_carry(token, params) {
+  try {
+    var session = _evRequireSession(token);
+    var p = params || {};
+    var refSheet   = _evReqText(p.refSheet, 'RefSheet');
+    var fromRowId  = _evReqText(p.fromRowId, 'fromRowId');
+    var toRowId    = _evReqText(p.toRowId, 'toRowId');
+
+    _evAssertRowScope(session, _evRowDivisi(refSheet, fromRowId));
+    _evAssertRowScope(session, _evRowDivisi(refSheet, toRowId));
+
+    var evRows = sheetToObjects(openTransaksiSheet(SHEET_TX.EVIDENCE));
+    var copied = 0;
+    evRows.forEach(function (r) {
+      if (String(r['RefSheet']) !== String(refSheet)) return;
+      if (String(r['RefRowID']) !== String(fromRowId)) return;
+      _evAppendEvidence(refSheet, toRowId, String(r['DriveFileID'] || ''),
+        String(r['FileName'] || ''), String(r['FileType'] || ''), String(r['SourceMode'] || ''), session.userId);
+      copied++;
+    });
+    if (copied > 0) {
+      _evAuditLog(session.userId, 'CREATE', toRowId,
+        'Bawa lampiran dari revisi baris ' + fromRowId + ' (' + copied + ' item).');
+    }
+    return { success: true, data: { copied: copied, message: copied + ' lampiran dibawa ke baris baru.' } };
+  } catch (e) {
+    Logger.log('[evidence_carry] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 // ── PUBLIC: LIST ──────────────────────────────────────────
 
 function evidence_list(token, refSheet, refRowId) {
@@ -402,4 +530,43 @@ function _evReqText(val, label) {
   var s = String(val === undefined || val === null ? '' : val).trim();
   if (!s) throw new Error(label + ' wajib diisi.');
   return s;
+}
+
+function _evReqRows(val, label) {
+  var arr = (val || []);
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map(function (x) { return String(x || '').trim(); })
+    .filter(function (x) { return x; });
+}
+
+/** DivisiID sebuah baris tujuan (untuk scope check). */
+function _evRowDivisi(refSheet, refRowId) {
+  var found = findRowById(openTransaksiSheet(refSheet), refRowId);
+  return found ? String(found.obj['DivisiID'] || '') : '';
+}
+
+/**
+ * Resolusi konteks folder & scope untuk BANYAK baris tujuan sekaligus.
+ * Semua baris harus berada di divisi yang sama (scope session) & sama periode
+ * (folder). Folder memakai konteks baris pertama.
+ */
+function _evResolveContextByRows(refSheet, refRowIds, session) {
+  if (!refRowIds.length) throw new Error('Minimal satu baris tujuan wajib diisi.');
+  var base = null;
+  for (var i = 0; i < refRowIds.length; i++) {
+    var ctx = _evResolveContext(refSheet, refRowIds[i], session);
+    if (!base) {
+      base = ctx;
+    } else if (ctx.divisiId !== base.divisiId || ctx.ym !== base.ym) {
+      throw new Error('Baris tujuan tidak berada dalam periode/divisi yang sama.');
+    }
+  }
+  return base;
+}
+
+function _evAppendForRows(refSheet, refRowIds, driveFileId, fileName, fileType, sourceMode, userId) {
+  for (var i = 0; i < refRowIds.length; i++) {
+    _evAppendEvidence(refSheet, refRowIds[i], driveFileId, fileName, fileType, sourceMode, userId);
+  }
 }

@@ -181,3 +181,95 @@ function updateRowCells(sheet, rowIndex, updates) {
     }
   });
 }
+
+// ===========================================================================
+// OPSI (daftar pilihan dinamis)
+// ===========================================================================
+
+/**
+ * Ambil daftar label aktif untuk sebuah grup Opsi (DATA_SCHEMA.md `Opsi`).
+ * Sumber = sheet master `Opsi` + semua default (fallback). Baris NON-aktif
+ * hanya berguna untuk riwayat — tidak dimasukkan. Hasil di-cache ke
+ * CacheService (TTL 10 menit) supaya getOptions/KPI/tren tidak scan ulang
+ * tiap kali.
+ *
+ * @param {string} kode - OPSI_KODE.AMUNISI / BBM / KOM_PERSONIL / AWAK_KATEGORI
+ * @returns {string[]} label terurut (Urutan)
+ */
+function getOpsiList(kode) {
+  var key = 'OPSI_LIST_' + String(kode || '');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(key);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+
+  var orderMap = {};
+  var num = 0;
+  (OPSI_DEFAULT[kode] || []).forEach(function (label) {
+    num += 10;
+    orderMap[label] = (orderMap[label] === undefined) ? num : orderMap[label];
+  });
+
+  try {
+    var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+    if (sheet) {
+      sheetToObjects(sheet).forEach(function (r) {
+        if (String(r['Kode']) !== String(kode)) return;
+        var label = String(r['Label'] || '').trim();
+        if (!label) return;
+        var aktif = String(r['Aktif']).toLowerCase() !== 'false';
+        if (!aktif) return;
+        var urutan = Number(r['Urutan']) || 0;
+        // Baris dari sheet (seed & tambahan user) menang atas order default;
+        // urutan seed (1..N) & tambahan (max+1) dipetakan ke rentang 1000+ supaya
+        // urutan antar-baris sheet tetap, dan selalu tampil urut.
+        orderMap[label] = urutan + 1000;
+      });
+    }
+  } catch (e) {
+    Logger.log('[getOpsiList] ' + e.message);
+  }
+
+  var labels = Object.keys(orderMap).sort(function (a, b) {
+    return (orderMap[a] || 0) - (orderMap[b] || 0) || a.localeCompare(b);
+  });
+  try { cache.put(key, JSON.stringify(labels), 600); } catch (e) { /* ignore */ }
+  return labels;
+}
+
+/**
+ * Detail baris opsi satu grup (untuk halaman Master Data): semua baris
+ * termasuk non-aktif, berikut urutan.
+ * @param {string} kode
+ * @returns {Array<{label:string, aktif:boolean, urutan:number}>}
+ */
+function getOpsiDetail(kode) {
+  var out = [];
+  var seen = {};
+  try {
+    var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+    if (sheet) {
+      sheetToObjects(sheet).forEach(function (r) {
+        if (String(r['Kode']) !== String(kode)) return;
+        var label = String(r['Label'] || '').trim();
+        if (!label || seen[label]) return;
+        seen[label] = true;
+        out.push({
+          label: label,
+          aktif: String(r['Aktif']).toLowerCase() !== 'false',
+          urutan: Number(r['Urutan']) || 0
+        });
+      });
+    }
+  } catch (e) {
+    Logger.log('[getOpsiDetail] ' + e.message);
+  }
+  (OPSI_DEFAULT[kode] || []).forEach(function (label) {
+    if (!seen[label]) {
+      out.push({ label: label, aktif: true, urutan: 0 });
+    }
+  });
+  out.sort(function (a, b) { return a.urutan - b.urutan || a.label.localeCompare(b.label); });
+  return out;
+}

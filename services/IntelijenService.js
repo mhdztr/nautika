@@ -374,7 +374,7 @@ function intelijen_submitMingguan(token, params) {
         _intelAuditLog(session.userId, 'CREATE', rowId, 'Submit Intelijen periode ' + periode + ' (' + rowsOut[w].jenis + ')');
       }
 
-      return { success: true, message: 'Laporan Intelijen periode ' + periode + ' berhasil disimpan (' + rowIds.length + ' baris).' };
+      return { success: true, data: { rowIds: rowIds, message: 'Laporan Intelijen periode ' + periode + ' berhasil disimpan (' + rowIds.length + ' baris).' } };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -433,7 +433,7 @@ function intelijen_revisi(token, params) {
       });
 
       _intelAuditLog(session.userId, 'UPDATE', newRowId, 'Revisi baris ' + targetRowId + ': ' + alasanRevisi);
-      return { success: true, message: 'Revisi berhasil disimpan.' };
+      return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }

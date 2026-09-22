@@ -23,7 +23,8 @@ var SHEET_MASTER = {
   KAWASAN_KONSERVASI: 'Kawasan_Konservasi',
   WPP:                'WPP',
   DIVISI:             'Divisi',
-  USERS:              'Users'
+  USERS:              'Users',
+  OPSI:               'Opsi'
 };
 
 // ===========================================================================
@@ -185,6 +186,25 @@ var AWAK_KATEGORI_PERSONIL = [
   'PPPK_PARUH_WAKTU',
   'PJLP'
 ];
+
+// ===========================================================================
+// OPSI (daftar pilihan dinamis) — keputusan revisi Fase 10
+// Sheet `Opsi` di Nautika_Master menjadi sumber otoritatif; daftar di bawah
+// adalah DEFAULT/seed (lihat DATA_SCHEMA.md `Opsi`). Sistem = gabungan
+// baris Aktif di sheet + default (fallback saat sheet belum ter-seed).
+// ===========================================================================
+var OPSI_KODE = {
+  AMUNISI:      'AMUNISI',
+  BBM:          'BBM',
+  KOM_PERSONIL: 'KOM_PERSONIL',
+  AWAK_KATEGORI: 'AWAK_KATEGORI'
+};
+
+var OPSI_DEFAULT = {};
+OPSI_DEFAULT[OPSI_KODE.AMUNISI]       = LOG_JENIS_AMUNISI;
+OPSI_DEFAULT[OPSI_KODE.BBM]           = LOG_JENIS_BBM;
+OPSI_DEFAULT[OPSI_KODE.KOM_PERSONIL]  = LOG_KOMPONEN_PERSONIL;
+OPSI_DEFAULT[OPSI_KODE.AWAK_KATEGORI] = AWAK_KATEGORI_PERSONIL;
 
 // ===========================================================================
 // WPP NRI — referensi dari wpp_final.geojson (source of truth geospasial)

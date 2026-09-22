@@ -369,6 +369,143 @@ function master_syncWpp(token) {
 }
 
 // ===========================================================================
+// OPSI (daftar pilihan dinamis) — PRD §5.11 Master Data
+// Kelola nilai enum yang bisa ditambah: Amunisi, BBM, Komponen Personil,
+// Kategori Pengawakan (DATA_SCHEMA `Opsi`). Preview & add disediakan ke
+// SUPERADMIN + DIREKTUR (sama dengan CRUD Kapal/Kawasan master).
+// ===========================================================================
+
+/**
+ * Seluruh daftar opsi per grup (detail: label, aktif, urutan) untuk halaman
+ * Master Data. Read: semua APPROVED — dropdown modul memakainya juga.
+ * @param {string} token
+ */
+function master_getOpsiJenis(token) {
+  try {
+    var session = _mdRequireSession(token);
+    _mdAssertRead(session);
+
+    var groups = {};
+    Object.keys(OPSI_KODE).forEach(function (k) {
+      groups[OPSI_KODE[k]] = getOpsiDetail(OPSI_KODE[k]);
+    });
+
+    var labels = {};
+    labels[OPSI_KODE.AMUNISI]       = 'Jenis Amunisi';
+    labels[OPSI_KODE.BBM]           = 'Jenis BBM';
+    labels[OPSI_KODE.KOM_PERSONIL]  = 'Komponen Logistik Personil';
+    labels[OPSI_KODE.AWAK_KATEGORI] = 'Kategori Personil Pengawakan';
+
+    return { success: true, data: { groups: groups, labels: labels, kodeList: Object.keys(OPSI_KODE) } };
+  } catch (e) {
+    Logger.log('[master_getOpsiJenis] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Tambah satu nilai baru ke sebuah grup opsi.
+ * @param {string} token
+ * @param {{kode:string, label:string}} params
+ */
+function master_addOpsiJenis(token, params) {
+  try {
+    return withLock(function () {
+      var session = _mdRequireSession(token);
+      _mdAssertWrite(session);
+
+      var p = params || {};
+      var kode  = _reqText(p.kode, 'Kode opsi');
+      var label = _reqText(p.label, 'Nama opsi').toUpperCase();
+      if (!OPSI_DEFAULT[kode]) {
+        return { success: false, error: 'Kode opsi tidak dikenal.' };
+      }
+      if (label.length > 40) {
+        return { success: false, error: 'Nama opsi maksimal 40 karakter.' };
+      }
+
+      var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+      var rows  = sheetToObjects(sheet);
+      var maxUrutan = 0;
+      var exists = false;
+      rows.forEach(function (r) {
+        if (String(r['Kode']) === kode) {
+          var u = Number(r['Urutan']) || 0;
+          if (u > maxUrutan) maxUrutan = u;
+          if (String(r['Label']) === label) exists = true;
+        }
+      });
+      if (exists) {
+        return { success: false, error: 'Nilai "' + label + '" sudah ada di grup ini.' };
+      }
+      if ((OPSI_DEFAULT[kode] || []).indexOf(label) !== -1) {
+        return { success: false, error: 'Nilai "' + label + '" adalah bawaan sistem.' };
+      }
+
+      appendRowData(sheet, {
+        'Kode':       kode,
+        'Urutan':     maxUrutan + 1,
+        'Label':      label,
+        'Aktif':      true,
+        'DibuatOleh': session.userId,
+        'DibuatAt':   new Date()
+      });
+      _mdAuditLog(session.userId, 'CREATE', SHEET_MASTER.OPSI, kode,
+        'Tambah opsi ' + kode + ' = ' + label);
+
+      return { success: true, message: 'Opsi "' + label + '" ditambahkan ke ' + kode + '.' };
+    });
+  } catch (e) {
+    Logger.log('[master_addOpsiJenis] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Aktif/nonaktifkan satu nilai (non-aktif = tersembunyi dari dropdown baru;
+ * data historis tetap aman).
+ * @param {string} token
+ * @param {{kode:string, label:string, aktif:boolean}} params
+ */
+function master_setOpsiJenisAktif(token, params) {
+  try {
+    return withLock(function () {
+      var session = _mdRequireSession(token);
+      _mdAssertWrite(session);
+
+      var p = params || {};
+      var kode  = _reqText(p.kode, 'Kode opsi');
+      var label = _reqText(p.label, 'Nama opsi').toUpperCase();
+      var aktif = p.aktif === true || p.aktif === 'true';
+      if (!OPSI_DEFAULT[kode]) {
+        return { success: false, error: 'Kode opsi tidak dikenal.' };
+      }
+
+      var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+      var rows  = sheetToObjects(sheet);
+      var found = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i]['Kode']) === kode && String(rows[i]['Label']) === label) {
+          found = i + 2; // baris data (header = 1)
+          break;
+        }
+      }
+      if (!found) {
+        return { success: false, error: 'Nilai "' + label + '" tidak ditemukan di ' + kode + '.' };
+      }
+      updateRowCells(sheet, found, { 'Aktif': aktif });
+      _mdAuditLog(session.userId, 'UPDATE', SHEET_MASTER.OPSI, kode,
+        'Ubah status opsi ' + kode + ' = ' + label + ' → ' + (aktif ? 'aktif' : 'non-aktif'));
+
+      return { success: true, message: 'Opsi "' + label + '" kini ' + (aktif ? 'aktif' : 'non-aktif') + '.' };
+    });
+  } catch (e) {
+    Logger.log('[master_setOpsiJenisAktif] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ===========================================================================
 // HELPER NORMALISASI & VALIDASI
 // ===========================================================================
 

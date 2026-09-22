@@ -73,9 +73,9 @@ function logistik_getOptions(token) {
     return {
       success: true,
       data: {
-        amunisi:  LOG_JENIS_AMUNISI,
-        bbm:      LOG_JENIS_BBM,
-        personil: LOG_KOMPONEN_PERSONIL
+        amunisi:  getOpsiList(OPSI_KODE.AMUNISI),
+        bbm:      getOpsiList(OPSI_KODE.BBM),
+        personil: getOpsiList(OPSI_KODE.KOM_PERSONIL)
       }
     };
   } catch (e) {
@@ -175,7 +175,7 @@ function logistik_getKPI(token, filter) {
     // ── Amunisi ──
     var amMeta = { jenis: 'AMUNISI', sheet: SHEET_TX.LOGISTIK_AMUNISI };
     var amBaselines = _logBaselines(amMeta, tahunRef);
-    var amunisi = LOG_JENIS_AMUNISI.map(function (j) {
+    var amunisi = getOpsiList(OPSI_KODE.AMUNISI).map(function (j) {
       var baseRow = amBaselines[j];
       var stokAwal = baseRow ? _logNum(baseRow['StokAwal']) : 0;
       var penggunaan = _logCumulative(amMeta, j, tahunRef, range.endDate);
@@ -198,7 +198,7 @@ function logistik_getKPI(token, filter) {
     // ── BBM ──
     var bbMeta = { jenis: 'BBM', sheet: SHEET_TX.LOGISTIK_BBM };
     var bbBaselines = _logBaselines(bbMeta, tahunRef);
-    var bbm = LOG_JENIS_BBM.map(function (j) {
+    var bbm = getOpsiList(OPSI_KODE.BBM).map(function (j) {
       var baseRow = bbBaselines[j];
       var pagu = baseRow ? _logNum(baseRow['Pagu']) : 0;
       var realisasi = _logCumulative(bbMeta, j, tahunRef, range.endDate);
@@ -223,7 +223,7 @@ function logistik_getKPI(token, filter) {
 
     // ── Personil (sum dalam rentang filter — bukan akumulasi tahunan) ──
     var psMeta = { jenis: 'PERSONIL', sheet: SHEET_TX.LOGISTIK_PERSONIL };
-    var personil = LOG_KOMPONEN_PERSONIL.map(function (k) {
+    var personil = getOpsiList(OPSI_KODE.KOM_PERSONIL).map(function (k) {
       var total = 0;
       sheetToObjects(openTransaksiSheet(psMeta.sheet)).forEach(function (r) {
         if (String(r['Status']) !== ROW_STATUS.ACTIVE) return;
@@ -349,7 +349,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
 
   if (jenis === 'AMUNISI') {
     var jenisAm = String(p.jenis || '').toUpperCase();
-    if (LOG_JENIS_AMUNISI.indexOf(jenisAm) === -1) return { error: 'Jenis amunisi tidak valid.' };
+    if (getOpsiList(OPSI_KODE.AMUNISI).indexOf(jenisAm) === -1) return { error: 'Jenis amunisi tidak valid.' };
     var mode = isRevision
       ? (_logIsBaselineRow({ jenis: 'AMUNISI' }, oldRow) ? LOG_MODE_BASELINE : LOG_MODE_USAGE)
       : (p.mode === LOG_MODE_BASELINE ? LOG_MODE_BASELINE : LOG_MODE_USAGE);
@@ -395,7 +395,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
 
   if (jenis === 'BBM') {
     var jenisBb = String(p.jenis || '').toUpperCase();
-    if (LOG_JENIS_BBM.indexOf(jenisBb) === -1) return { error: 'Jenis BBM tidak valid.' };
+    if (getOpsiList(OPSI_KODE.BBM).indexOf(jenisBb) === -1) return { error: 'Jenis BBM tidak valid.' };
     var modeB = isRevision
       ? (_logIsBaselineRow({ jenis: 'BBM' }, oldRow) ? LOG_MODE_BASELINE : LOG_MODE_USAGE)
       : (p.mode === LOG_MODE_BASELINE ? LOG_MODE_BASELINE : LOG_MODE_USAGE);
@@ -440,7 +440,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
 
   // PERSONIL
   var komponen = String(p.komponen || '').toUpperCase();
-  if (LOG_KOMPONEN_PERSONIL.indexOf(komponen) === -1) return { error: 'Komponen logistik personil tidak valid.' };
+  if (getOpsiList(OPSI_KODE.KOM_PERSONIL).indexOf(komponen) === -1) return { error: 'Komponen logistik personil tidak valid.' };
   var nilai = (isRevision ? _logProvided(p.nilai, oldRow['Nilai_Minggu']) : _logNum(p.nilai));
   if (isNaN(nilai) || nilai < 0) return { error: 'Nilai wajib berupa angka ≥ 0.' };
   return {
@@ -577,15 +577,15 @@ function logistik_getTren(token, filter) {
     }
 
     var amunisi = {};
-    LOG_JENIS_AMUNISI.forEach(function (j) {
+    getOpsiList(OPSI_KODE.AMUNISI).forEach(function (j) {
       amunisi[j] = sumByMonth(SHEET_TX.LOGISTIK_AMUNISI, 'JenisAmunisi', j, 'Penggunaan_Minggu');
     });
     var bbm = {};
-    LOG_JENIS_BBM.forEach(function (j) {
+    getOpsiList(OPSI_KODE.BBM).forEach(function (j) {
       bbm[j] = sumByMonth(SHEET_TX.LOGISTIK_BBM, 'Jenis', j, 'Realisasi_Minggu');
     });
     var personil = {};
-    LOG_KOMPONEN_PERSONIL.forEach(function (k) {
+    getOpsiList(OPSI_KODE.KOM_PERSONIL).forEach(function (k) {
       personil[k] = sumByMonth(SHEET_TX.LOGISTIK_PERSONIL, 'Komponen', k, 'Nilai_Minggu');
     });
 

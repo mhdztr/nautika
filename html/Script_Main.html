@@ -631,13 +631,14 @@ function _renderMasterData(el) {
   if (btnSync && APP.user && APP.user.role !== 'SUPERADMIN') btnSync.style.display = 'none';
 
   _MD.tab = 'kapal';
+  _MD.data.opsi = null;
   _mdSyncTabState();
   _mdLoadAll();
 }
 
 var _MD = {
   tab: 'kapal',
-  data:   { kapal: null, kawasan: null, wpp: null },
+  data:   { kapal: null, kawasan: null, wpp: null, opsi: null },
   wppFromFallback: false,
   editingKapalId:  null,   // null = mode tambah
   editingKawasanId:null    // null = mode tambah
@@ -648,7 +649,7 @@ function _mdSyncTabState() {
   tabs.forEach(function (t) {
     t.classList.toggle('active', t.getAttribute('data-md-tab') === _MD.tab);
   });
-  ['kapal','kawasan','wpp'].forEach(function (pane) {
+  ['kapal','kawasan','wpp','opsi'].forEach(function (pane) {
     var el = document.getElementById('md-pane-' + pane);
     if (el) el.classList.toggle('n-hidden', pane !== _MD.tab);
   });
@@ -657,6 +658,7 @@ function _mdSyncTabState() {
 function _mdSetTab(name) {
   _MD.tab = name;
   _mdSyncTabState();
+  if (name === 'opsi') _mdLoadOpsi();
 }
 
 function _mdLoadAll() {
@@ -1035,6 +1037,109 @@ function _mdMsg(id, type, text) {
   el.textContent = text;
 }
 
+// ── OPSI DAFTAR (Fase 10 revisi) ──────────────────────────
+
+function _mdOpsiCanWrite() {
+  return !!(APP.user && (APP.user.role === 'SUPERADMIN' || APP.user.role === 'DIREKTUR'));
+}
+
+function _mdLoadOpsi() {
+  var wrap = document.getElementById('md-opsi-wrap');
+  if (wrap) wrap.innerHTML = _loadingInline('Memuat opsi daftar\u2026');
+  _mdMsg('md-opsi-msg', null);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdMsg('md-opsi-msg', 'error', res.error); return; }
+      _MD.data.opsi = res.data;
+      _mdRenderOpsi(res.data);
+    })
+    .withFailureHandler(function () { _mdMsg('md-opsi-msg', 'error', 'Gagal memuat opsi daftar.'); })
+    .master_getOpsiJenis(APP.token);
+}
+
+function _mdRenderOpsi(d) {
+  var wrap = document.getElementById('md-opsi-wrap');
+  if (!wrap) return;
+  var canWrite = _mdOpsiCanWrite();
+
+  var html = '';
+  var kodeList = d.kodeList || [];
+  for (var g = 0; g < kodeList.length; g++) {
+    var kode = kodeList[g];
+    var judul = (d.labels && d.labels[kode]) || kode;
+    var items = (d.groups && d.groups[kode]) || [];
+
+    html += '<div class="content-section" style="margin-top:0;">' +
+      '<div class="content-section-hd">' + _esc(judul) + '</div>' +
+      '<div style="font-size:.8125rem;color:var(--n-text-muted);margin-bottom:12px;">' +
+        'Tersimpan di basis data sebagai nasab; output dropdown memakai label ini.</div>' +
+      '<div class="attach-list" style="margin-bottom:14px;">';
+
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      html += '<div class="attach-chip" style="display:inline-flex;">' +
+        '<b>' + (it.aktif ? '\u2713' : '\u2715') + '</b>' +
+        '<span>' + _esc(it.label) + '</span>' +
+        (canWrite
+          ? '<button type="button" title="' + (it.aktif ? 'Nonaktifkan' : 'Aktifkan') + '" onclick="_mdOpsiToggle(\'' + kode + '\',\'' + _escJs(it.label) + '\',' + (it.aktif ? 'false' : 'true') + ')">' +
+              (it.aktif ? '\u25af' : '\u25b6') + '</button>'
+          : '') +
+        '</div>';
+    }
+    html += '</div>';
+
+    if (canWrite) {
+      html += '<div style="display:flex;gap:10px;align-items:center;">' +
+        '<input type="text" id="md-opsi-add-' + kode + '" maxlength="40" class="md-opsi-input" ' +
+          'placeholder="Nama ' + _esc(judul).toLowerCase() + ' baru..." style="flex:1;padding:9px 12px;border:1px solid var(--n-border-subtle);border-radius:var(--n-r-sm);background:var(--n-surface-2);color:var(--n-text-primary);" onkeydown="if(event.key===\'Enter\'){_mdOpsiAdd(\'' + kode + '\')}">' +
+        '<button type="button" class="btn-primary" onclick="_mdOpsiAdd(\'' + kode + '\')">+ Tambah</button>' +
+        '</div>';
+    }
+    html += '</div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+function _escJs(str) {
+  return String(str || '').replace(/\\/g,'\\\\').replace(/'/g,'\\\'');
+}
+
+function _mdOpsiAdd(kode) {
+  if (!_mdOpsiCanWrite()) { _mdMsg('md-opsi-msg', 'error', 'Tidak punya hak untuk mengubah opsi.'); return; }
+  var inp = document.getElementById('md-opsi-add-' + kode);
+  var label = (inp && inp.value || '').trim();
+  if (!label) { _mdMsg('md-opsi-msg', 'error', 'Nama opsi wajib diisi.'); return; }
+  _mdMsg('md-opsi-msg', null);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdMsg('md-opsi-msg', 'error', res.error); return; }
+      if (inp) inp.value = '';
+      _mdMsg('md-opsi-msg', 'success', res.message);
+      _MD.data.opsi = null;
+      _mdLoadOpsi();
+    })
+    .withFailureHandler(function () { _mdMsg('md-opsi-msg', 'error', 'Terjadi kesalahan koneksi.'); })
+    .master_addOpsiJenis(APP.token, { kode: kode, label: label });
+}
+
+function _mdOpsiToggle(kode, label, aktif) {
+  if (!_mdOpsiCanWrite()) { _mdMsg('md-opsi-msg', 'error', 'Tidak punya hak untuk mengubah opsi.'); return; }
+  _mdMsg('md-opsi-msg', null);
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdMsg('md-opsi-msg', 'error', res.error); return; }
+      _mdMsg('md-opsi-msg', 'success', res.message);
+      _MD.data.opsi = null;
+      _mdLoadOpsi();
+    })
+    .withFailureHandler(function () { _mdMsg('md-opsi-msg', 'error', 'Terjadi kesalahan koneksi.'); })
+    .master_setOpsiJenisAktif(APP.token, { kode: kode, label: label, aktif: aktif });
+}
+
 function _renderRiwayatStub(el) {
   el.innerHTML = '<div class="module-stub">' +
     '<div class="module-stub-title">Riwayat Laporan</div>' +
@@ -1072,6 +1177,74 @@ function closeModal(id) {
   if (el) el.classList.add('n-hidden');
 }
 
+// ── MODAL LIHAT RIWAYAT (detail submission, berlaku semua modul) ──
+// Tiap renderer riwayat mendorong satu entri detail per baris via _hdPush(),
+// lalu menaruh tombol "Lihat" dengan index-nya sebagai argumen onclick.
+
+var _HD = { stack: [] };
+
+function _hdReset() {
+  _HD.stack = [];
+}
+
+function _hdPush(refSheet, rowId, title, fields) {
+  var i = _HD.stack.length;
+  _HD.stack.push({ refSheet: refSheet, rowId: rowId, title: title, fields: fields || [] });
+  return i;
+}
+
+function _hdOpen(i) {
+  var d = _HD.stack[i];
+  if (!d) return;
+  var titleEl = document.getElementById('hd-title');
+  if (titleEl) titleEl.textContent = d.title;
+  var body = document.getElementById('hd-body');
+  var rows = '';
+  for (var j = 0; j < d.fields.length; j++) {
+    rows += '<tr><td class="hd-k">' + d.fields[j][0] + '</td><td class="hd-v">' + d.fields[j][1] + '</td></tr>';
+  }
+  if (body) body.innerHTML = rows || '<tr><td colspan="2" style="padding:12px;color:var(--n-text-muted);font-size:.85rem;">Tidak ada detail tambahan.</td></tr>';
+  _hdLoadEvidence(d.refSheet, d.rowId);
+  var m = document.getElementById('modal-hd');
+  if (m) m.classList.remove('n-hidden');
+}
+
+function _hdClose() {
+  closeModal('modal-hd');
+}
+
+function _hdLoadEvidence(refSheet, rowId) {
+  var list = document.getElementById('hd-evidence');
+  if (!list) return;
+  list.innerHTML = _loadingInline('Memuat lampiran\u2026');
+  if (!refSheet || !rowId) {
+    list.innerHTML = '<div style="color:var(--n-text-muted);font-size:.85rem;">Tidak ada lampiran.</div>';
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res || !res.success) {
+        list.innerHTML = '<div class="n-msg error show">' + _esc((res && res.error) || 'Gagal memuat lampiran.') + '</div>';
+        return;
+      }
+      if (!res.data.length) {
+        list.innerHTML = '<div style="color:var(--n-text-muted);font-size:.85rem;">Belum ada lampiran untuk laporan ini.</div>';
+        return;
+      }
+      list.innerHTML = res.data.map(function (e) {
+        var tgl = e.uploadedAt ? new Date(e.uploadedAt).toLocaleString('id-ID') : '';
+        return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--n-border-subtle);">' +
+          '<a href="' + _esc(e.viewUrl) + '" target="_blank" rel="noopener" style="color:var(--n-primary);font-size:.85rem;">' + _esc(e.fileName) + '</a>' +
+          '<span style="font-size:.75rem;color:var(--n-text-muted);white-space:nowrap;">' + _esc(e.sourceMode) + ' \u00b7 ' + tgl + '</span>' +
+        '</div>';
+      }).join('');
+    })
+    .withFailureHandler(function () {
+      list.innerHTML = '<div class="n-msg error show">Gagal memuat lampiran. Coba lagi.</div>';
+    })
+    .evidence_list(APP.token, refSheet, rowId);
+}
+
 // ── LOADING INDICATORS ────────────────────────────────────
 
 function _loadingInline(text) {
@@ -1101,6 +1274,305 @@ function _tableSkeleton(rows, cols) {
   return '<table class="n-table n-table-full">' + h + '</table>';
 }
 
+// ── LAMPIRAN INLINE (Fase 10 revisi) ─────────────────────
+// Blok lampiran dirender di dalam tiap form modul divisi. Satu CTA (tombol
+// submit) menangani: simpan baris -> upload file/link -> refresh. Centang
+// "Pengunggahan ini tidak perlu lampiran" mematikan kewajiban lampiran.
+// Dipakai server: evidence_upload / evidence_uploadFromLink (1 baris) dan
+// evidence_uploadBatch / evidence_uploadFromLinkBatch (N baris sekaligus).
+
+var _ATTACH = {};
+
+function _attachState(key) {
+  return _ATTACH[key] || null;
+}
+
+function _attachInit(key, cfg) {
+  var el = document.getElementById(String(key) + '-attach');
+  if (!el) return null;
+  var k = String(key);
+  _ATTACH[k] = {
+    refSheet: (cfg && cfg.refSheet) || '',
+    noAtt: false,
+    files: [],
+    link: '',
+    rowIds: [],
+    tasks: [],
+    busy: false,
+    after: null
+  };
+  el.innerHTML =
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Lampiran</div>' +
+      '<div class="attach-row">' +
+        '<label class="attach-check">' +
+          '<input type="checkbox" id="' + k + '-noatt" onchange="_attachToggle(\'' + k + '\')">' +
+          '<span>Pengunggahan ini tidak perlu lampiran</span>' +
+        '</label>' +
+      '</div>' +
+      '<div id="' + k + '-fields" class="attach-fields">' +
+        '<div class="form-grp">' +
+          '<label for="' + k + '-files">Unggah file (bisa lebih dari satu; maks 15MB file biasa, 50MB video)</label>' +
+          '<input type="file" id="' + k + '-files" multiple onchange="_attachPickFiles(\'' + k + '\')">' +
+        '</div>' +
+        '<div class="form-grp">' +
+          '<label for="' + k + '-link">Atau tempel link Google Drive</label>' +
+          '<input type="text" id="' + k + '-link" placeholder="https://drive.google.com/file/d/..." oninput="_attachLinkInput(\'' + k + '\')">' +
+        '</div>' +
+        '<div id="' + k + '-list"></div>' +
+      '</div>' +
+      '<div id="' + k + '-attach-msg" class="n-msg"></div>' +
+    '</div>';
+  return _ATTACH[k];
+}
+
+function _attachToggle(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  var cb = document.getElementById(key + '-noatt');
+  s.noAtt = !!(cb && cb.checked);
+  var f = document.getElementById(key + '-fields');
+  if (f) f.style.display = s.noAtt ? 'none' : 'grid';
+  _attachMsg(key, null);
+}
+
+function _attachPickFiles(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  var input = document.getElementById(key + '-files');
+  if (input && input.files) {
+    for (var i = 0; i < input.files.length; i++) s.files.push(input.files[i]);
+    input.value = '';
+  }
+  _attachRenderList(key);
+  _attachMsg(key, null);
+}
+
+function _attachRemoveFile(key, idx) {
+  var s = _attachState(key);
+  if (!s) return;
+  s.files.splice(idx, 1);
+  _attachRenderList(key);
+  _attachMsg(key, null);
+}
+
+function _attachLinkInput(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  var inp = document.getElementById(key + '-link');
+  s.link = (inp && inp.value || '').trim();
+  _attachRenderList(key);
+  _attachMsg(key, null);
+}
+
+function _attachClearLink(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  s.link = '';
+  var inp = document.getElementById(key + '-link');
+  if (inp) inp.value = '';
+  _attachRenderList(key);
+  _attachMsg(key, null);
+}
+
+function _attachRenderList(key) {
+  var s = _attachState(key);
+  var el = document.getElementById(key + '-list');
+  if (!s || !el) return;
+  var html = (s.files.length || s.link) ? '<div class="attach-list">' : '';
+  for (var i = 0; i < s.files.length; i++) {
+    html += '<div class="attach-chip"><b>File</b><span>' + _esc(s.files[i].name) + '</span>' +
+      '<button type="button" title="Hapus" onclick="_attachRemoveFile(\'' + key + '\',' + i + ')">\u00d7</button></div>';
+  }
+  if (s.link) {
+    html += '<div class="attach-chip"><b>Link</b><span>' + _esc(s.link) + '</span>' +
+      '<button type="button" title="Hapus" onclick="_attachClearLink(\'' + key + '\')">\u00d7</button></div>';
+  }
+  html += (s.files.length || s.link) ? '</div>' : '';
+  el.innerHTML = html;
+}
+
+function _attachMsg(key, type, text) {
+  var el = document.getElementById(key + '-attach-msg');
+  if (!el) return;
+  if (!type) { el.className = 'n-msg'; el.innerHTML = ''; return; }
+  if (type === 'warn') {
+    el.className = 'n-msg warn show';
+    el.innerHTML = '<div class="attach-retry">' + _esc(text || '') + ' ' +
+      '<button type="button" onclick="_attachRetry(\'' + key + '\')">Ulangi upload lampiran</button></div>';
+    return;
+  }
+  el.className = 'n-msg ' + type + ' show';
+  el.innerHTML = _esc(text || '');
+}
+
+/**
+ * Validasi blok lampiran: default wajib ada file/link, kecuali dicentang
+ * "tidak perlu lampiran". Mengembalikan '' jika valid, pesan error jika tidak.
+ */
+function _attachValidate(key) {
+  var s = _attachState(key);
+  if (!s) return '';
+  if (s.noAtt) return '';
+  if (s.files.length === 0 && !s.link) {
+    return 'Lampiran wajib pada pengunggahan ini, atau centang \u201cPengunggahan ini tidak perlu lampiran\u201d.';
+  }
+  if (s.link && !/drive\.google\.com/.test(s.link) && !/^[a-zA-Z0-9_\-]{20,}$/.test(s.link)) {
+    return 'Link harus berupa URL Google Drive yang valid.';
+  }
+  return '';
+}
+
+function _attachReset(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  s.noAtt = false;
+  s.files = [];
+  s.link = '';
+  s.rowIds = [];
+  s.tasks = [];
+  s.busy = false;
+  s.after = null;
+  var cb = document.getElementById(key + '-noatt');
+  if (cb) cb.checked = false;
+  var f = document.getElementById(key + '-fields');
+  if (f) f.style.display = 'grid';
+  var li = document.getElementById(key + '-link');
+  if (li) li.value = '';
+  _attachRenderList(key);
+  _attachMsg(key, null);
+}
+
+function _attachReadBase64(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var data = String(e.target.result || '').replace(/^data:[^;]+;base64,/, '');
+    cb(data || null);
+  };
+  reader.onerror = function () { cb(null); };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Upload semua lampiran (file/link) ke baris hasil submit, lalu reset blok.
+ * @param key   - kunci state blok (prefix form)
+ * @param rowIds- RowID baris tujuan (1..N dari hasil submit)
+ * @param after - callback(ok:boolean) setelah seluruh tentatif selesai
+ */
+function _attachUploadAll(key, rowIds, after) {
+  var s = _attachState(key);
+  if (!s) return;
+  if (s.noAtt || !s.refSheet || !rowIds || !rowIds.length) { if (after) after(true); return; }
+  if (s.files.length === 0 && !s.link) { if (after) after(true); return; }
+
+  s.rowIds = rowIds;
+  s.after = after;
+  s.busy = true;
+  s.tasks = [];
+  for (var i = 0; i < s.files.length; i++) {
+    s.tasks.push({ kind: 'file', file: s.files[i], base64: null });
+  }
+  if (s.link) s.tasks.push({ kind: 'link', url: s.link });
+
+  if (s.tasks.length === 0) { if (after) after(true); return; }
+
+  _attachReadTasks(key, 0, function () { _attachRunNext(key, 0); });
+}
+
+function _attachReadTasks(key, idx, done) {
+  var s = _attachState(key);
+  if (idx >= s.tasks.length) { done(); return; }
+  var t = s.tasks[idx];
+  if (t.kind !== 'file' || t.base64) { _attachReadTasks(key, idx + 1, done); return; }
+  _attachReadBase64(t.file, function (b64) {
+    t.base64 = b64;
+    _attachReadTasks(key, idx + 1, done);
+  });
+}
+
+function _attachRunNext(key, idx) {
+  var s = _attachState(key);
+  if (!s) return;
+  if (idx >= s.tasks.length) {
+    s.busy = false;
+    var doneCb = s.after;
+    _attachMsg(key, 'success', 'Semua lampiran berhasil diunggah.');
+    _attachReset(key);
+    if (doneCb) doneCb(true);
+    return;
+  }
+
+  var t = s.tasks[idx];
+  var single = s.rowIds.length === 1;
+  var runner = google.script.run.withSuccessHandler(function (res) {
+    if (res && res.success) {
+      s.tasks.splice(idx, 1);
+      _attachRunNext(key, idx);
+    } else {
+      _attachFail(key, (res && res.error) || 'Upload gagal.');
+    }
+  }).withFailureHandler(function () {
+    _attachFail(key, 'Terjadi kesalahan koneksi saat mengunggah lampiran.');
+  });
+
+  if (t.kind === 'file') {
+    var params = {
+      refSheet: s.refSheet,
+      fileName: t.file.name,
+      mimeType: t.file.type || 'application/octet-stream',
+      dataBase64: t.base64
+    };
+    if (single) { params.refRowId = s.rowIds[0]; runner.evidence_upload(APP.token, params); }
+    else        { params.refRowIds = s.rowIds;     runner.evidence_uploadBatch(APP.token, params); }
+  } else {
+    var p2 = { refSheet: s.refSheet, url: t.url };
+    if (single) { p2.refRowId = s.rowIds[0]; runner.evidence_uploadFromLink(APP.token, p2); }
+    else        { p2.refRowIds = s.rowIds;   runner.evidence_uploadFromLinkBatch(APP.token, p2); }
+  }
+}
+
+function _attachFail(key, text) {
+  var s = _attachState(key);
+  if (!s) return;
+  s.busy = false;
+  var doneCb = s.after;
+  s.after = null;
+  _attachMsg(key, 'warn', text + ' Baris sudah tersimpan; lampiran yang belum ter-upload akan dicoba lagi.');
+  if (doneCb) doneCb(false);
+}
+
+function _attachRetry(key) {
+  var s = _attachState(key);
+  if (!s || s.busy) return;
+  if (!s.tasks.length) return;
+  s.after = null;
+  s.busy = true;
+  _attachMsg(key, null);
+  _attachReadTasks(key, 0, function () { _attachRunNext(key, 0); });
+}
+
+/** Bersihkan input file/link setelah semua berhasil (state file/link di-reset). */
+function _attachResetFieldsOnly(key) {
+  var s = _attachState(key);
+  if (!s) return;
+  s.files = [];
+  s.link = '';
+  var li = document.getElementById(key + '-link');
+  if (li) li.value = '';
+  _attachRenderList(key);
+}
+
+/**
+ * Bawa lampiran baris lama ke baris baru hasil revisi (fire-and-forget).
+ * Dipanggil setelah revisi sukses, agar lampiran tidak "hilang" dari baris aktif.
+ */
+function _attachCarry(refSheet, fromRowId, toRowId) {
+  if (!refSheet || !fromRowId || !toRowId) return;
+  google.script.run
+    .withFailureHandler(function () { /* non-blokir — revisi tetap sukses */ })
+    .evidence_carry(APP.token, { refSheet: refSheet, fromRowId: fromRowId, toRowId: toRowId });
+}
+
 // ═══════════════════════════════════════════════════════════
 // MODUL TATA USAHA
 // ═══════════════════════════════════════════════════════════
@@ -1120,6 +1592,7 @@ function _renderTataUsaha(el) {
   var tpl = document.getElementById('view-tpl-tata-usaha');
   if (!tpl) { el.innerHTML = _moduleStub('Tata Usaha'); return; }
   el.innerHTML = tpl.innerHTML;
+  _attachInit('tu', { refSheet: 'TX_TataUsaha' });
 
   // Pre-fill periode saat ini
   var now = new Date();
@@ -1260,6 +1733,7 @@ function _tuRenderHistory(items) {
   if (!wrap) return;
   var canAnulir = ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(APP.user.role) !== -1;
   var canRevisi = ['SUPERADMIN','KADIV','STAF'].indexOf(APP.user.role) !== -1;
+  _hdReset();
 
   if (!items || items.length === 0) {
     wrap.innerHTML = '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada laporan untuk periode ini.</div>';
@@ -1279,6 +1753,19 @@ function _tuRenderHistory(items) {
 
     var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="tuOpenRevisiModal(\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
     var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="tuOpenAnulirModal(\'' + _esc(r.rowId) + '\',\'' + _esc(r.periode) + '\')">Anulir</button>' : '';
+    var bLk  = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_TataUsaha', r.rowId, 'Tata Usaha — Periode ' + r.periode, [
+      ['Periode', _esc(r.periode)],
+      ['Pagu Reguler', _rupiah(r.paguReguler)],
+      ['Pagu ABT', _rupiah(r.paguABT)],
+      ['Pagu Total', _rupiah(r.paguTotal)],
+      ['Realisasi SP2D', _rupiah(r.realisasiSP2D)],
+      ['Realisasi Akrual', _rupiah(r.realisasiAkrual)],
+      ['Sisa SP2D', _rupiah(r.sisaSP2D)],
+      ['Sisa Akrual', _rupiah(r.sisaAkrual)],
+      ['Catatan Revisi Pagu', _esc(r.catatanRevisiPagu || '—')],
+      ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', st === '' ? _esc(r.status) : st]
+    ]) + ')">Lihat</button>';
 
     var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
@@ -1290,7 +1777,7 @@ function _tuRenderHistory(items) {
     t += '<td>' + _rupiah(r.realisasiAkrual) + '</td>';
     t += '<td>' + tgl + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if (r.status === 'VOID' && r.voidReason) {
@@ -1309,6 +1796,8 @@ function _tuRenderHistory(items) {
 function tuSubmit() {
   var btn = document.getElementById('tu-btn-submit');
   _msg('tu-form-msg', null);
+  var attachErr = _attachValidate('tu');
+  if (attachErr) { _msg('tu-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
 
   var params = {
@@ -1325,7 +1814,7 @@ function tuSubmit() {
       _setLoading(btn, false);
       if (!res.success) { _msg('tu-form-msg', 'error', res.error); return; }
       _msg('tu-form-msg', 'success', res.data.message);
-      _tuLoadKPI(); // refresh
+      _attachUploadAll('tu', [res.data.rowId], function () { _tuLoadKPI(); });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -1382,6 +1871,7 @@ function tuRevisiConfirm() {
       tuCloseRevisiModal();
       if (!res.success) { _msg('tu-history-msg', 'error', res.error); return; }
       _msg('tu-history-msg', 'success', res.data.message);
+      _attachCarry('TX_TataUsaha', params.targetRowId, res.data.rowId);
       _tuLoadKPI();
     })
     .withFailureHandler(function () {
@@ -1560,6 +2050,7 @@ function _renderOperasiLaut(el) {
   var tpl = document.getElementById('view-tpl-operasi-laut');
   if (!tpl) { el.innerHTML = _moduleStub('Operasi Laut'); return; }
   el.innerHTML = tpl.innerHTML;
+  _attachInit('opslaut', { refSheet: 'TX_OperasiLaut' });
 
   _opsLautInitPeriodeUi();
   _opsLautLoadOptions();
@@ -1821,6 +2312,8 @@ function _v(id) {
 
 function opsLautSubmit() {
   _msg('ops-laut-form-msg', '', '');
+  var attachErr = _attachValidate('opslaut');
+  if (attachErr) { _msg('ops-laut-form-msg', 'error', attachErr); return; }
   var btn = document.getElementById('ops-btn-submit');
   btn.disabled = true;
   btn.textContent = 'Menyimpan...';
@@ -1848,13 +2341,13 @@ function opsLautSubmit() {
       btn.disabled = false;
       btn.textContent = 'Simpan Laporan';
       if(res.success) {
-        _msg('ops-laut-form-msg', 'success', res.message);
-        setTimeout(function(){
-          _msg('ops-laut-form-msg', '', '');
+        _msg('ops-laut-form-msg', 'success', res.data.message);
+        var rowId = res.data && res.data.rowId;
+        _attachUploadAll('opslaut', rowId ? [rowId] : [], function() {
           opsLautToggleForm();
           _opsLautLoadKPI();
           _opsLautLoadHistory();
-        }, 1500);
+        });
       } else {
         _msg('ops-laut-form-msg', 'error', res.error);
       }
@@ -1883,6 +2376,7 @@ function _opsLautLoadHistory() {
 function _opsLautRenderHistory(data) {
   var wrap = document.getElementById('ops-laut-history-wrap');
   if(!wrap) return;
+  _hdReset();
   if(data.length === 0) {
     wrap.innerHTML = '<div style="padding:20px 24px;">Tidak ada riwayat untuk periode ini.</div>';
     return;
@@ -1908,6 +2402,26 @@ function _opsLautRenderHistory(data) {
     if(r.Status==='ACTIVE' && (APP.user.role==='STAF'||APP.user.role==='KADIV') && APP.user.divisiId === 'DIV-OPS'){
       bRev = '<button class="btn-mini" onclick="opsLautOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>';
     }
+
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_OperasiLaut', r.RowID, 'Operasi Laut — Periode ' + r.Periode + ' (' + r.WPPCode + ')', [
+      ['Periode', _esc(r.Periode)],
+      ['WPP', _esc(r.WPPCode)],
+      ['Kapal Asing Ditangkap (KII)', _esc(r.KII_Ditangkap)],
+      ['Kapal Asing Ditangkap (KIA)', _esc(r.KIA_Ditangkap)],
+      ['Asal Negara Asing', _esc(r.AsalNegaraAsing || '—')],
+      ['Valuasi Illegal Fishing', _rupiah(r.ValuasiIllegalFishing)],
+      ['Rumpon Ditertibkan', _esc(r.RumponDitertibkan)],
+      ['Valuasi Rumpon', _rupiah(r.ValuasiRumpon)],
+      ['Hasil Riksa — Kategori', _esc(r.HasilRiksa_Kategori || '—')],
+      ['Hasil Riksa — KII', _idNum(r.HasilRiksa_KII)],
+      ['Hasil Riksa — KIA', _idNum(r.HasilRiksa_KIA)],
+      ['Hasil Riksa — Objek SDK', _idNum(r.HasilRiksa_ObjekSDK)],
+      ['Hari Operasi — Kategori', _esc(r.HariOperasi_Kategori || '—')],
+      ['Hari Operasi — Jumlah', _idNum(r.HariOperasi_Jumlah)],
+      ['Hari Operasi — Target', _idNum(r.HariOperasi_Target)],
+      ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', _esc(r.Status)]
+    ]) + ')">Lihat</button>';
     
     var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     
@@ -1919,10 +2433,10 @@ function _opsLautRenderHistory(data) {
     t += '<td>' + r.RumponDitertibkan + '</td>';
     t += '<td>' + (r.HasilRiksa_Kategori||'-') + '</td>';
     t += '<td>' + r.HariOperasi_Jumlah + '</td>';
-    t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+t += '<td>' + st + '</td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
-    
+
     if(r.Status === 'VOID' && r.VoidReason) {
       t += '<tr style="background:#fef2f2;"><td colspan="9" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
       t += '<strong>Alasan Anulir:</strong> ' + r.VoidReason + ' (oleh ' + r.VoidedBy + ')';
@@ -1972,7 +2486,8 @@ function opsLautRevisiConfirm() {
     .withSuccessHandler(function(res) {
       btn.disabled = false; btn.textContent = 'Simpan Revisi';
       if(res.success) {
-        _msg('ops-revisi-msg', 'success', res.message);
+        _msg('ops-revisi-msg', 'success', res.data.message);
+        _attachCarry('TX_OperasiLaut', params.targetRowId, res.data.rowId);
         setTimeout(function(){
           closeModal('modal-ops-revisi');
           _opsLautLoadKPI();
@@ -2037,6 +2552,7 @@ function _renderOperasiUdara(el) {
   var tpl = document.getElementById('view-tpl-operasi-udara');
   if (!tpl) { el.innerHTML = _moduleStub('Operasi Udara'); return; }
   el.innerHTML = tpl.innerHTML;
+  _attachInit('opsudara', { refSheet: 'TX_OperasiUdara' });
 
   _opsInitPeriodeUi('oud-');
   _opsUdaraLoadOptions();
@@ -2228,6 +2744,8 @@ function opsUdaraToggleForm() {
 
 function opsUdaraSubmit() {
   _msg('ops-udara-form-msg', '', '');
+  var attachErr = _attachValidate('opsudara');
+  if (attachErr) { _msg('ops-udara-form-msg', 'error', attachErr); return; }
   var btn = document.getElementById('oud-btn-submit');
   btn.disabled = true;
   btn.textContent = 'Menyimpan...';
@@ -2249,13 +2767,13 @@ function opsUdaraSubmit() {
       btn.disabled = false;
       btn.textContent = 'Simpan Laporan';
       if(res.success) {
-        _msg('ops-udara-form-msg', 'success', res.message);
-        setTimeout(function(){
-          _msg('ops-udara-form-msg', '', '');
+        _msg('ops-udara-form-msg', 'success', res.data.message);
+        var rowId = res.data && res.data.rowId;
+        _attachUploadAll('opsudara', rowId ? [rowId] : [], function() {
           opsUdaraToggleForm();
           _opsUdaraLoadKPI();
           _opsUdaraLoadHistory();
-        }, 1500);
+        });
       } else {
         _msg('ops-udara-form-msg', 'error', res.error);
       }
@@ -2284,6 +2802,7 @@ function _opsUdaraLoadHistory() {
 function _opsUdaraRenderHistory(data) {
   var wrap = document.getElementById('ops-udara-history-wrap');
   if(!wrap) return;
+  _hdReset();
   if(data.length === 0) {
     wrap.innerHTML = '<div style="padding:20px 24px;">Tidak ada riwayat untuk periode ini.</div>';
     return;
@@ -2310,6 +2829,20 @@ function _opsUdaraRenderHistory(data) {
       bRev = '<button class="btn-mini" onclick="opsUdaraOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>';
     }
 
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_OperasiUdara', r.RowID, 'Operasi Udara — Periode ' + r.Periode + ' (' + r.WPPCode + ')', [
+      ['Periode', _esc(r.Periode)],
+      ['WPP', _esc(r.WPPCode)],
+      ['Kapal Ditangkap (KII)', _idNum(r.KII)],
+      ['Kapal Ditangkap (KIA)', _idNum(r.KIA)],
+      ['Objek SDK', _idNum(r.ObjekSDK)],
+      ['Rumpon Lokal Teridentifikasi', _idNum(r.RumponLokalTeridentifikasi)],
+      ['Cakupan Wilayah (NM\u00b2)', _idNum(r.CakupanWilayah_NM2)],
+      ['Hari Operasi — Jumlah', _idNum(r.HariOperasi_Jumlah)],
+      ['Hari Operasi — Target', _idNum(r.HariOperasi_Target)],
+      ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', _esc(r.Status)]
+    ]) + ')">Lihat</button>';
+
     var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
 
     t += '<tr ' + rowCls + '>';
@@ -2321,7 +2854,7 @@ function _opsUdaraRenderHistory(data) {
     t += '<td>' + (r.CakupanWilayah_NM2||0) + '</td>';
     t += '<td>' + (r.HariOperasi_Jumlah||0) + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if(r.Status === 'VOID' && r.VoidReason) {
@@ -2367,7 +2900,8 @@ function opsUdaraRevisiConfirm() {
     .withSuccessHandler(function(res) {
       btn.disabled = false; btn.textContent = 'Simpan Revisi';
       if(res.success) {
-        _msg('oud-revisi-msg', 'success', res.message);
+        _msg('oud-revisi-msg', 'success', res.data.message);
+        _attachCarry('TX_OperasiUdara', params.targetRowId, res.data.rowId);
         setTimeout(function(){
           closeModal('modal-oud-revisi');
           _opsUdaraLoadKPI();
@@ -2437,6 +2971,7 @@ function _renderIntelijen(el) {
   var tpl = document.getElementById('view-tpl-intelijen');
   if (!tpl) { el.innerHTML = _moduleStub('Intelijen'); return; }
   el.innerHTML = tpl.innerHTML;
+  _attachInit('intel', { refSheet: 'TX_Intelijen' });
 
   _INTEL.kawasanFilter = null;
   _INTEL.kawasanFilterNama = '';
@@ -2618,6 +3153,7 @@ function _intelLoadHistory() {
 function _intelRenderHistory(data) {
   var wrap = document.getElementById('int-history-wrap');
   if (!wrap) return;
+  _hdReset();
 
   var rows = data || [];
   if (_INTEL.kawasanFilter) {
@@ -2656,6 +3192,16 @@ function _intelRenderHistory(data) {
     var bRev = (r.Status === 'ACTIVE' && canWrite) ? '<button class="btn-mini" onclick="intelOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
     var bAn  = (r.Status === 'ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="intelOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
 
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_Intelijen', r.RowID, 'Intelijen — ' + label + ' · Periode ' + r.Periode, [
+      ['Periode', _esc(r.Periode)],
+      ['Kategori', _esc(label)],
+      ['Jumlah', _idNum(r.Jumlah)],
+      ['Kawasan', r.Jenis !== 'KAWASAN_KONSERVASI' ? '—' : _esc(r.kawasanNama || r.KawasanID || '—')],
+      ['Detail', _esc(r.Jenis === 'KAWASAN_KONSERVASI' ? (r.KawasanID || '—') : (r.Keterangan || '—'))],
+      ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', _esc(r.Status)]
+    ]) + ')">Lihat</button>';
+
     var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('id-ID') : '—';
 
@@ -2666,7 +3212,7 @@ function _intelRenderHistory(data) {
     t += '<td>' + _esc(detail) + '</td>';
     t += '<td>' + ts + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if (r.Status === 'VOID' && r.VoidReason) {
@@ -2682,6 +3228,8 @@ function _intelRenderHistory(data) {
 // ── Submit ──
 function intelSubmit(e) {
   _msg('int-form-msg', '', '');
+  var attachErr = _attachValidate('intel');
+  if (attachErr) { _msg('int-form-msg', 'error', attachErr); return; }
   var periode = _composePeriode('int-');
   if (!periode) { _msg('int-form-msg', 'error', 'Periode wajib dipilih.'); return; }
 
@@ -2722,11 +3270,14 @@ function intelSubmit(e) {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('int-form-msg', 'success', res.message);
+        _msg('int-form-msg', 'success', res.data.message);
+        var rowIds = (res.data && res.data.rowIds) || [];
         _intelResetForm();
-        _intelLoadKPI();
-        _intelLoadHistory();
-        setTimeout(function(){ _msg('int-form-msg', '', ''); }, 2000);
+        _attachUploadAll('intel', rowIds, function() {
+          _intelLoadKPI();
+          _intelLoadHistory();
+          _msg('int-form-msg', '', '');
+        });
       } else {
         _msg('int-form-msg', 'error', res.error);
       }
@@ -2790,7 +3341,8 @@ function intelRevisiConfirm() {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('int-revisi-msg', 'success', res.message);
+        _msg('int-revisi-msg', 'success', res.data.message);
+        _attachCarry('TX_Intelijen', params.targetRowId, res.data.rowId);
         setTimeout(function(){
           closeModal('modal-int-revisi');
           _intelLoadKPI();
@@ -2870,6 +3422,7 @@ function _renderPemantauan(el) {
   var tpl = document.getElementById('view-tpl-pemantauan');
   if (!tpl) { el.innerHTML = _moduleStub('Pemantauan'); return; }
   el.innerHTML = tpl.innerHTML;
+  _attachInit('pem', { refSheet: 'TX_Pemantauan' });
 
   _opsInitPeriodeUi('pem-');
   pemAddPenyediaRow();
@@ -3048,6 +3601,7 @@ function _pemLoadHistory() {
 function _pemRenderHistory(data) {
   var wrap = document.getElementById('pem-history-wrap');
   if (!wrap) return;
+  _hdReset();
   var rows = data || [];
 
   if (rows.length === 0) {
@@ -3077,6 +3631,19 @@ function _pemRenderHistory(data) {
     var bRev = (r.Status === 'ACTIVE' && canWrite) ? '<button class="btn-mini" onclick="pemOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
     var bAn  = (r.Status === 'ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="pemOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
 
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_Pemantauan', r.RowID, 'Pemantauan — ' + label + ' · Periode ' + r.Periode, [
+      ['Periode', _esc(r.Periode)],
+      ['Kategori', _esc(label)],
+      ['Jumlah', _idNum(r.Jumlah)],
+      ['Nama Penyedia', r.Jenis !== 'PERSETUJUAN_PENYEDIA' ? '—' : _esc(r.NamaPenyedia || '—')],
+      ['Kapal', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.kapalNama || r.KapalID || '—')],
+      ['Kondisi Darurat', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.KondisiDarurat || '—')],
+      ['Status Penanganan', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.StatusPenanganan || '—')],
+      ['Keterangan', _esc(r.Keterangan || '—')],
+      ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
+      ['Status', _esc(r.Status)]
+    ]) + ')">Lihat</button>';
+
     var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('id-ID') : '—';
 
@@ -3087,7 +3654,7 @@ function _pemRenderHistory(data) {
     t += '<td>' + _esc(detail) + '</td>';
     t += '<td>' + ts + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if (r.Status === 'VOID' && r.VoidReason) {
@@ -3103,6 +3670,8 @@ function _pemRenderHistory(data) {
 // ── Submit ──
 function pemSubmit(e) {
   _msg('pem-form-msg', '', '');
+  var attachErr = _attachValidate('pem');
+  if (attachErr) { _msg('pem-form-msg', 'error', attachErr); return; }
   var periode = _composePeriode('pem-');
   if (!periode) { _msg('pem-form-msg', 'error', 'Periode wajib dipilih.'); return; }
 
@@ -3140,11 +3709,14 @@ function pemSubmit(e) {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('pem-form-msg', 'success', res.message);
+        _msg('pem-form-msg', 'success', res.data.message);
+        var rowIds = (res.data && res.data.rowIds) || [];
         _pemResetForm();
-        _pemLoadKPI();
-        _pemLoadHistory();
-        setTimeout(function(){ _msg('pem-form-msg', '', ''); }, 2000);
+        _attachUploadAll('pem', rowIds, function() {
+          _pemLoadKPI();
+          _pemLoadHistory();
+          _msg('pem-form-msg', '', '');
+        });
       } else {
         _msg('pem-form-msg', 'error', res.error);
       }
@@ -3221,7 +3793,8 @@ function pemRevisiConfirm() {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('pem-revisi-msg', 'success', res.message);
+        _msg('pem-revisi-msg', 'success', res.data.message);
+        _attachCarry('TX_Pemantauan', params.targetRowId, res.data.rowId);
         setTimeout(function(){
           closeModal('modal-pem-revisi');
           _pemLoadKPI();
@@ -3530,6 +4103,10 @@ function _rawatInitPane(name) {
   if (fbody) fbody.style.display = _RAWAT.formOpen[name] ? 'block' : 'none';
   if (ficon) ficon.textContent = _RAWAT.formOpen[name] ? '\u25be' : '\u25b8';
 
+  _attachInit(name === 'kesiapan' ? 'rawk' : (name === 'docking' ? 'rawd' : 'rawi'), {
+    refSheet: 'TX_Perawatan_' + (name === 'kesiapan' ? 'Kesiapan' : (name === 'docking' ? 'Docking' : 'Item'))
+  });
+
   _opsInitPeriodeUi(prefix);
   ['tahun', 'bulan', 'minggu'].forEach(function (k) {
     var sel = document.getElementById(prefix + 'periode-' + k);
@@ -3724,6 +4301,7 @@ function _rawatRenderHistory(jenis, items) {
   var prefix = _RAWAT_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
   if (!wrap) return;
+  _hdReset();
 
   var canRevisi = _rawatCanWrite();
   var canAnulir = _rawatCanAnulir();
@@ -3747,6 +4325,40 @@ function _rawatRenderHistory(jenis, items) {
     var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_rawatOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
     var bEv  = '<button class="btn-mini" onclick="_rawatOpenEvidence(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Lampiran<span id="evc-' + jenis + '-' + _esc(r.rowId) + '"></span></button>';
 
+    var detailFields = [['Periode', _esc(r.periode)], ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')], ['Status', _esc(r.status)]];
+    if (jenis === 'kesiapan') {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Kapal', _esc(r.kapalNama)],
+        ['Status Kapal', r.statusSiap ? 'SIAP' : 'TIDAK SIAP'],
+        ['Penyebab Ketidaksiapan', _esc(r.penyebab || '—')],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    } else if (jenis === 'docking') {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Kapal', _esc(r.kapalNama)],
+        ['Lokasi', _esc(_RAWAT_LOKASI_LABEL[r.lokasi] || r.lokasi)],
+        ['Tahap', _esc(_RAWAT_TAHAP_LABEL[r.tahap] || r.tahap)],
+        ['Nilai Kontrak', _rupiah(r.nilaiKontrak)],
+        ['Kontraktor', _esc(r.kontraktor || '—')],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    } else {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Nama Pekerjaan', _esc(r.namaPekerjaan)],
+        ['Kategori', _esc(_RAWAT_KATEGORI_LABEL[r.kategori] || r.kategori)],
+        ['Nilai', _rupiah(r.nilai)],
+        ['Terkait Docking', _esc(r.dockingLabel || '—')],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    }
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush(_RAWAT_SHEET[jenis], r.rowId, _RAWAT_LABEL[jenis] + ' — Periode ' + r.periode, detailFields) + ')">Lihat</button>';
+
     var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
 
@@ -3754,7 +4366,7 @@ function _rawatRenderHistory(jenis, items) {
     _rawatCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
     t += '<td>' + tgl + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + bEv + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bLk + bRev + bAn + bEv + '</div></td>';
     t += '</tr>';
 
     if (r.status === 'VOID' && r.voidReason) {
@@ -3829,6 +4441,8 @@ function _rawatKesiapanStatusChange() {
 function _rawatSubmitKesiapan() {
   var btn = document.getElementById('rawk-btn-submit');
   _msg('rawk-form-msg', null);
+  var attachErr = _attachValidate('rawk');
+  if (attachErr) { _msg('rawk-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:   _composePeriode('rawk-'),
@@ -3842,8 +4456,10 @@ function _rawatSubmitKesiapan() {
       if (!res.success) { _msg('rawk-form-msg', 'error', res.error); return; }
       _msg('rawk-form-msg', 'success', res.data.message);
       document.getElementById('rawk-penyebab').value = '';
-      _rawatLoadKPI();
-      _rawatFetchHistory('kesiapan');
+      _attachUploadAll('rawk', [res.data.rowId], function() {
+        _rawatLoadKPI();
+        _rawatFetchHistory('kesiapan');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .perawatan_submitKesiapan(APP.token, params);
@@ -3852,6 +4468,8 @@ function _rawatSubmitKesiapan() {
 function _rawatSubmitDocking() {
   var btn = document.getElementById('rawd-btn-submit');
   _msg('rawd-form-msg', null);
+  var attachErr = _attachValidate('rawd');
+  if (attachErr) { _msg('rawd-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:      _composePeriode('rawd-'),
@@ -3868,8 +4486,10 @@ function _rawatSubmitDocking() {
       _msg('rawd-form-msg', 'success', res.data.message);
       document.getElementById('rawd-nilai').value = '';
       document.getElementById('rawd-kontraktor').value = '';
-      _rawatLoadKPI();
-      _rawatFetchHistory('docking');
+      _attachUploadAll('rawd', [res.data.rowId], function() {
+        _rawatLoadKPI();
+        _rawatFetchHistory('docking');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawd-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .perawatan_submitDocking(APP.token, params);
@@ -3878,6 +4498,8 @@ function _rawatSubmitDocking() {
 function _rawatSubmitItem() {
   var btn = document.getElementById('rawi-btn-submit');
   _msg('rawi-form-msg', null);
+  var attachErr = _attachValidate('rawi');
+  if (attachErr) { _msg('rawi-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:        _composePeriode('rawi-'),
@@ -3893,8 +4515,10 @@ function _rawatSubmitItem() {
       _msg('rawi-form-msg', 'success', res.data.message);
       document.getElementById('rawi-nama').value = '';
       document.getElementById('rawi-nilai').value = '';
-      _rawatLoadKPI();
-      _rawatFetchHistory('item');
+      _attachUploadAll('rawi', [res.data.rowId], function() {
+        _rawatLoadKPI();
+        _rawatFetchHistory('item');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawi-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .perawatan_submitItem(APP.token, params);
@@ -3996,6 +4620,9 @@ function _rawatRevisiConfirm() {
       _rawatCloseRevisi();
       if (!res.success) { _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
       _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _attachCarry('TX_Perawatan_' + (
+        jenis === 'kesiapan' ? 'Kesiapan' : (jenis === 'docking' ? 'Docking' : 'Item')
+      ), params.targetRowId, res.data.rowId);
       _rawatLoadKPI();
       _rawatFetchHistory(jenis);
     })
@@ -4266,6 +4893,10 @@ function _logInitPane(name) {
   });
   _logUpdatePeriodeHint(name);
 
+  _attachInit(name === 'amunisi' ? 'lga' : (name === 'bbm' ? 'lgb' : 'lgp'), {
+    refSheet: 'TX_Logistik_' + (name === 'amunisi' ? 'Amunisi' : (name === 'bbm' ? 'BBM' : 'Personil'))
+  });
+
   _logPopulateOptions();
   if (name === 'amunisi') _logAmunisiModeChange();
   if (name === 'bbm')     _logBbmModeChange();
@@ -4494,6 +5125,7 @@ function _logRenderHistory(jenis, items) {
   var prefix = _LOG_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
   if (!wrap) return;
+  _hdReset();
 
   var canRevisi = _logCanWrite();
   var canAnulir = _logCanAnulir();
@@ -4516,6 +5148,40 @@ function _logRenderHistory(jenis, items) {
     var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="_logOpenRevisi(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
     var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_logOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
 
+    var detailFields = [['Periode', _esc(r.periode)], ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')], ['Status', _esc(r.status)]];
+    if (jenis === 'amunisi') {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Jenis', _esc(r.jenis)],
+        ['Mode', _esc(r.mode)],
+        ['Stok Awal', r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—'],
+        ['Penggunaan Minggu Ini', r.mode === 'PENGGUNAAN' ? _idNum(r.penggunaan) : '—'],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    } else if (jenis === 'bbm') {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Jenis', _esc(r.jenis)],
+        ['Mode', _esc(r.mode)],
+        ['Pagu', r.mode === 'BASELINE' ? _idNum(r.pagu) : '—'],
+        ['Realisasi', r.mode === 'PENGGUNAAN' ? _idNum(r.realisasi) : '—'],
+        ['Harga Acuan', _esc(r.hargaAcuan || '—')],
+        ['Tunggakan', _esc(r.tunggakan || '—')],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    } else {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Komponen', _esc(_LOG_KOM_LABEL[r.komponen] || r.komponen)],
+        ['Nilai (Rp)', _rupiah(r.nilai)],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    }
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_Logistik_' + (jenis === 'amunisi' ? 'Amunisi' : (jenis === 'bbm' ? 'BBM' : 'Personil')), r.rowId, _LOG_LABEL[jenis] + ' — Periode ' + r.periode, detailFields) + ')">Lihat</button>';
+
     var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
 
@@ -4523,7 +5189,7 @@ function _logRenderHistory(jenis, items) {
     _logCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
     t += '<td>' + tgl + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if (r.status === 'VOID' && r.voidReason) {
@@ -4576,6 +5242,8 @@ function _logCells(jenis, r) {
 function _logSubmitAmunisi() {
   var btn = document.getElementById('lga-btn-submit');
   _msg('lga-form-msg', null);
+  var attachErr = _attachValidate('lga');
+  if (attachErr) { _msg('lga-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var base = _v('lga-mode') === 'BASELINE';
   var params = {
@@ -4593,8 +5261,10 @@ function _logSubmitAmunisi() {
       (res.data.warnings || []).forEach(function (w) { _msg('lga-form-msg', 'warn', w); });
       document.getElementById('lga-penggunaan').value = '';
       document.getElementById('lga-stok').value = '';
-      _logLoadKPI();
-      _logFetchHistory('amunisi');
+      _attachUploadAll('lga', [res.data.rowId], function() {
+        _logLoadKPI();
+        _logFetchHistory('amunisi');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lga-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .logistik_submitAmunisi(APP.token, params);
@@ -4603,6 +5273,8 @@ function _logSubmitAmunisi() {
 function _logSubmitBbm() {
   var btn = document.getElementById('lgb-btn-submit');
   _msg('lgb-form-msg', null);
+  var attachErr = _attachValidate('lgb');
+  if (attachErr) { _msg('lgb-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var base = _v('lgb-mode') === 'BASELINE';
   var params = {
@@ -4624,8 +5296,10 @@ function _logSubmitBbm() {
       (res.data.warnings || []).forEach(function (w) { _msg('lgb-form-msg', 'warn', w); });
       document.getElementById('lgb-realisasi').value = '';
       document.getElementById('lgb-pagu').value = '';
-      _logLoadKPI();
-      _logFetchHistory('bbm');
+      _attachUploadAll('lgb', [res.data.rowId], function() {
+        _logLoadKPI();
+        _logFetchHistory('bbm');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lgb-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .logistik_submitBBM(APP.token, params);
@@ -4634,6 +5308,8 @@ function _logSubmitBbm() {
 function _logSubmitPersonil() {
   var btn = document.getElementById('lgp-btn-submit');
   _msg('lgp-form-msg', null);
+  var attachErr = _attachValidate('lgp');
+  if (attachErr) { _msg('lgp-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:  _composePeriode('lgp-'),
@@ -4646,8 +5322,10 @@ function _logSubmitPersonil() {
       if (!res.success) { _msg('lgp-form-msg', 'error', res.error); return; }
       _msg('lgp-form-msg', 'success', res.data.message);
       document.getElementById('lgp-nilai').value = '';
-      _logLoadKPI();
-      _logFetchHistory('personil');
+      _attachUploadAll('lgp', [res.data.rowId], function() {
+        _logLoadKPI();
+        _logFetchHistory('personil');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lgp-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .logistik_submitPersonil(APP.token, params);
@@ -4740,6 +5418,9 @@ function _logRevisiConfirm() {
       if (!res.success) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
       _msg(_LOG_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
       (res.data.warnings || []).forEach(function (w) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'warn', w); });
+      _attachCarry('TX_Logistik_' + (
+        jenis === 'amunisi' ? 'Amunisi' : (jenis === 'bbm' ? 'BBM' : 'Personil')
+      ), params.targetRowId, res.data.rowId);
       _logLoadKPI();
       _logFetchHistory(jenis);
     })
@@ -4892,6 +5573,10 @@ function _awkInitPane(name) {
     if (sel) sel.onchange = function () { _awkUpdatePeriodeHint(name); };
   });
   _awkUpdatePeriodeHint(name);
+
+  _attachInit(name === 'akn' ? 'awkakn' : 'awkkeg', {
+    refSheet: 'TX_Pengawakan_' + (name === 'akn' ? 'AKN' : 'Kegiatan')
+  });
 
   _awkPopulateOptions();
   _awkRenderKomposisi(_AWK.kpi);
@@ -5066,6 +5751,7 @@ function _awkRenderHistory(jenis, items) {
   var prefix = _AWK_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
   if (!wrap) return;
+  _hdReset();
 
   var canRevisi = _awkCanWrite();
   var canAnulir = _awkCanAnulir();
@@ -5088,6 +5774,30 @@ function _awkRenderHistory(jenis, items) {
     var bRev = (r.status === 'ACTIVE' && canRevisi) ? '<button class="btn-mini" onclick="_awkOpenRevisi(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Revisi</button>' : '';
     var bAn  = (r.status === 'ACTIVE' && canAnulir) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="_awkOpenAnulir(\'' + jenis + '\',\'' + _esc(r.rowId) + '\')">Anulir</button>' : '';
 
+    var detailFields = [['Periode', _esc(r.periode)], ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')], ['Status', _esc(r.status)]];
+    if (jenis === 'akn') {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Scope', _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope)],
+        ['Kategori', _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori)],
+        ['Jumlah', _idNum(r.jumlah)],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    } else {
+      detailFields = [
+        ['Periode', _esc(r.periode)],
+        ['Judul Kegiatan', _esc(r.judul || '—')],
+        ['Mulai', r.tanggalMulai ? new Date(r.tanggalMulai).toLocaleDateString('id-ID') : '—'],
+        ['Selesai', r.tanggalSelesai ? new Date(r.tanggalSelesai).toLocaleDateString('id-ID') : '—'],
+        ['Wilayah', _esc(r.wilayah || '—')],
+        ['Jumlah Peserta', _idNum(r.jumlahPeserta)],
+        ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
+        ['Status', _esc(r.status)]
+      ];
+    }
+    var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_Pengawakan_' + (jenis === 'akn' ? 'AKN' : 'Kegiatan'), r.rowId, _AWK_LABEL[jenis] + ' — Periode ' + r.periode, detailFields) + ')">Lihat</button>';
+
     var rowCls = (r.status === 'VOID') ? 'style="background:#fef2f2;"' : (r.status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var tgl = r.timestamp ? new Date(r.timestamp).toLocaleDateString('id-ID') : '—';
 
@@ -5095,7 +5805,7 @@ function _awkRenderHistory(jenis, items) {
     _awkCells(jenis, r).forEach(function (cell) { t += '<td>' + cell + '</td>'; });
     t += '<td>' + tgl + '</td>';
     t += '<td>' + st + '</td>';
-    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bRev + bAn + '</div></td>';
+    t += '<td><div style="display:flex;gap:6px;flex-wrap:wrap;">' + bLk + bRev + bAn + '</div></td>';
     t += '</tr>';
 
     if (r.status === 'VOID' && r.voidReason) {
@@ -5138,6 +5848,8 @@ function _awkCells(jenis, r) {
 function _awkSubmitAkn() {
   var btn = document.getElementById('akn-btn-submit');
   _msg('akn-form-msg', null);
+  var attachErr = _attachValidate('awkakn');
+  if (attachErr) { _msg('akn-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:  _composePeriode('akn-'),
@@ -5151,8 +5863,10 @@ function _awkSubmitAkn() {
       if (!res.success) { _msg('akn-form-msg', 'error', res.error); return; }
       _msg('akn-form-msg', 'success', res.data.message);
       document.getElementById('akn-jumlah').value = '';
-      _awkLoadKPI();
-      _awkFetchHistory('akn');
+      _attachUploadAll('awkakn', [res.data.rowId], function() {
+        _awkLoadKPI();
+        _awkFetchHistory('akn');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('akn-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .awak_submitAKN(APP.token, params);
@@ -5161,6 +5875,8 @@ function _awkSubmitAkn() {
 function _awkSubmitKegiatan() {
   var btn = document.getElementById('akk-btn-submit');
   _msg('akk-form-msg', null);
+  var attachErr = _attachValidate('awkkeg');
+  if (attachErr) { _msg('akk-form-msg', 'error', attachErr); return; }
   _setLoading(btn, true);
   var params = {
     periode:        _composePeriode('akk-'),
@@ -5179,8 +5895,10 @@ function _awkSubmitKegiatan() {
       document.getElementById('akk-judul').value = '';
       document.getElementById('akk-wilayah').value = '';
       document.getElementById('akk-peserta').value = '';
-      _awkLoadKPI();
-      _awkFetchHistory('kegiatan');
+      _attachUploadAll('awkkeg', [res.data.rowId], function() {
+        _awkLoadKPI();
+        _awkFetchHistory('kegiatan');
+      });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('akk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
     .awak_submitKegiatan(APP.token, params);
@@ -5259,6 +5977,7 @@ function _awkRevisiConfirm() {
       _awkCloseRevisi();
       if (!res.success) { _msg(_AWK_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
       _msg(_AWK_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      _attachCarry('TX_Pengawakan_' + (jenis === 'akn' ? 'AKN' : 'Kegiatan'), params.targetRowId, res.data.rowId);
       _awkLoadKPI();
       _awkFetchHistory(jenis);
     })

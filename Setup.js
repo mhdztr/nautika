@@ -45,6 +45,7 @@ function setup() {
 
   _seedDivisi(masterSS);
   _seedSuperadmin(masterSS);
+  _seedOpsi(masterSS);
 
   props.setProperty(PROP_KEY.SETUP_COMPLETED, 'true');
 
@@ -104,6 +105,10 @@ function _setupMaster(props) {
     'UserID', 'Nama', 'Email', 'PasswordHash',
     'DivisiID', 'Role', 'Status',
     'ApprovedBy', 'RegisteredAt', 'ApprovedAt'
+  ]);
+
+  _createSheetWithHeaders(ss, SHEET_MASTER.OPSI, [
+    'Kode', 'Urutan', 'Label', 'Aktif', 'DibuatOleh', 'DibuatAt'
   ]);
 
   // Hapus sheet default bawaan GAS
@@ -386,6 +391,40 @@ function _seedSuperadmin(masterSS) {
       PROP_KEY.SEED_SUPERADMIN_PASSWORD + '". Untuk menentukan password sendiri sebelum setup, ' +
       'set property itu lebih dulu atau panggil setupSetSuperadminPassword("<password>") lalu setupForce().');
   }
+}
+
+// ===========================================================================
+// SEED DATA — Opsi (daftar pilihan dinamis)
+// Mencatat default setiap grup ke sheet `Opsi`. Baris yang sudah ada (match
+// Kode+Label) dilewati agar hasil edit/penambahan user tidak tertimpa saat
+// setupForce dijalankan ulang.
+// ===========================================================================
+
+function _seedOpsi(masterSS) {
+  Logger.log('[Setup] Seeding daftar Opsi...');
+  var sheet = masterSS.getSheetByName(SHEET_MASTER.OPSI);
+
+  var existing = sheetToObjects(sheet);
+  var seen = {};
+  existing.forEach(function (r) {
+    seen[String(r['Kode']) + '|' + String(r['Label'])] = true;
+  });
+
+  var rows = [];
+  var kodeList = [OPSI_KODE.AMUNISI, OPSI_KODE.BBM, OPSI_KODE.KOM_PERSONIL, OPSI_KODE.AWAK_KATEGORI];
+  for (var k = 0; k < kodeList.length; k++) {
+    var kode = kodeList[k];
+    var labels = OPSI_DEFAULT[kode] || [];
+    for (var i = 0; i < labels.length; i++) {
+      if (seen[kode + '|' + labels[i]]) continue;
+      rows.push([kode, i + 1, labels[i], true, 'SYSTEM', new Date()]);
+    }
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2 + existing.length, 1, rows.length, rows[0].length).setValues(rows);
+  }
+  Logger.log('[Setup] Opsi selesai di-seed (' + (existing.length + rows.length) + ' baris).');
 }
 
 /**

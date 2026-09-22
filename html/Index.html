@@ -155,6 +155,26 @@
 </div>
 
 <!-- =========================================================
+     MODAL — Lihat Riwayat (detail submission; berlaku semua modul)
+     diisi oleh _hdOpen(i) dari Script_Main.html
+     ========================================================= -->
+<div class="n-overlay n-hidden" id="modal-hd">
+  <div class="n-modal n-modal-hd">
+    <div class="n-modal-hd-head">
+      <h2 id="hd-title"></h2>
+      <button class="btn-ghost btn-mini" onclick="_hdClose()">Tutup</button>
+    </div>
+    <div class="n-modal-hd-scroll">
+      <table class="n-table"><tbody id="hd-body"></tbody></table>
+      <div class="content-section" style="margin-top:20px;">
+        <div class="content-section-hd">Lampiran</div>
+        <div id="hd-evidence"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
      VIEW TEMPLATES — server-side included, disimpan hidden
      Script_Main.html membaca innerHTML dan me-render konten
      ========================================================= -->

@@ -222,7 +222,7 @@ function operasiUdara_submit(token, params) {
       };
 
       appendRowData(sheet, newRow);
-      return { success: true, message: 'Laporan Operasi (Pesawat) berhasil disimpan.' };
+      return { success: true, data: { rowId: rowId, message: 'Laporan Operasi (Pesawat) berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -282,7 +282,7 @@ function operasiUdara_revisi(token, params) {
       };
 
       appendRowData(sheet, newRow);
-      return { success: true, message: 'Revisi berhasil disimpan.' };
+      return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }

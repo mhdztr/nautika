@@ -239,7 +239,7 @@ function operasiLaut_submit(token, params) {
       };
 
       appendRowData(sheet, newRow);
-      return { success: true, message: 'Laporan Operasi Laut berhasil disimpan.' };
+      return { success: true, data: { rowId: rowId, message: 'Laporan Operasi Laut berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -305,7 +305,7 @@ function operasiLaut_revisi(token, params) {
       };
 
       appendRowData(sheet, newRow);
-      return { success: true, message: 'Revisi berhasil disimpan.' };
+      return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
     }

@@ -65,7 +65,7 @@ function awak_getOptions(token) {
   try {
     var session = _awakRequireSession(token);
     _awakAssertRead(session);
-    return { success: true, data: { scopes: AWAK_SCOPE, kategori: AWAK_KATEGORI_PERSONIL } };
+    return { success: true, data: { scopes: AWAK_SCOPE, kategori: getOpsiList(OPSI_KODE.AWAK_KATEGORI) } };
   } catch (e) {
     Logger.log('[awak_getOptions] ' + e.message);
     return { success: false, error: e.message };
@@ -104,10 +104,10 @@ function awak_getKPI(token, filter) {
     // ── AKN (komposisi tahun berjalan) ──
     var latest = _awakKomposisiTahun(tahunRef);
     var perKategori = {};
-    AWAK_KATEGORI_PERSONIL.forEach(function (k) { perKategori[k] = { keseluruhan: 0, poa: 0 }; });
+    getOpsiList(OPSI_KODE.AWAK_KATEGORI).forEach(function (k) { perKategori[k] = { keseluruhan: 0, poa: 0 }; });
     var rows = [];
     AWAK_SCOPE.forEach(function (scope) {
-      AWAK_KATEGORI_PERSONIL.forEach(function (kat) {
+      getOpsiList(OPSI_KODE.AWAK_KATEGORI).forEach(function (kat) {
         var r = latest[scope + '|' + kat];
         var jml = r ? _awakNum(r['Jumlah']) : 0;
         if (scope === 'KESELURUHAN') perKategori[kat].keseluruhan = jml;
@@ -124,8 +124,8 @@ function awak_getKPI(token, filter) {
         }
       });
     });
-    var totalKeseluruhan = AWAK_KATEGORI_PERSONIL.reduce(function (s, k) { return s + perKategori[k].keseluruhan; }, 0);
-    var totalPoa = AWAK_KATEGORI_PERSONIL.reduce(function (s, k) { return s + perKategori[k].poa; }, 0);
+    var totalKeseluruhan = getOpsiList(OPSI_KODE.AWAK_KATEGORI).reduce(function (s, k) { return s + perKategori[k].keseluruhan; }, 0);
+    var totalPoa = getOpsiList(OPSI_KODE.AWAK_KATEGORI).reduce(function (s, k) { return s + perKategori[k].poa; }, 0);
 
     // ── Kegiatan (dalam rentang filter) ──
     var kegiatanCount = 0, kegiatanPeserta = 0;
@@ -251,7 +251,7 @@ function _awakBuildPayload(jenis, p, periode, oldRow) {
     var scope = String(p.scope || '').toUpperCase();
     var kategori = String(p.kategori || '').toUpperCase();
     if (AWAK_SCOPE.indexOf(scope) === -1) return { error: 'Scope AKN tidak valid.' };
-    if (AWAK_KATEGORI_PERSONIL.indexOf(kategori) === -1) return { error: 'Kategori personil tidak valid.' };
+    if (getOpsiList(OPSI_KODE.AWAK_KATEGORI).indexOf(kategori) === -1) return { error: 'Kategori personil tidak valid.' };
     var jumlah = (isRevision ? _awakProvided(p.jumlah, oldRow['Jumlah']) : _awakNum(p.jumlah));
     if (isNaN(jumlah) || jumlah < 0) return { error: 'Jumlah wajib berupa angka ≥ 0.' };
     return {
@@ -418,7 +418,7 @@ function awak_getTren(token, filter) {
     function aknSeries(scope) {
       var out = [];
       for (var i = 0; i < months.length; i++) out.push(0);
-      AWAK_KATEGORI_PERSONIL.forEach(function (kat) {
+      getOpsiList(OPSI_KODE.AWAK_KATEGORI).forEach(function (kat) {
         var prev = null;
         rows.forEach(function (r) {
           if (String(r['Scope']) !== scope) return;

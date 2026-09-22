@@ -10,6 +10,7 @@
     <button type="button" class="n-tab active" data-md-tab="kapal" onclick="_mdSetTab('kapal')">Kapal</button>
     <button type="button" class="n-tab" data-md-tab="kawasan" onclick="_mdSetTab('kawasan')">Kawasan Konservasi</button>
     <button type="button" class="n-tab" data-md-tab="wpp" onclick="_mdSetTab('wpp')">WPP</button>
+    <button type="button" class="n-tab" data-md-tab="opsi" onclick="_mdSetTab('opsi')">Opsi Daftar</button>
   </div>
 
   <!-- ════════════════ KAPAL ═══════════════════════ -->
@@ -60,6 +61,23 @@
     <div id="md-wpp-msg" class="n-msg"></div>
     <div id="md-wpp-source-note"></div>
     <div class="n-card" style="padding:0;overflow-x:auto;" id="md-wpp-wrap"></div>
+  </div>
+
+  <!-- ════════════════ OPSI DAFTAR ═══════════════════ -->
+  <div class="content-section n-hidden" id="md-pane-opsi">
+    <div class="md-pane-hd">
+      <div>
+        <div class="content-section-hd" style="margin:0;">Kelola Opsi Daftar</div>
+        <div style="font-size:.78rem;color:var(--n-text-muted);">
+          Nilai untuk dropdown <em>Jenis Amunisi</em>, <em>Jenis BBM</em>, <em>Komponen Personil</em>, dan
+          <em>Kategori Pengawakan</em> pada form modul divisi. Nilai nasab tetap aman; hanya dropdown yang berubah.
+          Dikelola oleh Superadmin &amp; Direktur.
+        </div>
+      </div>
+    </div>
+
+    <div id="md-opsi-msg" class="n-msg"></div>
+    <div id="md-opsi-wrap"></div>
   </div>
 
   <!-- ── MODAL KAPAL (tambah/edit) ────────────────── -->

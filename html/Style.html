@@ -167,6 +167,37 @@ a { text-decoration: none; color: inherit; }
   padding-right: 36px;
 }
 
+/* ── TYPEAHEAD COMBOBOX (backlog B — Fase 11) ────────── */
+.ta-field { position: relative; }
+.ta-input { width: 100%; }
+.ta-dd {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0; z-index: 60;
+  margin: 0; padding: 4px;
+  list-style: none;
+  background: var(--n-surface-1);
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  box-shadow: var(--n-shadow-card);
+  max-height: 240px; overflow-y: auto;
+  display: none;
+}
+.ta-dd li {
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--n-text-primary);
+  cursor: pointer;
+}
+.ta-dd li:hover,
+.ta-dd li.ta-hl { background: var(--n-surface-hover); color: var(--n-primary); }
+.ta-dd .ta-empty {
+  color: var(--n-text-muted);
+  font-size: 0.8125rem;
+  cursor: default;
+}
+
 /* ── LAMPIRAN INLINE (revisi Fase 10) ─────────────────── */
 .attach-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .attach-check {
@@ -227,31 +258,6 @@ a { text-decoration: none; color: inherit; }
 .btn-primary:active:not(:disabled) { filter: brightness(0.9); border-bottom-width: 1px; transform: translateY(3px); }
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary:focus-visible { outline: 3px solid var(--n-primary-light); outline-offset: 2px; }
-
-/* Tombol toggle form pelaporan (agar terlihat tegas seperti tombol) */
-.btn-form-toggle {
-  display: flex; width: 100%;
-  align-items: center; justify-content: space-between;
-  padding: 16px 20px;
-  background: var(--n-primary);
-  color: #fff;
-  border: 1px solid rgba(0,0,0,0.12);
-  border-bottom-width: 4px;
-  border-bottom-style: solid;
-  border-bottom-color: rgba(0,0,0,0.25);
-  border-radius: var(--n-r-sm);
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.01em;
-  box-shadow: var(--n-shadow-card);
-  cursor: pointer;
-  transition: filter 0.14s, transform 0.06s;
-  user-select: none;
-}
-.btn-form-toggle:hover  { filter: brightness(0.94); }
-.btn-form-toggle:active { filter: brightness(0.9); border-bottom-width: 1px; transform: translateY(3px); }
-.btn-form-toggle .toggle-icon { font-size: 1.2rem; color: #fff; opacity: 0.9; transition: transform 0.2s; }
 
 .btn-ghost {
   display: block; width: 100%;
@@ -754,6 +760,18 @@ a { text-decoration: none; color: inherit; }
   vertical-align: top; padding: 8px 0;
   overflow-wrap: break-word;
 }
+
+/* form popup modal (Backlog A) */
+.n-modal-form { max-width: 600px; width: 100%; }
+.n-modal-form-scroll { max-height: 62vh; overflow-y: auto; padding-right: 6px; }
+.modal-context {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--n-surface-2); border: 1px solid var(--n-border);
+  border-radius: var(--n-r-md);
+  padding: 10px 14px; margin: -6px 0 16px;
+  font-size: .82rem; color: var(--n-text-secondary);
+}
+.modal-context .mc-k { font-weight: 600; color: var(--n-text-primary); }
 
 /* ============================================================
    INLINE SPINNER (inside button while loading)

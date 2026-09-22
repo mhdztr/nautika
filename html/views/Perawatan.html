@@ -137,48 +137,8 @@
      ============================================================ -->
 <div id="view-tpl-rawat-kesiapan" hidden>
 
-  <div id="rawk-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="_rawatToggleForm('kesiapan')">
-      <div id="rawk-form-toggle-label">Input Status Kesiapan Kapal</div>
-      <span id="rawk-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
-
-    <div id="rawk-form-body" style="margin-top:18px;">
-      <div id="rawk-form-msg" class="n-msg"></div>
-
-      <div class="form-grp">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
-          <select id="rawk-periode-tahun"><option value="">Tahun</option></select>
-          <select id="rawk-periode-bulan"><option value="">Bulan</option></select>
-          <select id="rawk-periode-minggu"><option value="">Minggu Ke-</option></select>
-        </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawk-periode-hint">—</span></div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="rawk-kapal">Kapal</label>
-          <select id="rawk-kapal"><option value="">Memuat kapal…</option></select>
-        </div>
-        <div class="form-grp">
-          <label for="rawk-status">Status</label>
-          <select id="rawk-status" onchange="_rawatKesiapanStatusChange()">
-            <option value="true">Siap Operasi</option>
-            <option value="false">Tidak Siap</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-grp" id="rawk-penyebab-grp" style="display:none;">
-        <label for="rawk-penyebab">Penyebab Tidak Siap <span style="color:var(--n-crit)">*</span></label>
-        <input type="text" id="rawk-penyebab" placeholder="Cth: kerusakan mesin, menunggu suku cadang">
-      </div>
-
-      <div id="rawk-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:20px;" id="rawk-btn-submit" onclick="_rawatSubmitKesiapan()">Simpan Laporan</button>
-    </div>
+  <div id="rawk-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="_rawatOpenForm('kesiapan')">＋ Input Status Kesiapan Kapal</button>
   </div>
 
   <div class="content-section">
@@ -186,6 +146,52 @@
     <div id="rawk-history-msg" class="n-msg"></div>
     <div class="n-card" style="padding:0;overflow-x:auto;" id="rawk-history-wrap">
       <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL — INPUT STATUS KESIAPAN ─────────────── -->
+  <div class="n-overlay n-hidden" id="modal-rawk-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Status Kesiapan Kapal</h2>
+      <div class="n-modal-form-scroll">
+        <div id="rawk-form-msg" class="n-msg"></div>
+
+        <div class="form-grp">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+            <select id="rawk-periode-tahun"><option value="">Tahun</option></select>
+            <select id="rawk-periode-bulan"><option value="">Bulan</option></select>
+            <select id="rawk-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawk-periode-hint">—</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="rawk-kapal">Kapal</label>
+            <select id="rawk-kapal"><option value="">Memuat kapal…</option></select>
+          </div>
+          <div class="form-grp">
+            <label for="rawk-status">Status</label>
+            <select id="rawk-status" onchange="_rawatKesiapanStatusChange()">
+              <option value="true">Siap Operasi</option>
+              <option value="false">Tidak Siap</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grp" id="rawk-penyebab-grp" style="display:none;">
+          <label for="rawk-penyebab">Penyebab Tidak Siap <span style="color:var(--n-crit)">*</span></label>
+          <input type="text" id="rawk-penyebab" placeholder="Cth: kerusakan mesin, menunggu suku cadang">
+        </div>
+
+        <div id="rawk-attach" style="margin-top:20px;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="rawk-btn-submit" onclick="_rawatSubmitKesiapan()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-rawk-form')">Batal</button>
+      </div>
     </div>
   </div>
 
@@ -197,64 +203,8 @@
      ============================================================ -->
 <div id="view-tpl-rawat-docking" hidden>
 
-  <div id="rawd-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="_rawatToggleForm('docking')">
-      <div id="rawd-form-toggle-label">Input Progres Docking</div>
-      <span id="rawd-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
-
-    <div id="rawd-form-body" style="margin-top:18px;">
-      <div id="rawd-form-msg" class="n-msg"></div>
-
-      <div class="form-grp">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
-          <select id="rawd-periode-tahun"><option value="">Tahun</option></select>
-          <select id="rawd-periode-bulan"><option value="">Bulan</option></select>
-          <select id="rawd-periode-minggu"><option value="">Minggu Ke-</option></select>
-        </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawd-periode-hint">—</span></div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="rawd-kapal">Kapal</label>
-          <select id="rawd-kapal"><option value="">Memuat kapal…</option></select>
-        </div>
-        <div class="form-grp">
-          <label for="rawd-lokasi">Lokasi Docking</label>
-          <select id="rawd-lokasi">
-            <option value="PUSAT">Pusat</option>
-            <option value="UPT">UPT</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="rawd-tahap">Tahap</label>
-          <select id="rawd-tahap">
-            <option value="PROSES_PENGADAAN">Proses Pengadaan</option>
-            <option value="TANDATANGAN_KONTRAK">Tanda Tangan Kontrak</option>
-            <option value="PROSES_DOCKING">Proses Docking</option>
-            <option value="SELESAI">Selesai</option>
-          </select>
-        </div>
-        <div class="form-grp">
-          <label for="rawd-nilai">Nilai Kontrak (Rp)</label>
-          <input type="number" id="rawd-nilai" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div class="form-grp">
-        <label for="rawd-kontraktor">Kontraktor / Galangan</label>
-        <input type="text" id="rawd-kontraktor" placeholder="Nama pelaksana docking">
-      </div>
-
-      <div id="rawd-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:20px;" id="rawd-btn-submit" onclick="_rawatSubmitDocking()">Simpan Laporan</button>
-    </div>
+  <div id="rawd-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="_rawatOpenForm('docking')">＋ Input Progres Docking</button>
   </div>
 
   <div class="content-section">
@@ -272,6 +222,68 @@
     </div>
   </div>
 
+  <!-- ── MODAL — INPUT PROGRES DOCKING ─────────────── -->
+  <div class="n-overlay n-hidden" id="modal-rawd-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Progres Docking</h2>
+      <div class="n-modal-form-scroll">
+        <div id="rawd-form-msg" class="n-msg"></div>
+
+        <div class="form-grp">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+            <select id="rawd-periode-tahun"><option value="">Tahun</option></select>
+            <select id="rawd-periode-bulan"><option value="">Bulan</option></select>
+            <select id="rawd-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawd-periode-hint">—</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="rawd-kapal">Kapal</label>
+            <select id="rawd-kapal"><option value="">Memuat kapal…</option></select>
+          </div>
+          <div class="form-grp">
+            <label for="rawd-lokasi">Lokasi Docking</label>
+            <select id="rawd-lokasi">
+              <option value="PUSAT">Pusat</option>
+              <option value="UPT">UPT</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="rawd-tahap">Tahap</label>
+            <select id="rawd-tahap">
+              <option value="PROSES_PENGADAAN">Proses Pengadaan</option>
+              <option value="TANDATANGAN_KONTRAK">Tanda Tangan Kontrak</option>
+              <option value="PROSES_DOCKING">Proses Docking</option>
+              <option value="SELESAI">Selesai</option>
+            </select>
+          </div>
+          <div class="form-grp">
+            <label for="rawd-nilai">Nilai Kontrak (Rp)</label>
+            <input type="number" id="rawd-nilai" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div class="form-grp">
+          <label for="rawd-kontraktor">Kontraktor / Galangan</label>
+          <input type="text" id="rawd-kontraktor" placeholder="Nama pelaksana docking">
+        </div>
+
+        <div id="rawd-attach" style="margin-top:20px;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="rawd-btn-submit" onclick="_rawatSubmitDocking()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-rawd-form')">Batal</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /view-tpl-rawat-docking -->
 
 
@@ -280,54 +292,8 @@
      ============================================================ -->
 <div id="view-tpl-rawat-item" hidden>
 
-  <div id="rawi-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="_rawatToggleForm('item')">
-      <div id="rawi-form-toggle-label">Input Item Pekerjaan</div>
-      <span id="rawi-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
-
-    <div id="rawi-form-body" style="margin-top:18px;">
-      <div id="rawi-form-msg" class="n-msg"></div>
-
-      <div class="form-grp">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
-          <select id="rawi-periode-tahun"><option value="">Tahun</option></select>
-          <select id="rawi-periode-bulan"><option value="">Bulan</option></select>
-          <select id="rawi-periode-minggu"><option value="">Minggu Ke-</option></select>
-        </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawi-periode-hint">—</span></div>
-      </div>
-
-      <div class="form-grp">
-        <label for="rawi-nama">Nama Pekerjaan</label>
-        <input type="text" id="rawi-nama" placeholder="Cth: Penggantian pompa bahan bakar">
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="rawi-kategori">Kategori</label>
-          <select id="rawi-kategori">
-            <option value="PERENCANAAN">Perencanaan</option>
-            <option value="PROSES_PEMBAYARAN">Proses Pembayaran</option>
-            <option value="SELESAI">Selesai</option>
-          </select>
-        </div>
-        <div class="form-grp">
-          <label for="rawi-nilai">Nilai (Rp)</label>
-          <input type="number" id="rawi-nilai" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div class="form-grp">
-        <label for="rawi-docking">Terkait Docking <span style="color:var(--n-text-muted);font-weight:400;">(opsional)</span></label>
-        <select id="rawi-docking"><option value="">— Tidak terkait baris docking —</option></select>
-      </div>
-
-      <div id="rawi-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:20px;" id="rawi-btn-submit" onclick="_rawatSubmitItem()">Simpan Laporan</button>
-    </div>
+  <div id="rawi-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="_rawatOpenForm('item')">＋ Input Item Pekerjaan</button>
   </div>
 
   <div class="content-section">
@@ -342,6 +308,58 @@
     <div id="rawi-history-msg" class="n-msg"></div>
     <div class="n-card" style="padding:0;overflow-x:auto;" id="rawi-history-wrap">
       <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL — INPUT ITEM PEKERJAAN ──────────────── -->
+  <div class="n-overlay n-hidden" id="modal-rawi-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Item Pekerjaan</h2>
+      <div class="n-modal-form-scroll">
+        <div id="rawi-form-msg" class="n-msg"></div>
+
+        <div class="form-grp">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+            <select id="rawi-periode-tahun"><option value="">Tahun</option></select>
+            <select id="rawi-periode-bulan"><option value="">Bulan</option></select>
+            <select id="rawi-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="rawi-periode-hint">—</span></div>
+        </div>
+
+        <div class="form-grp">
+          <label for="rawi-nama">Nama Pekerjaan</label>
+          <input type="text" id="rawi-nama" placeholder="Cth: Penggantian pompa bahan bakar">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="rawi-kategori">Kategori</label>
+            <select id="rawi-kategori">
+              <option value="PERENCANAAN">Perencanaan</option>
+              <option value="PROSES_PEMBAYARAN">Proses Pembayaran</option>
+              <option value="SELESAI">Selesai</option>
+            </select>
+          </div>
+          <div class="form-grp">
+            <label for="rawi-nilai">Nilai (Rp)</label>
+            <input type="number" id="rawi-nilai" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div class="form-grp">
+          <label for="rawi-docking">Terkait Docking <span style="color:var(--n-text-muted);font-weight:400;">(opsional)</span></label>
+          <select id="rawi-docking"><option value="">— Tidak terkait baris docking —</option></select>
+        </div>
+
+        <div id="rawi-attach" style="margin-top:20px;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="rawi-btn-submit" onclick="_rawatSubmitItem()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-rawi-form')">Batal</button>
+      </div>
     </div>
   </div>
 

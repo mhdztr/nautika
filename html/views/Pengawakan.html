@@ -98,53 +98,8 @@
      ============================================================ -->
 <div id="view-tpl-awak-akn" hidden>
 
-  <div id="akn-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="_awkToggleForm('akn')">
-      <div id="akn-form-toggle-label">Input Perubahan Komposisi AKN</div>
-      <span id="akn-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
-
-    <div id="akn-form-body" style="margin-top:18px;">
-      <div id="akn-form-msg" class="n-msg"></div>
-
-      <div class="n-info-static" style="margin-bottom:16px;">
-        Komposisi AKN diinput sebagai <strong>total terbaru</strong> per (Scope, Kategori),
-        bukan selisih. Sistem memakai nilai terakhir tiap kategori untuk penghitungan tahun berjalan.
-      </div>
-
-      <div class="form-grp">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
-          <select id="akn-periode-tahun"><option value="">Tahun</option></select>
-          <select id="akn-periode-bulan"><option value="">Bulan</option></select>
-          <select id="akn-periode-minggu"><option value="">Minggu Ke-</option></select>
-        </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akn-periode-hint">—</span></div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="akn-scope">Scope</label>
-          <select id="akn-scope">
-            <option value="KESELURUHAN">Keseluruhan</option>
-            <option value="POA">POA</option>
-          </select>
-        </div>
-        <div class="form-grp">
-          <label for="akn-kategori">Kategori Personil</label>
-          <select id="akn-kategori"><option value="">Memuat kategori…</option></select>
-        </div>
-      </div>
-
-      <div class="form-grp">
-        <label for="akn-jumlah">Jumlah (Total Terbaru) <span style="color:var(--n-crit)">*</span></label>
-        <input type="number" id="akn-jumlah" min="0" step="1" placeholder="0">
-      </div>
-
-      <div id="awkakn-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:20px;" id="akn-btn-submit" onclick="_awkSubmitAkn()">Simpan Laporan</button>
-    </div>
+  <div id="akn-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="_awkOpenForm('akn')">＋ Input Perubahan Komposisi AKN</button>
   </div>
 
   <div class="content-section">
@@ -162,6 +117,61 @@
     </div>
   </div>
 
+  <!-- ── MODAL — INPUT PERUBAHAN KOMPOSISI AKN ────── -->
+  <div class="n-overlay n-hidden" id="modal-akn-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Perubahan Komposisi AKN</h2>
+      <div class="n-modal-form-scroll">
+        <div id="akn-form-msg" class="n-msg"></div>
+
+        <div class="n-info-static" style="margin-bottom:16px;">
+          Komposisi AKN diinput sebagai <strong>total terbaru</strong> per (Scope, Kategori),
+          bukan selisih. Sistem memakai nilai terakhir tiap kategori untuk penghitungan tahun berjalan.
+        </div>
+
+        <div class="form-grp">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+            <select id="akn-periode-tahun"><option value="">Tahun</option></select>
+            <select id="akn-periode-bulan"><option value="">Bulan</option></select>
+            <select id="akn-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akn-periode-hint">—</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="akn-scope">Scope</label>
+            <select id="akn-scope">
+              <option value="KESELURUHAN">Keseluruhan</option>
+              <option value="POA">POA</option>
+            </select>
+          </div>
+          <div class="form-grp">
+            <label for="akn-kategori">Kategori Personil</label>
+            <div class="ta-field">
+              <input type="text" id="akn-kategori-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
+              <input type="hidden" id="akn-kategori">
+              <ul class="ta-dd" id="akn-kategori-dd"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grp">
+          <label for="akn-jumlah">Jumlah (Total Terbaru) <span style="color:var(--n-crit)">*</span></label>
+          <input type="number" id="akn-jumlah" min="0" step="1" placeholder="0">
+        </div>
+
+        <div id="awkakn-attach" style="margin-top:20px;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="akn-btn-submit" onclick="_awkSubmitAkn()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-akn-form')">Batal</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /view-tpl-awak-akn -->
 
 
@@ -170,61 +180,8 @@
      ============================================================ -->
 <div id="view-tpl-awak-kegiatan" hidden>
 
-  <div id="akk-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="_awkToggleForm('kegiatan')">
-      <div id="akk-form-toggle-label">Input Kegiatan Personel</div>
-      <span id="akk-form-toggle-icon" class="toggle-icon">▸</span>
-    </div>
-
-    <div id="akk-form-body" style="margin-top:18px;">
-      <div id="akk-form-msg" class="n-msg"></div>
-
-      <div class="form-grp">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
-          <select id="akk-periode-tahun"><option value="">Tahun</option></select>
-          <select id="akk-periode-bulan"><option value="">Bulan</option></select>
-          <select id="akk-periode-minggu"><option value="">Minggu Ke-</option></select>
-        </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akk-periode-hint">—</span></div>
-      </div>
-
-      <div class="form-grp">
-        <label for="akk-judul">Judul Kegiatan <span style="color:var(--n-crit)">*</span></label>
-        <input type="text" id="akk-judul" placeholder="Cth: Pembekalan ABK, latihan navigasi, apel gelar">
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="akk-tglmulai">Tanggal Mulai <span style="color:var(--n-crit)">*</span></label>
-          <input type="date" id="akk-tglmulai">
-        </div>
-        <div class="form-grp">
-          <label for="akk-tglselesai">Tanggal Selesai</label>
-          <input type="date" id="akk-tglselesai">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="akk-wilayah">Wilayah</label>
-          <input type="text" id="akk-wilayah" placeholder="Cth: Dermaga Menteng, Perairan Sumatera">
-        </div>
-        <div class="form-grp">
-          <label for="akk-peserta">Jumlah Peserta</label>
-          <input type="number" id="akk-peserta" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div class="form-grp">
-        <label for="akk-deskripsi">Deskripsi Kegiatan</label>
-        <textarea id="akk-deskripsi" rows="3" placeholder="Latar belakang & hasil kegiatan"></textarea>
-      </div>
-
-      <div id="awkkeg-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:20px;" id="akk-btn-submit" onclick="_awkSubmitKegiatan()">Simpan Laporan</button>
-    </div>
+  <div id="akk-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="_awkOpenForm('kegiatan')">＋ Input Kegiatan Personel</button>
   </div>
 
   <div class="content-section">
@@ -232,6 +189,65 @@
     <div id="akk-history-msg" class="n-msg"></div>
     <div class="n-card" style="padding:0;overflow-x:auto;" id="akk-history-wrap">
       <div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Memuat riwayat…</div>
+    </div>
+  </div>
+
+  <!-- ── MODAL — INPUT KEGIATAN PERSONEL ───────────── -->
+  <div class="n-overlay n-hidden" id="modal-akk-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Kegiatan Personel</h2>
+      <div class="n-modal-form-scroll">
+        <div id="akk-form-msg" class="n-msg"></div>
+
+        <div class="form-grp">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;">
+            <select id="akk-periode-tahun"><option value="">Tahun</option></select>
+            <select id="akk-periode-bulan"><option value="">Bulan</option></select>
+            <select id="akk-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;">Periode: <span id="akk-periode-hint">—</span></div>
+        </div>
+
+        <div class="form-grp">
+          <label for="akk-judul">Judul Kegiatan <span style="color:var(--n-crit)">*</span></label>
+          <input type="text" id="akk-judul" placeholder="Cth: Pembekalan ABK, latihan navigasi, apel gelar">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="akk-tglmulai">Tanggal Mulai <span style="color:var(--n-crit)">*</span></label>
+            <input type="date" id="akk-tglmulai">
+          </div>
+          <div class="form-grp">
+            <label for="akk-tglselesai">Tanggal Selesai</label>
+            <input type="date" id="akk-tglselesai">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="akk-wilayah">Wilayah</label>
+            <input type="text" id="akk-wilayah" placeholder="Cth: Dermaga Menteng, Perairan Sumatera">
+          </div>
+          <div class="form-grp">
+            <label for="akk-peserta">Jumlah Peserta</label>
+            <input type="number" id="akk-peserta" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div class="form-grp">
+          <label for="akk-deskripsi">Deskripsi Kegiatan</label>
+          <textarea id="akk-deskripsi" rows="3" placeholder="Latar belakang & hasil kegiatan"></textarea>
+        </div>
+
+        <div id="awkkeg-attach" style="margin-top:20px;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="akk-btn-submit" onclick="_awkSubmitKegiatan()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-akk-form')">Batal</button>
+      </div>
     </div>
   </div>
 

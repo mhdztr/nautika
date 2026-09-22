@@ -42,125 +42,131 @@
     </div>
   </div>
 
-  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
-  <div id="ops-laut-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="opsLautToggleForm()">
-      <div id="ops-laut-form-toggle-label">Input Laporan Operasi Laut</div>
-      <span id="ops-laut-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
+  <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
+  <div id="ops-laut-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="opsLautOpenForm()">＋ Input Laporan Operasi Laut</button>
+  </div>
 
-    <div id="ops-laut-form-body" style="margin-top:18px;">
-      <div id="ops-laut-form-msg" class="n-msg"></div>
+  <!-- ── MODAL — INPUT LAPORAN OPERASI LAUT ────────── -->
+  <div class="n-overlay n-hidden" id="modal-ops-laut-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Laporan Operasi Laut</h2>
+      <div class="n-modal-form-scroll">
+        <div id="ops-laut-form-msg" class="n-msg"></div>
 
-      <!-- Header: Periode & WPP -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-bottom: 24px;">
-        <div class="form-grp">
-          <label for="ops-periode-tahun">Periode Laporan</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <select id="ops-periode-tahun"><option value="">Tahun</option></select>
-            <select id="ops-periode-bulan"><option value="">Bulan</option></select>
-            <select id="ops-periode-minggu"><option value="">Minggu Ke-</option></select>
+        <!-- Header: Periode & WPP -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-bottom: 24px;">
+          <div class="form-grp">
+            <label for="ops-periode-tahun">Periode Laporan</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <select id="ops-periode-tahun"><option value="">Tahun</option></select>
+              <select id="ops-periode-bulan"><option value="">Bulan</option></select>
+              <select id="ops-periode-minggu"><option value="">Minggu Ke-</option></select>
+            </div>
+            <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="ops-periode-hint">Periode: —</div>
           </div>
-          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="ops-periode-hint">Periode: —</div>
-        </div>
-        <div class="form-grp">
-          <label for="ops-wpp">Wilayah Pengelolaan Perikanan (WPP)</label>
-          <select id="ops-wpp">
-            <option value="">Memuat WPP...</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
-      <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Penangkapan Kapal & Valuasi</h3>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="ops-kii">KII Ditangkap</label>
-          <input type="number" id="ops-kii" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="ops-kia">KIA Ditangkap</label>
-          <input type="number" id="ops-kia" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="ops-asal-negara">Asal Negara Asing (Jika KIA > 0)</label>
-          <input type="text" id="ops-asal-negara" placeholder="Cth: Vietnam, Filipina">
-        </div>
-        <div class="form-grp">
-          <label for="ops-valuasi-ikan">Valuasi Illegal Fishing (Rp)</label>
-          <input type="number" id="ops-valuasi-ikan" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="ops-rumpon">Rumpon Ditertibkan</label>
-          <input type="number" id="ops-rumpon" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="ops-valuasi-rumpon">Valuasi Rumpon (Rp)</label>
-          <input type="number" id="ops-valuasi-rumpon" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
-      <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Hasil Pemeriksaan & Hari Operasi</h3>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; align-items: end;">
-        <div class="form-grp">
-          <label for="ops-riksa-kategori">Kategori Riksa</label>
-          <select id="ops-riksa-kategori">
-            <option value="">(Pilih Kategori)</option>
-            <option value="PUSAT">Pusat</option>
-            <option value="UPT">UPT</option>
-            <option value="SPEEDBOAT">Speedboat</option>
-          </select>
-        </div>
-        <div style="display:flex; gap:10px;">
-          <div class="form-grp" style="flex:1;">
-            <label for="ops-riksa-kii">Riksa KII</label>
-            <input type="number" id="ops-riksa-kii" min="0" step="1" placeholder="0">
-          </div>
-          <div class="form-grp" style="flex:1;">
-            <label for="ops-riksa-kia">Riksa KIA</label>
-            <input type="number" id="ops-riksa-kia" min="0" step="1" placeholder="0">
-          </div>
-          <div class="form-grp" style="flex:1;">
-            <label for="ops-riksa-sdk">Riksa SDK</label>
-            <input type="number" id="ops-riksa-sdk" min="0" step="1" placeholder="0">
+          <div class="form-grp">
+            <label for="ops-wpp">Wilayah Pengelolaan Perikanan (WPP)</label>
+            <select id="ops-wpp">
+              <option value="">Memuat WPP...</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 14px;">
-        <div class="form-grp">
-          <label for="ops-hari-kategori">Kategori Hari Operasi</label>
-          <select id="ops-hari-kategori">
-            <option value="">(Pilih Kategori)</option>
-            <option value="KAPAL_PUSAT">Kapal Pusat</option>
-            <option value="SEMUA_KAPAL">Semua Kapal</option>
-            <option value="SPEEDBOAT">Speedboat</option>
-          </select>
-        </div>
-        <div style="display:flex; gap:10px;">
-          <div class="form-grp" style="flex:1;">
-            <label for="ops-hari-jumlah">Jumlah Hari Operasi</label>
-            <input type="number" id="ops-hari-jumlah" min="0" step="1" placeholder="0">
+        <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
+        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Penangkapan Kapal & Valuasi</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="ops-kii">KII Ditangkap</label>
+            <input type="number" id="ops-kii" min="0" step="1" placeholder="0">
           </div>
-          <div class="form-grp" style="flex:1;">
-            <label for="ops-hari-target">Target Hari Operasi</label>
-            <input type="number" id="ops-hari-target" min="0" step="1" value="180">
+          <div class="form-grp">
+            <label for="ops-kia">KIA Ditangkap</label>
+            <input type="number" id="ops-kia" min="0" step="1" placeholder="0">
           </div>
         </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="ops-asal-negara">Asal Negara Asing (Jika KIA > 0)</label>
+            <input type="text" id="ops-asal-negara" placeholder="Cth: Vietnam, Filipina">
+          </div>
+          <div class="form-grp">
+            <label for="ops-valuasi-ikan">Valuasi Illegal Fishing (Rp)</label>
+            <input type="number" id="ops-valuasi-ikan" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="ops-rumpon">Rumpon Ditertibkan</label>
+            <input type="number" id="ops-rumpon" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="ops-valuasi-rumpon">Valuasi Rumpon (Rp)</label>
+            <input type="number" id="ops-valuasi-rumpon" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
+        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Hasil Pemeriksaan & Hari Operasi</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; align-items: end;">
+          <div class="form-grp">
+            <label for="ops-riksa-kategori">Kategori Riksa</label>
+            <select id="ops-riksa-kategori">
+              <option value="">(Pilih Kategori)</option>
+              <option value="PUSAT">Pusat</option>
+              <option value="UPT">UPT</option>
+              <option value="SPEEDBOAT">Speedboat</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <div class="form-grp" style="flex:1;">
+              <label for="ops-riksa-kii">Riksa KII</label>
+              <input type="number" id="ops-riksa-kii" min="0" step="1" placeholder="0">
+            </div>
+            <div class="form-grp" style="flex:1;">
+              <label for="ops-riksa-kia">Riksa KIA</label>
+              <input type="number" id="ops-riksa-kia" min="0" step="1" placeholder="0">
+            </div>
+            <div class="form-grp" style="flex:1;">
+              <label for="ops-riksa-sdk">Riksa SDK</label>
+              <input type="number" id="ops-riksa-sdk" min="0" step="1" placeholder="0">
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 14px;">
+          <div class="form-grp">
+            <label for="ops-hari-kategori">Kategori Hari Operasi</label>
+            <select id="ops-hari-kategori">
+              <option value="">(Pilih Kategori)</option>
+              <option value="KAPAL_PUSAT">Kapal Pusat</option>
+              <option value="SEMUA_KAPAL">Semua Kapal</option>
+              <option value="SPEEDBOAT">Speedboat</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <div class="form-grp" style="flex:1;">
+              <label for="ops-hari-jumlah">Jumlah Hari Operasi</label>
+              <input type="number" id="ops-hari-jumlah" min="0" step="1" placeholder="0">
+            </div>
+            <div class="form-grp" style="flex:1;">
+              <label for="ops-hari-target">Target Hari Operasi</label>
+              <input type="number" id="ops-hari-target" min="0" step="1" value="180">
+            </div>
+          </div>
+        </div>
+
+        <div id="opslaut-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div id="opslaut-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:24px;" id="ops-btn-submit" onclick="opsLautSubmit()">Simpan Laporan</button>
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="ops-btn-submit" onclick="opsLautSubmit()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-ops-laut-form')">Batal</button>
+      </div>
     </div>
   </div>
 

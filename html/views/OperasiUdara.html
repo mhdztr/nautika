@@ -42,80 +42,86 @@
     </div>
   </div>
 
-  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
-  <div id="ops-udara-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="opsUdaraToggleForm()">
-      <div id="ops-udara-form-toggle-label">Input Laporan Operasi Pesawat</div>
-      <span id="ops-udara-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
+  <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
+  <div id="ops-udara-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="opsUdaraOpenForm()">＋ Input Laporan Operasi Pesawat</button>
+  </div>
 
-    <div id="ops-udara-form-body" style="margin-top:18px;">
-      <div id="ops-udara-form-msg" class="n-msg"></div>
+  <!-- ── MODAL — INPUT LAPORAN OPERASI PESAWAT ────── -->
+  <div class="n-overlay n-hidden" id="modal-ops-udara-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Laporan Operasi Pesawat</h2>
+      <div class="n-modal-form-scroll">
+        <div id="ops-udara-form-msg" class="n-msg"></div>
 
-      <!-- Header: Periode & WPP -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-bottom: 24px;">
-        <div class="form-grp">
-          <label for="oud-periode-tahun">Periode Laporan</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <select id="oud-periode-tahun"><option value="">Tahun</option></select>
-            <select id="oud-periode-bulan"><option value="">Bulan</option></select>
-            <select id="oud-periode-minggu"><option value="">Minggu Ke-</option></select>
+        <!-- Header: Periode & WPP -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-bottom: 24px;">
+          <div class="form-grp">
+            <label for="oud-periode-tahun">Periode Laporan</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <select id="oud-periode-tahun"><option value="">Tahun</option></select>
+              <select id="oud-periode-bulan"><option value="">Bulan</option></select>
+              <select id="oud-periode-minggu"><option value="">Minggu Ke-</option></select>
+            </div>
+            <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="oud-periode-hint">Periode: —</div>
           </div>
-          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="oud-periode-hint">Periode: —</div>
-        </div>
-        <div class="form-grp">
-          <label for="oud-wpp">Wilayah Pengelolaan Perikanan (WPP)</label>
-          <select id="oud-wpp">
-            <option value="">Memuat WPP...</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
-      <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Pemantauan Udara</h3>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="oud-kii">KII Teridentifikasi</label>
-          <input type="number" id="oud-kii" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="oud-kia">KIA Teridentifikasi</label>
-          <input type="number" id="oud-kia" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="oud-sdk">Objek SDK</label>
-          <input type="number" id="oud-sdk" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="oud-rumpon">Rumpon Lokal Teridentifikasi</label>
-          <input type="number" id="oud-rumpon" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="oud-cakupan">Cakupan Wilayah Teramati (NM²)</label>
-          <input type="number" id="oud-cakupan" min="0" step="1" placeholder="0">
-        </div>
-        <div style="display:flex; gap:10px;">
-          <div class="form-grp" style="flex:1;">
-            <label for="oud-hari-jumlah">Jumlah Hari Operasi</label>
-            <input type="number" id="oud-hari-jumlah" min="0" step="1" placeholder="0">
-          </div>
-          <div class="form-grp" style="flex:1;">
-            <label for="oud-hari-target">Target Hari Operasi</label>
-            <input type="number" id="oud-hari-target" min="0" step="1" value="180">
+          <div class="form-grp">
+            <label for="oud-wpp">Wilayah Pengelolaan Perikanan (WPP)</label>
+            <select id="oud-wpp">
+              <option value="">Memuat WPP...</option>
+            </select>
           </div>
         </div>
+
+        <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
+        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Pemantauan Udara</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="oud-kii">KII Teridentifikasi</label>
+            <input type="number" id="oud-kii" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="oud-kia">KIA Teridentifikasi</label>
+            <input type="number" id="oud-kia" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="oud-sdk">Objek SDK</label>
+            <input type="number" id="oud-sdk" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="oud-rumpon">Rumpon Lokal Teridentifikasi</label>
+            <input type="number" id="oud-rumpon" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="oud-cakupan">Cakupan Wilayah Teramati (NM²)</label>
+            <input type="number" id="oud-cakupan" min="0" step="1" placeholder="0">
+          </div>
+          <div style="display:flex; gap:10px;">
+            <div class="form-grp" style="flex:1;">
+              <label for="oud-hari-jumlah">Jumlah Hari Operasi</label>
+              <input type="number" id="oud-hari-jumlah" min="0" step="1" placeholder="0">
+            </div>
+            <div class="form-grp" style="flex:1;">
+              <label for="oud-hari-target">Target Hari Operasi</label>
+              <input type="number" id="oud-hari-target" min="0" step="1" value="180">
+            </div>
+          </div>
+        </div>
+
+        <div id="opsudara-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div id="opsudara-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:24px;" id="oud-btn-submit" onclick="opsUdaraSubmit()">Simpan Laporan</button>
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="oud-btn-submit" onclick="opsUdaraSubmit()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-ops-udara-form')">Batal</button>
+      </div>
     </div>
   </div>
 

@@ -58,68 +58,74 @@
     </div>
   </div>
 
-  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
-  <div class="content-section n-card">
-    <div class="btn-form-toggle" onclick="pemToggleForm()">
-      <div id="pem-form-toggle-label">Input Laporan Pemantauan</div>
-      <span id="pem-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
+  <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
+  <div class="content-section">
+    <button type="button" class="btn-primary" onclick="pemOpenForm()">＋ Input Laporan Pemantauan</button>
+  </div>
 
-    <div id="pem-form-body" style="margin-top:18px;">
-      <div id="pem-form-msg" class="n-msg"></div>
+  <!-- ── MODAL — INPUT LAPORAN PEMANTAUAN ─────────── -->
+  <div class="n-overlay n-hidden" id="modal-pem-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Laporan Pemantauan</h2>
+      <div class="n-modal-form-scroll">
+        <div id="pem-form-msg" class="n-msg"></div>
 
-      <!-- Periode -->
-      <div class="form-grp" style="max-width:420px;">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-          <select id="pem-periode-tahun"><option value="">Tahun</option></select>
-          <select id="pem-periode-bulan"><option value="">Bulan</option></select>
-          <select id="pem-periode-minggu"><option value="">Minggu Ke-</option></select>
+        <!-- Periode -->
+        <div class="form-grp" style="max-width:420px;">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <select id="pem-periode-tahun"><option value="">Tahun</option></select>
+            <select id="pem-periode-bulan"><option value="">Bulan</option></select>
+            <select id="pem-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="pem-periode-hint">Periode: —</div>
         </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="pem-periode-hint">Periode: —</div>
-      </div>
 
-      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-      <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Penerbitan Minggu Ini</h3>
+        <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+        <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Penerbitan Minggu Ini</h3>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="pem-username">Penerbitan Username SPKP</label>
-          <input type="number" id="pem-username" min="0" step="1" placeholder="0">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="pem-username">Penerbitan Username SPKP</label>
+            <input type="number" id="pem-username" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="pem-skat">Penerbitan SKAT</label>
+            <input type="number" id="pem-skat" min="0" step="1" placeholder="0">
+          </div>
         </div>
-        <div class="form-grp">
-          <label for="pem-skat">Penerbitan SKAT</label>
-          <input type="number" id="pem-skat" min="0" step="1" placeholder="0">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="pem-migrasi">Pemasangan SPKP Kapal Migrasi</label>
+            <input type="number" id="pem-migrasi" min="0" step="1" placeholder="0">
+          </div>
         </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="pem-migrasi">Pemasangan SPKP Kapal Migrasi</label>
-          <input type="number" id="pem-migrasi" min="0" step="1" placeholder="0">
+
+        <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+
+        <!-- Persetujuan penyedia baru -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Persetujuan Penyedia Baru</h3>
+          <button type="button" class="btn-mini" onclick="pemAddPenyediaRow()">+ Tambah</button>
         </div>
+        <div id="pem-penyedia-rows"></div>
+
+        <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+
+        <!-- Kapal marabahaya baru -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Kapal Marabahaya Baru</h3>
+          <button type="button" class="btn-mini" onclick="pemAddMarabahayaRow()">+ Tambah</button>
+        </div>
+        <div id="pem-marabahaya-rows"></div>
+
+        <div id="pem-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-
-      <!-- Persetujuan penyedia baru -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Persetujuan Penyedia Baru</h3>
-        <button type="button" class="btn-mini" onclick="pemAddPenyediaRow()">+ Tambah</button>
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="pem-btn-submit" onclick="pemSubmit()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-pem-form')">Batal</button>
       </div>
-      <div id="pem-penyedia-rows"></div>
-
-      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-
-      <!-- Kapal marabahaya baru -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Kapal Marabahaya Baru</h3>
-        <button type="button" class="btn-mini" onclick="pemAddMarabahayaRow()">+ Tambah</button>
-      </div>
-      <div id="pem-marabahaya-rows"></div>
-
-      <div id="pem-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:24px;" id="pem-btn-submit" onclick="pemSubmit()">Simpan Laporan</button>
     </div>
   </div>
 

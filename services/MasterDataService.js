@@ -424,7 +424,7 @@ function master_addOpsiJenis(token, params) {
         return { success: false, error: 'Nama opsi maksimal 40 karakter.' };
       }
 
-      var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+      var sheet = ensureOpsiSheet();
       var rows  = sheetToObjects(sheet);
       var maxUrutan = 0;
       var exists = false;
@@ -481,7 +481,7 @@ function master_setOpsiJenisAktif(token, params) {
         return { success: false, error: 'Kode opsi tidak dikenal.' };
       }
 
-      var sheet = openMasterSheet(SHEET_MASTER.OPSI);
+      var sheet = ensureOpsiSheet();
       var rows  = sheetToObjects(sheet);
       var found = null;
       for (var i = 0; i < rows.length; i++) {

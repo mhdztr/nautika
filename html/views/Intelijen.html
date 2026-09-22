@@ -49,67 +49,73 @@
     </div>
   </div>
 
-  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
-  <div class="content-section n-card">
-    <div class="btn-form-toggle" onclick="intelToggleForm()">
-      <div id="int-form-toggle-label">Input Laporan Intelijen</div>
-      <span id="int-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
+  <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
+  <div class="content-section">
+    <button type="button" class="btn-primary" onclick="intelOpenForm()">＋ Input Laporan Intelijen</button>
+  </div>
 
-    <div id="int-form-body" style="margin-top:18px;">
-      <div id="int-form-msg" class="n-msg"></div>
+  <!-- ── MODAL — INPUT LAPORAN INTELIJEN ──────────── -->
+  <div class="n-overlay n-hidden" id="modal-int-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Laporan Intelijen</h2>
+      <div class="n-modal-form-scroll">
+        <div id="int-form-msg" class="n-msg"></div>
 
-      <!-- Periode -->
-      <div class="form-grp" style="max-width:420px;">
-        <label>Periode Laporan</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-          <select id="int-periode-tahun"><option value="">Tahun</option></select>
-          <select id="int-periode-bulan"><option value="">Bulan</option></select>
-          <select id="int-periode-minggu"><option value="">Minggu Ke-</option></select>
+        <!-- Periode -->
+        <div class="form-grp" style="max-width:420px;">
+          <label>Periode Laporan</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <select id="int-periode-tahun"><option value="">Tahun</option></select>
+            <select id="int-periode-bulan"><option value="">Bulan</option></select>
+            <select id="int-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="int-periode-hint">Periode: —</div>
         </div>
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;" id="int-periode-hint">Periode: —</div>
+
+        <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+        <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Angka Intelijen Mingguan</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="int-dredging">Kapal Dredging / Underwater Ops</label>
+            <input type="number" id="int-dredging" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="int-perizinan">Pelanggaran Perizinan Berusaha</label>
+            <input type="number" id="int-perizinan" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="int-transmitter">Pelanggaran Mematikan Transmitter</label>
+            <input type="number" id="int-transmitter" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="int-nota-dinas">Nota Dinas Data Intelijen</label>
+            <input type="number" id="int-nota-dinas" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="int-pengangkut">Kapal Pengangkut Ikan Hidup</label>
+            <input type="number" id="int-pengangkut" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Pelanggaran Kawasan Konservasi</h3>
+          <button type="button" class="btn-mini" onclick="intelAddKawasanRow()">+ Tambah Kawasan</button>
+        </div>
+        <div id="int-kawasan-rows"></div>
+
+        <div id="intel-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-      <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Angka Intelijen Mingguan</h3>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="int-dredging">Kapal Dredging / Underwater Ops</label>
-          <input type="number" id="int-dredging" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="int-perizinan">Pelanggaran Perizinan Berusaha</label>
-          <input type="number" id="int-perizinan" min="0" step="1" placeholder="0">
-        </div>
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="int-btn-submit" onclick="intelSubmit()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-int-form')">Batal</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="int-transmitter">Pelanggaran Mematikan Transmitter</label>
-          <input type="number" id="int-transmitter" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="int-nota-dinas">Nota Dinas Data Intelijen</label>
-          <input type="number" id="int-nota-dinas" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="int-pengangkut">Kapal Pengangkut Ikan Hidup</label>
-          <input type="number" id="int-pengangkut" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="font-size:1rem;color:var(--n-text-primary);margin:0;">Pelanggaran Kawasan Konservasi</h3>
-        <button type="button" class="btn-mini" onclick="intelAddKawasanRow()">+ Tambah Kawasan</button>
-      </div>
-      <div id="int-kawasan-rows"></div>
-
-      <div id="intel-attach" style="margin-top:20px;"></div>
-
-      <button class="btn-primary" style="margin-top:24px;" id="int-btn-submit" onclick="intelSubmit()">Simpan Laporan</button>
     </div>
   </div>
 

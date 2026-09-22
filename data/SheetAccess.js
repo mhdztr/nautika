@@ -92,6 +92,34 @@ function openLogSheet(sheetName) {
   return SpreadsheetApp.openById(ids.logId).getSheetByName(sheetName);
 }
 
+/**
+ * Pastikan sheet master `Opsi` ada (self-heal). Jika belum ada (mis. Master
+ * dibuat sebelum revisi Opsi Fase 9/10), buat dengan header sesuai
+ * DATA_SCHEMA.md `Opsi`. Aman dipanggil berulang (idempoten).
+ * @returns {Sheet}
+ */
+function ensureOpsiSheet() {
+  var existing = openMasterSheet(SHEET_MASTER.OPSI);
+  if (existing) return existing;
+  var ss = SpreadsheetApp.openById(getSpreadsheetIds().masterId);
+  var sheet = ss.insertSheet(SHEET_MASTER.OPSI);
+  sheet.getRange(1, 1, 1, 6)
+    .setValues([['Kode', 'Urutan', 'Label', 'Aktif', 'DibuatOleh', 'DibuatAt']])
+    .setFontWeight('bold')
+    .setBackground('#E8EAF6');
+  sheet.setFrozenRows(1);
+  Logger.log('[ensureOpsiSheet] Sheet ' + SHEET_MASTER.OPSI + ' dibuat otomatis.');
+  return sheet;
+}
+
+/**
+ * Baca isi sheet, aman terhadap sheet null (mis. belum dibuat) → [].
+ */
+function readOpsiRows() {
+  var sheet = ensureOpsiSheet();
+  return sheetToObjects(sheet);
+}
+
 // ===========================================================================
 // ROW READING
 // ===========================================================================
@@ -104,6 +132,7 @@ function openLogSheet(sheetName) {
  * @returns {Object[]}
  */
 function sheetToObjects(sheet) {
+  if (!sheet) return [];
   var data = sheet.getDataRange().getValues();
   if (data.length < 2) return [];
   var headers = data[0];
@@ -212,21 +241,18 @@ function getOpsiList(kode) {
   });
 
   try {
-    var sheet = openMasterSheet(SHEET_MASTER.OPSI);
-    if (sheet) {
-      sheetToObjects(sheet).forEach(function (r) {
-        if (String(r['Kode']) !== String(kode)) return;
-        var label = String(r['Label'] || '').trim();
-        if (!label) return;
-        var aktif = String(r['Aktif']).toLowerCase() !== 'false';
-        if (!aktif) return;
-        var urutan = Number(r['Urutan']) || 0;
-        // Baris dari sheet (seed & tambahan user) menang atas order default;
-        // urutan seed (1..N) & tambahan (max+1) dipetakan ke rentang 1000+ supaya
-        // urutan antar-baris sheet tetap, dan selalu tampil urut.
-        orderMap[label] = urutan + 1000;
-      });
-    }
+    readOpsiRows().forEach(function (r) {
+      if (String(r['Kode']) !== String(kode)) return;
+      var label = String(r['Label'] || '').trim();
+      if (!label) return;
+      var aktif = String(r['Aktif']).toLowerCase() !== 'false';
+      if (!aktif) return;
+      var urutan = Number(r['Urutan']) || 0;
+      // Baris dari sheet (seed & tambahan user) menang atas order default;
+      // urutan seed (1..N) & tambahan (max+1) dipetakan ke rentang 1000+ supaya
+      // urutan antar-baris sheet tetap, dan selalu tampil urut.
+      orderMap[label] = urutan + 1000;
+    });
   } catch (e) {
     Logger.log('[getOpsiList] ' + e.message);
   }
@@ -248,9 +274,7 @@ function getOpsiDetail(kode) {
   var out = [];
   var seen = {};
   try {
-    var sheet = openMasterSheet(SHEET_MASTER.OPSI);
-    if (sheet) {
-      sheetToObjects(sheet).forEach(function (r) {
+    readOpsiRows().forEach(function (r) {
         if (String(r['Kode']) !== String(kode)) return;
         var label = String(r['Label'] || '').trim();
         if (!label || seen[label]) return;
@@ -261,7 +285,6 @@ function getOpsiDetail(kode) {
           urutan: Number(r['Urutan']) || 0
         });
       });
-    }
   } catch (e) {
     Logger.log('[getOpsiDetail] ' + e.message);
   }

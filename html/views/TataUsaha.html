@@ -43,58 +43,68 @@
     </div>
   </div>
 
-  <!-- ── FORM INPUT MINGGUAN ─────────────────────── -->
-  <div id="tu-form-section" class="content-section n-card">
-    <div class="btn-form-toggle" onclick="tuToggleForm()">
-      <div id="tu-form-toggle-label">Input Laporan Mingguan</div>
-      <span id="tu-form-toggle-icon" class="toggle-icon">▾</span>
-    </div>
+  <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
+  <div id="tu-form-section" class="content-section">
+    <button type="button" class="btn-primary" onclick="tuOpenForm()">＋ Input Laporan Mingguan</button>
+  </div>
 
-    <div id="tu-form-body" style="margin-top:18px;">
-      <div id="tu-form-msg" class="n-msg"></div>
+  <!-- ── MODAL — INPUT LAPORAN MINGGUAN ───────────── -->
+  <div class="n-overlay n-hidden" id="modal-tu-form">
+    <div class="n-modal n-modal-form">
+      <h2>Input Laporan Mingguan</h2>
+      <div id="tu-form-context" class="modal-context">
+        <span>Pagu periode berjalan:</span>
+        <span id="tu-form-context-value">—</span>
+      </div>
+      <div class="n-modal-form-scroll">
+        <div id="tu-form-msg" class="n-msg"></div>
 
-      <!-- Periode -->
-      <div class="form-grp">
-        <label for="tu-periode">Periode</label>
-        <input type="text" id="tu-periode" placeholder="YYYY-MM-WW (contoh: 2026-09-W03)"
-               maxlength="12" autocomplete="off">
-        <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;"
-             id="tu-periode-hint">Periode saat ini: —</div>
+        <!-- Periode -->
+        <div class="form-grp">
+          <label for="tu-periode">Periode</label>
+          <input type="text" id="tu-periode" placeholder="YYYY-MM-WW (contoh: 2026-09-W03)"
+                 maxlength="12" autocomplete="off">
+          <div style="font-size:.76rem;color:var(--n-text-muted);margin-top:4px;"
+               id="tu-periode-hint">Periode saat ini: —</div>
+        </div>
+
+        <!-- Pagu row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="tu-pagu-reguler">Pagu Reguler (Rp)</label>
+            <input type="number" id="tu-pagu-reguler" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="tu-pagu-abt">Pagu ABT (Rp)</label>
+            <input type="number" id="tu-pagu-abt" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <!-- Realisasi row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp">
+            <label for="tu-real-sp2d">Realisasi SP2D Minggu Ini (Rp)</label>
+            <input type="number" id="tu-real-sp2d" min="0" step="1" placeholder="0">
+          </div>
+          <div class="form-grp">
+            <label for="tu-real-akrual">Realisasi Akrual Minggu Ini (Rp)</label>
+            <input type="number" id="tu-real-akrual" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+
+        <!-- Catatan revisi pagu (opsional, wajib jika pagu berubah) -->
+        <div class="form-grp">
+          <label for="tu-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(wajib jika Pagu berubah dari laporan sebelumnya)</span></label>
+          <input type="text" id="tu-catatan" placeholder="Alasan perubahan pagu...">
+        </div>
+
+        <div id="tu-attach"></div>
       </div>
 
-      <!-- Pagu row -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="tu-pagu-reguler">Pagu Reguler (Rp)</label>
-          <input type="number" id="tu-pagu-reguler" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="tu-pagu-abt">Pagu ABT (Rp)</label>
-          <input type="number" id="tu-pagu-abt" min="0" step="1" placeholder="0">
-        </div>
+      <div style="display:flex;gap:12px;margin-top:20px;">
+        <button class="btn-primary" id="tu-btn-submit" onclick="tuSubmit()">Simpan Laporan</button>
+        <button class="btn-outline" onclick="closeModal('modal-tu-form')">Batal</button>
       </div>
-
-      <!-- Realisasi row -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp">
-          <label for="tu-real-sp2d">Realisasi SP2D Minggu Ini (Rp)</label>
-          <input type="number" id="tu-real-sp2d" min="0" step="1" placeholder="0">
-        </div>
-        <div class="form-grp">
-          <label for="tu-real-akrual">Realisasi Akrual Minggu Ini (Rp)</label>
-          <input type="number" id="tu-real-akrual" min="0" step="1" placeholder="0">
-        </div>
-      </div>
-
-      <!-- Catatan revisi pagu (opsional, wajib jika pagu berubah) -->
-      <div class="form-grp">
-        <label for="tu-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(wajib jika Pagu berubah dari laporan sebelumnya)</span></label>
-        <input type="text" id="tu-catatan" placeholder="Alasan perubahan pagu...">
-      </div>
-
-      <div id="tu-attach"></div>
-
-      <button class="btn-primary" id="tu-btn-submit" onclick="tuSubmit()">Simpan Laporan</button>
     </div>
   </div>
 

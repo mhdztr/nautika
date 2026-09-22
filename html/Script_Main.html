@@ -779,7 +779,7 @@ function _mdRenderKapal(items) {
       '<td>' + _esc(k.homebaseUpt || '\u2014') + '</td>' +
       '<td>' + badge + '</td>' +
       '<td>' +
-        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
         (k.statusAktif
           ? '<button class="btn-sm btn-sm-crit" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Nonaktifkan</button>'
           : '<button class="btn-sm btn-sm-ok" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Aktifkan</button>') +
@@ -915,7 +915,7 @@ function _mdRenderKawasan(items) {
       '<td>' + _esc(k.provinsi) + '</td>' +
       '<td>' + _esc(loc) + '</td>' +
       '<td>' +
-        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C4B5FD;margin-right:5px;" onclick="_mdOpenKawasanModal(\'' + _esc(k.kawasanId) + '\')">Edit</button>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_mdOpenKawasanModal(\'' + _esc(k.kawasanId) + '\')">Edit</button>' +
         '<button class="btn-sm btn-sm-crit" onclick="_mdDeleteKawasan(\'' + _esc(k.kawasanId) + '\')">Hapus</button>' +
       '</td>' +
     '</tr>';
@@ -4065,7 +4065,7 @@ function _pemLoadCharts() {
       var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
       _chartLine('pem-chart-tren', labels, [
         { label: 'Username', data: d.username, color: _CHART_COLORS.primary },
-        { label: 'SKAT',     data: d.skat,     color: _CHART_COLORS.indigoDark },
+        { label: 'SKAT',     data: d.skat,     color: _CHART_COLORS.primarySoft },
         { label: 'Migrasi',  data: d.migrasi,  color: _CHART_COLORS.primaryAlpha }
       ], { fmt: _chartNum, emptyMsg: 'Belum ada penerbitan pada rentang terpilih.' });
     })

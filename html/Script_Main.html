@@ -118,6 +118,7 @@ var NAV_SECTIONS = [
   {
     label: 'SISTEM',
     items: [
+      { id: 'kelola-akun', label: 'Kelola Akun',     divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
       { id: 'master-data', label: 'Master Data',     divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
       { id: 'riwayat',     label: 'Riwayat Laporan', divisiId: null, minRoles: null }
     ]
@@ -487,6 +488,7 @@ function _renderViewContent(viewId) {
   if (viewId === 'logistik')    { _renderLogistik(el);    return; }
   if (viewId === 'pengawakan')  { _renderPengawakan(el);  return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
+  if (viewId === 'kelola-akun') { _renderKelolaAkun(el); return; }
   if (viewId === 'riwayat')     { _renderRiwayat(el);    return; }
   if (viewId === 'kegiatan')    { _renderKegiatan(el);    return; }
   if (viewId === 'profil-kapal'){ _renderProfilKapal(el); return; }
@@ -497,17 +499,23 @@ function _renderViewContent(viewId) {
 // ── OVERVIEW ──────────────────────────────────────────────
 function _renderOverview(el) {
   var user = APP.user;
-  var canApprove = ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(user.role) !== -1;
+  var isApprover = ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(user.role) !== -1;
   var html = '';
 
-  // ── 1. Approval panel (admin only) ────────────────────
-  if (canApprove) {
+  // ── 1. Banner permintaan registrasi (KADIV/approver) ──
+  // Panel persetujuan penuh dipindah ke menu "Kelola Akun" (SUPERADMIN/DIREKTUR)
+  // sesuai keputusan user. KADIV tetap menyetujui staf divisinya lewat
+  // drawer kanan (RPAC server scoping tetap dipakai), bukan lewat menu.
+  if (isApprover) {
     html +=
-      '<div class="content-section">' +
-        '<div class="content-section-hd">Permintaan Registrasi Masuk</div>' +
-        '<div class="n-card">' +
-          '<div id="approval-msg" class="n-msg"></div>' +
-          '<div id="approval-table-wrap"><div style="color:var(--n-text-muted);font-size:.875rem;">Memuat\u2026</div></div>' +
+      '<div id="dr-banner" class="dr-banner n-hidden">' +
+        '<div class="dr-banner-in">' +
+          '<div class="dr-banner-ic" aria-hidden="true">!</div>' +
+          '<div class="dr-banner-tx">' +
+            '<div class="dr-banner-t"><span id="dr-banner-count">0</span> permintaan registrasi menunggu persetujuan</div>' +
+            '<div class="dr-banner-s">Antrean terbatas pada kewenangan Anda</div>' +
+          '</div>' +
+          '<button class="btn-sm btn-sm-ok dr-banner-btn" onclick="openApprovalDrawer()">Lihat &amp; Putuskan</button>' +
         '</div>' +
       '</div>';
   }
@@ -934,9 +942,28 @@ function _divCard(title, metrics) {
 }
 
 // ── APPROVAL MANAGEMENT ───────────────────────────────────
+// Parametrik agar bisa dipakai pada halaman "Kelola Akun" dan
+// panel geser kanan (banner KADIV/approver) tanpa duplikasi.
+// id default: ka-* → halaman Kelola Akun; dr-* → drawer kanan.
+var APPROVAL_WRAPS = [
+  { wrapId: 'ka-approval-table-wrap', msgId: 'ka-approval-msg' },
+  { wrapId: 'dr-approval-table-wrap', msgId: 'dr-approval-msg' }
+];
+
+function _appActiveWraps() {
+  var out = [];
+  for (var i = 0; i < APPROVAL_WRAPS.length; i++) {
+    var w = APPROVAL_WRAPS[i];
+    if (document.getElementById(w.wrapId)) out.push(w);
+  }
+  return out;
+}
+
 function _loadApprovals() {
-  var wrap = document.getElementById('approval-table-wrap');
-  if (wrap) wrap.innerHTML = _loadingInline('Memuat permintaan registrasi\u2026');
+  var act = _appActiveWraps();
+  if (act.length === 0) return;
+  var firstWrap = document.getElementById(act[0].wrapId);
+  if (firstWrap) firstWrap.innerHTML = _loadingInline('Memuat permintaan registrasi\u2026');
 
   google.script.run
     .withSuccessHandler(function (res) {
@@ -947,40 +974,52 @@ function _loadApprovals() {
     .auth_getPendingApprovals(APP.token);
 }
 
+// Reload seluruh panel approval yang sedang tampil (halaman + drawer).
+function _refreshApprovalPanels() { _loadApprovals(); }
+
 function _appMsg(type, text) {
-  var el = document.getElementById('approval-msg');
+  var act = _appActiveWraps();
+  if (act.length === 0) return;
+  var el = document.getElementById(act[0].msgId);
   if (!el) return;
   el.className = 'n-msg ' + type + ' show';
   el.textContent = text;
 }
 
 function _renderApprovalTable(items) {
-  var wrap = document.getElementById('approval-table-wrap');
-  if (!wrap) return;
-  if (!items || items.length === 0) {
-    wrap.innerHTML = '<div style="color:var(--n-text-muted);font-size:.875rem;padding:8px 0;">Tidak ada permintaan yang menunggu persetujuan.</div>';
-    return;
-  }
-  var rows = items.map(function (it) {
-    var d = it.registeredAt ? new Date(it.registeredAt).toLocaleDateString('id-ID') : '-';
-    return '<tr>' +
-      '<td>' + _esc(it.nama) +
-        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(it.email) + '</span></td>' +
-      '<td>' + _esc(it.namaDivisi) + '</td>' +
-      '<td>' + (it.roleDilamar === 'KADIV' ? 'Kepala Divisi / Ketua Tim Kerja' : 'Staf') + '</td>' +
-      '<td>' + d + '</td>' +
-      '<td>' +
-        '<button class="btn-sm btn-sm-ok"   onclick="doApprove(\'' + _esc(it.queueId) + '\')">Setujui</button>' +
-        '<button class="btn-sm btn-sm-crit" onclick="openRejectModal(\'' + _esc(it.queueId) + '\')">Tolak</button>' +
-      '</td>' +
-    '</tr>';
-  }).join('');
+  var act = _appActiveWraps();
+  if (act.length === 0) return;
 
-  wrap.innerHTML =
-    '<table class="n-table">' +
-      '<thead><tr><th>Nama</th><th>Unit Kerja</th><th>Jabatan</th><th>Tgl Daftar</th><th>Tindakan</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-    '</table>';
+  for (var w = 0; w < act.length; w++) {
+    var wrap = document.getElementById(act[w].wrapId);
+    if (!wrap) continue;
+
+    if (!items || items.length === 0) {
+      wrap.innerHTML = '<div style="color:var(--n-text-muted);font-size:.875rem;padding:8px 0;">Tidak ada permintaan yang menunggu persetujuan.</div>';
+      continue;
+    }
+
+    var rows = items.map(function (it) {
+      var d = it.registeredAt ? new Date(it.registeredAt).toLocaleDateString('id-ID') : '-';
+      return '<tr>' +
+        '<td>' + _esc(it.nama) +
+          '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(it.email) + '</span></td>' +
+        '<td>' + _esc(it.namaDivisi || '-') + '</td>' +
+        '<td>' + (it.roleDilamar === 'KADIV' ? 'Kepala Divisi / Ketua Tim Kerja' : 'Staf') + '</td>' +
+        '<td>' + d + '</td>' +
+        '<td>' +
+          '<button class="btn-sm btn-sm-ok"   onclick="doApprove(\'' + _esc(it.queueId) + '\')">Setujui</button>' +
+          '<button class="btn-sm btn-sm-crit" onclick="openRejectModal(\'' + _esc(it.queueId) + '\')">Tolak</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    wrap.innerHTML =
+      '<table class="n-table">' +
+        '<thead><tr><th>Nama</th><th>Unit Kerja</th><th>Jabatan</th><th>Tgl Daftar</th><th>Tindakan</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>';
+  }
 }
 
 function doApprove(queueId) {
@@ -1048,6 +1087,49 @@ function _renderMasterData(el) {
   _MD.data.opsi = null;
   _mdSyncTabState();
   _mdLoadAll();
+}
+
+// ── KELOLA AKUN — halaman persetujuan registrasi ─────────────
+// Menu "Kelola Akun" (SUPERADMIN/DIREKTUR) — panel penuh.
+// APP_mWraps() dipakai: ka-* di sini; dr-* di-drawer kanan.
+function _renderKelolaAkun(el) {
+  var tpl = document.getElementById('view-tpl-kelola-akun');
+  if (!tpl) { el.innerHTML = _moduleStub('Kelola Akun'); return; }
+  el.innerHTML = tpl.innerHTML | '';
+  _renderApprovalsInto('ka');
+}
+
+// Render antrean ke salah satu grup APPROVAL_WRAPS (ka/dr).
+// Satu sumber kebenaran: parametrik, id di APPROVAL_WRAPS.
+function _renderApprovalsInto(grp) {
+  for (var i = 0; i < APPROVAL_WRAPS.length; i++) {
+    if (APPROVAL_WRAPS[i].grp !== grp) continue;
+    APPREQ_ACTIVE = [APPROVAL_WRAPS[i]];
+    _loadApprovals();
+    return;
+  }
+}
+
+// ── DRAWER KANAN — persetujuan registrasi (semua approver) ──
+function openApprovalDrawer() {
+  var drawer = document.getElementById('dr-drawer');
+  var mask = document.getElementById('dr-mask');
+  if (drawer) drawer.classList.remove('n-hidden');
+  if (mask) mask.classList.remove('n-hidden');
+  _renderApprovalsInto('dr');
+}
+
+function closeApprovalDrawer() {
+  var drawer = document.getElementById('dr-drawer');
+  var mask = document.getElementById('dr-mask');
+  if (drawer) drawer.classList.add('n-hidden');
+  if (mask) mask.classList.add('n-hidden');
+}
+
+function toggleApprovalDrawer() {
+  var drawer = document.getElementById('dr-drawer');
+  if (drawer && drawer.classList.contains('n-hidden')) openApprovalDrawer();
+  else closeApprovalDrawer();
 }
 
 var _MD = {

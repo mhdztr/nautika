@@ -140,6 +140,26 @@
 </div><!-- end app-wrapper -->
 
 <!-- =========================================================
+     DRAWER KANAN — persetujuan registrasi
+     Dibuka dari banner "Lihat & putuskan" (KADIV/approver).
+     id dr-* dipakai ulang oleh APPROVAL_WRAPS di Script_Main.html.
+     ========================================================= -->
+<div class="n-overlay n-z-drawer n-hidden" id="dr-mask" onclick="closeApprovalDrawer()" aria-hidden="true"></div>
+<div class="n-drawer n-hidden" id="dr-drawer">
+  <div class="n-drawer-hd">
+    <div>
+      <h2>Persetujuan Registrasi</h2>
+      <div class="n-drawer-sub">Antrean terbatas pada kewenangan Anda</div>
+    </div>
+    <button class="btn-sm btn-sm-crit" onclick="closeApprovalDrawer()" aria-label="Tutup panel">Tutup</button>
+  </div>
+  <div class="n-drawer-bd">
+    <div id="dr-approval-msg" class="n-msg"></div>
+    <div id="dr-approval-table-wrap"></div>
+  </div>
+</div>
+
+<!-- =========================================================
      MODAL — alasan penolakan registrasi
      ========================================================= -->
 <div class="n-overlay n-hidden" id="modal-reject">

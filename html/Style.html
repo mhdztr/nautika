@@ -721,6 +721,41 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================================
+   DRAWER KANAN — panel geser persetujuan registrasi
+   Dijalankan KADIV/approver lewat banner; mesin render sama dengan
+   halaman "Kelola Akun" (ka-*) — lihat Script_Main.html.
+   Reuse token existing; tanpa warna baru.
+   ============================================================ */
+.n-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 560px; max-width: 94vw;
+  background: var(--n-surface-1);
+  border-left: 1px solid var(--n-border-subtle);
+  box-shadow: var(--n-shadow-card);
+  z-index: 210;
+  display: flex; flex-direction: column;
+  transform: translateX(105%);
+  transition: transform 0.25s ease;
+}
+.n-drawer.n-open { transform: translateX(0); }
+.n-drawer-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 18px 22px;
+  border-bottom: 1px solid var(--n-border-subtle);
+}
+.n-drawer-hd h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.95rem; font-weight: 600;
+  color: var(--n-text-primary); margin: 0;
+}
+.n-drawer-bd { padding: 18px 22px; overflow-y: auto; flex: 1; }
+.n-drawer-bd .n-msg { margin-top: 0; }
+.n-drawer-bd .n-table-wrap { margin-bottom: 0; }
+
+/* overlay reuse utk mask drawer (tetap pakai .n-overlay, z 200) */
+.n-overlay.n-z-drawer { z-index: 205; cursor: pointer; }
+
+/* ============================================================
    MODAL
    ============================================================ */
 .n-overlay {

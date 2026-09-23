@@ -187,6 +187,10 @@ function operasiUdara_submit(token, params) {
       }
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_UDARA);
+      ensureKapalColumns(); // self-heal: pastikan kolom KapalID ada (Fase 12)
+      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
       var rows = sheetToObjects(sheet);
 
       // Cek duplikat ACTIVE untuk kombinasi Periode + WPP
@@ -212,6 +216,7 @@ function operasiUdara_submit(token, params) {
         VoidedAt: '',
 
         WPPCode: p.WPPCode,
+        KapalID: p.KapalID || '',
         KII: p.KII || 0,
         KIA: p.KIA || 0,
         ObjekSDK: p.ObjekSDK || 0,
@@ -243,6 +248,10 @@ function operasiUdara_revisi(token, params) {
       if (!alasanRevisi) return { success: false, error: 'Alasan revisi wajib diisi.' };
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_UDARA);
+      ensureKapalColumns(); // self-heal (Fase 12)
+      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
       var oldRowData = findRowByField(sheet, 'RowID', targetRowId);
       if (!oldRowData || String(oldRowData.obj['Status']) !== ROW_STATUS.ACTIVE) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
@@ -272,6 +281,7 @@ function operasiUdara_revisi(token, params) {
         VoidedAt: '',
 
         WPPCode: oldObj.WPPCode, // Tidak bisa ubah WPPCode di revisi
+        KapalID: p.KapalID !== undefined ? p.KapalID : oldObj.KapalID,
         KII: p.KII !== undefined ? p.KII : oldObj.KII,
         KIA: p.KIA !== undefined ? p.KIA : oldObj.KIA,
         ObjekSDK: p.ObjekSDK !== undefined ? p.ObjekSDK : oldObj.ObjekSDK,

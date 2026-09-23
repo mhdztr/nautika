@@ -272,6 +272,7 @@ function _logHistory(jenis, token, filter) {
       .sort(function (a, b) { return new Date(b['Timestamp']) - new Date(a['Timestamp']); })
       .map(function (r) {
         var base = _logStd(r);
+        base.kapalId = String(r['KapalID'] || '');
         var mode = _logIsBaselineRow(meta, r) ? LOG_MODE_BASELINE : LOG_MODE_USAGE;
         if (jenis === 'AMUNISI') {
           base.jenis       = String(r['JenisAmunisi'] || '');
@@ -321,6 +322,7 @@ function _logSubmit(jenis, token, params) {
       if (built.error) return { success: false, error: built.error };
 
       var sheet = openTransaksiSheet(meta.sheet);
+      ensureKapalColumns(); // self-heal: pastikan kolom KapalID ada (Fase 12)
       if (built.dupCheck) {
         var dup = sheetToObjects(sheet).some(built.dupCheck);
         if (dup) return { success: false, error: built.dupMessage };
@@ -346,6 +348,11 @@ function _logSubmit(jenis, token, params) {
 function _logBuildPayload(jenis, p, periode, pr, oldRow) {
   var isRevision = !!oldRow;
   var warnings = [];
+  var kapalId = isRevision
+    ? (String(p.kapalId || '').trim() || String(oldRow['KapalID'] || '').trim())
+    : String(p.kapalId || '').trim();
+  var kapalFld = { 'KapalID': kapalId };
+  if (!master_kapalExists(kapalId)) return { error: 'KapalID tidak terdaftar di master kapal.' };
 
   if (jenis === 'AMUNISI') {
     var jenisAm = String(p.jenis || '').toUpperCase();
@@ -357,6 +364,8 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
     if (mode === LOG_MODE_BASELINE) {
       var stokAwal = (isRevision ? _logProvided(p.stokAwal, oldRow['StokAwal']) : _logNum(p.stokAwal));
       if (isNaN(stokAwal) || stokAwal < 0) return { error: 'StokAwal wajib berupa angka ≥ 0.' };
+      var payloadAmBase = { 'JenisAmunisi': jenisAm, 'StokAwal': stokAwal, 'Penggunaan_Minggu': 0 };
+      payloadAmBase['KapalID'] = kapalId;
       return {
         dupCheck: function (r) {
           if (String(r['Status']) !== ROW_STATUS.ACTIVE) return false;
@@ -366,7 +375,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
           return pp && pp.year === pr.year;
         },
         dupMessage: 'Baseline ' + jenisAm + ' tahun ' + pr.year + ' sudah ada. Gunakan Revisi untuk mengubah StokAwal.',
-        payload: { 'JenisAmunisi': jenisAm, 'StokAwal': stokAwal, 'Penggunaan_Minggu': 0 }
+        payload: payloadAmBase
       };
     }
 
@@ -380,6 +389,8 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
     var predicted = baseStok - cum - penggunaan;
     if (predicted < 0) warnings.push('Stok akhir diperkirakan negatif (−' + Math.abs(predicted) + '). Periksa kembali angka penggunaan.');
 
+    var payloadAmUsage = { 'JenisAmunisi': jenisAm, 'StokAwal': '', 'Penggunaan_Minggu': penggunaan };
+    payloadAmUsage['KapalID'] = kapalId;
     return {
       dupCheck: function (r) {
         if (String(r['Status']) !== ROW_STATUS.ACTIVE) return false;
@@ -388,7 +399,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
         return String(r['Periode'] || '') === periode;
       },
       dupMessage: 'Penggunaan amunisi ' + jenisAm + ' periode ' + periode + ' sudah ada. Gunakan Revisi.',
-      payload: { 'JenisAmunisi': jenisAm, 'StokAwal': '', 'Penggunaan_Minggu': penggunaan },
+      payload: payloadAmUsage,
       warnings: warnings
     };
   }
@@ -403,6 +414,8 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
     if (modeB === LOG_MODE_BASELINE) {
       var pagu = (isRevision ? _logProvided(p.pagu, oldRow['Pagu']) : _logNum(p.pagu));
       if (isNaN(pagu) || pagu < 0) return { error: 'Pagu wajib berupa angka ≥ 0.' };
+      var payloadBbBase = { 'Jenis': jenisBb, 'Pagu': pagu, 'Realisasi_Minggu': 0, 'HargaAcuan': '', 'Tunggakan_Status': '' };
+      payloadBbBase['KapalID'] = kapalId;
       return {
         dupCheck: function (r) {
           if (String(r['Status']) !== ROW_STATUS.ACTIVE) return false;
@@ -412,7 +425,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
           return pp && pp.year === pr.year;
         },
         dupMessage: 'Baseline ' + jenisBb + ' tahun ' + pr.year + ' sudah ada. Gunakan Revisi untuk mengubah Pagu.',
-        payload: { 'Jenis': jenisBb, 'Pagu': pagu, 'Realisasi_Minggu': 0, 'HargaAcuan': '', 'Tunggakan_Status': '' }
+        payload: payloadBbBase
       };
     }
 
@@ -425,6 +438,8 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
     if (!baseBb) warnings.push('Pagu ' + jenisBb + ' tahun ' + pr.year + ' belum diinisialisasi.');
     else if (realisasi > _logNum(baseBb['Pagu'])) warnings.push('Realisasi melebihi Pagu (Sisa negatif). Permintaan tetap disimpan.');
 
+    var payloadBbUsage = { 'Jenis': jenisBb, 'Pagu': '', 'Realisasi_Minggu': realisasi, 'HargaAcuan': harga, 'Tunggakan_Status': tunggakan };
+    payloadBbUsage['KapalID'] = kapalId;
     return {
       dupCheck: function (r) {
         if (String(r['Status']) !== ROW_STATUS.ACTIVE) return false;
@@ -433,7 +448,7 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
         return String(r['Periode'] || '') === periode;
       },
       dupMessage: 'Realisasi ' + jenisBb + ' periode ' + periode + ' sudah ada. Gunakan Revisi.',
-      payload: { 'Jenis': jenisBb, 'Pagu': '', 'Realisasi_Minggu': realisasi, 'HargaAcuan': harga, 'Tunggakan_Status': tunggakan },
+      payload: payloadBbUsage,
       warnings: warnings
     };
   }
@@ -474,6 +489,7 @@ function _logRevisi(jenis, token, params) {
       if (!alasanRevisi) return { success: false, error: 'Alasan revisi wajib diisi.' };
 
       var sheet = openTransaksiSheet(meta.sheet);
+      ensureKapalColumns(); // self-heal (Fase 12)
       var old = findRowById(sheet, targetRowId);
       if (!old || String(old.obj['Status']) !== ROW_STATUS.ACTIVE) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };

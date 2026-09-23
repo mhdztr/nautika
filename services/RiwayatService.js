@@ -37,7 +37,7 @@ function _riwModules() {
     { sheet: SHEET_TX.LOGISTIK_PERSONIL, label: 'Logistik — Personil', ringkas: _riwRingkasLogPer,   detail: _riwDetailLogPer },
     { sheet: SHEET_TX.PENGAWAKAN_AKN,    label: 'Pengawakan — Komposisi AKN', ringkas: _riwRingkasAwkAkn, detail: _riwDetailAwkAkn },
     { sheet: SHEET_TX.PENGAWAKAN_KEGIATAN,label: 'Pengawakan — Kegiatan Personel', ringkas: _riwRingkasAwkKeg, detail: _riwDetailAwkKeg },
-    { sheet: SHEET_TX.KEGIATAN_DIREKTORAT, label: 'Kegiatan Direktorat', ringkas: _riwRingkasKgd,    detail: _riwDetailKgd }
+    { sheet: SHEET_TX.KEGIATAN_DIREKTORAT, label: 'Kegiatan Pendukung', ringkas: _riwRingkasKgd,    detail: _riwDetailKgd }
   ];
 }
 

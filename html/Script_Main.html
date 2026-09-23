@@ -22,6 +22,7 @@ var APP = {
   user:           null,
   currentView:    'overview',
   pendingQueueId: null,
+  profilKapalId:  '',
   filter: {
     mode:     'monthly',   // 'monthly' | 'range'
     month:    new Date().getMonth() + 1,
@@ -111,7 +112,7 @@ var NAV_SECTIONS = [
       { id: 'perawatan',     label: 'Perawatan',           divisiId: 'DIV-RAWAT',  minRoles: null },
       { id: 'logistik',      label: 'Logistik',            divisiId: 'DIV-LOG',    minRoles: null },
       { id: 'pengawakan',    label: 'Pengawakan',          divisiId: 'DIV-AWAK',   minRoles: null },
-      { id: 'kegiatan',      label: 'Kegiatan Direktorat', divisiId: null,         minRoles: ['SUPERADMIN','DIREKTUR','KADIV'] }
+      { id: 'kegiatan',      label: 'Kegiatan Pendukung',  divisiId: null,         minRoles: ['SUPERADMIN','DIREKTUR','KADIV'] }
     ]
   },
   {
@@ -145,6 +146,7 @@ function _navItem(id) {
 
 // Judul halaman dari view ID
 function _viewTitle(id) {
+  if (id === 'profil-kapal') return 'Profil Kapal';
   var item = _navItem(id);
   return item ? item.label : '—';
 }
@@ -359,6 +361,9 @@ function _updateActiveNav(viewId) {
 
 // ── ROUTING ───────────────────────────────────────────────
 function _routeTo(viewId) {
+  // Rute khusus — bukan nav sidebar (dibuka dari Master Data / tautan langsung)
+  if (viewId === 'profil-kapal') { _routeProfil(); return; }
+
   var item = _navItem(viewId);
   // Jika view tidak ada atau tidak bisa diakses → ke overview
   if (!item || !_canAccess(item, APP.user)) {
@@ -373,10 +378,25 @@ function _routeTo(viewId) {
   _renderViewContent(viewId);
 }
 
+function _routeProfil() {
+  APP.currentView = 'profil-kapal';
+  if (window.location.hash !== '#profil-kapal') {
+    window.location.hash = 'profil-kapal';
+  }
+  _updateActiveNav('profil-kapal');
+  _renderPageHeader('profil-kapal');
+  _renderViewContent('profil-kapal');
+}
+
+function _openProfilKapal(kapalId) {
+  APP.profilKapalId = String(kapalId || '').trim();
+  _routeProfil();
+}
+
 // ── PAGE HEADER ───────────────────────────────────────────
 function _renderPageHeader(viewId) {
-  // filter tidak tampil di master-data (tidak relevan)
-  var noFilter = (viewId === 'master-data');
+  // filter tidak tampil di master-data & profil kapal (tidak relevan)
+  var noFilter = (viewId === 'master-data' || viewId === 'profil-kapal');
   var filterHtml = noFilter ? '' : _buildFilterHtml();
 
   document.getElementById('page-header').innerHTML =
@@ -439,11 +459,20 @@ function _setFilterMode(mode) {
   document.querySelectorAll('.filter-mode-btn').forEach(function(btn, i){
     btn.classList.toggle('active', (i===0 && mode==='monthly') || (i===1 && mode==='range'));
   });
+  _reloadOnFilterChange();
 }
-function _setFilterMonth(v) { APP.filter.month    = parseInt(v, 10); }
-function _setFilterYear(v)  { APP.filter.year     = parseInt(v, 10); }
-function _setFilterFrom(v)  { APP.filter.dateFrom = v; }
-function _setFilterTo(v)    { APP.filter.dateTo   = v; }
+function _setFilterMonth(v) { APP.filter.month    = parseInt(v, 10); _reloadOnFilterChange(); }
+function _setFilterYear(v)  { APP.filter.year     = parseInt(v, 10); _reloadOnFilterChange(); }
+function _setFilterFrom(v)  { APP.filter.dateFrom = v; _reloadOnFilterChange(); }
+function _setFilterTo(v)    { APP.filter.dateTo   = v; _reloadOnFilterChange(); }
+
+// Reload otomatis seluruh isi halaman saat filter global berubah (keputusan
+// user Fase 12). Header/filter input TIDAK dibangun ulang — hanya konten.
+function _reloadOnFilterChange() {
+  if (APP.currentView && APP.currentView !== 'master-data') {
+    _renderViewContent(APP.currentView);
+  }
+}
 
 // ── VIEW CONTENT ──────────────────────────────────────────
 function _renderViewContent(viewId) {
@@ -460,6 +489,7 @@ function _renderViewContent(viewId) {
   if (viewId === 'master-data') { _renderMasterData(el); return; }
   if (viewId === 'riwayat')     { _renderRiwayat(el);    return; }
   if (viewId === 'kegiatan')    { _renderKegiatan(el);    return; }
+  if (viewId === 'profil-kapal'){ _renderProfilKapal(el); return; }
   // Modul lain — stub hingga fase masing-masing
   el.innerHTML = _moduleStub(_viewTitle(viewId));
 }
@@ -483,11 +513,11 @@ function _renderOverview(el) {
   }
 
   // ── 2. Headline KPI — 4 metrik lintas divisi ──────────
-  // Data diisi DashboardService.js (Fase 8). Semua nilai placeholder "—".
+  // Diisi _ovLoadData() dari DashboardService.js (Fase 8/12).
   html +=
     '<div class="content-section">' +
       '<div class="content-section-hd">KPI Utama</div>' +
-      '<div class="ov-kpi-row">' +
+      '<div class="ov-kpi-row" id="ov-kpi-row">' +
         _kpiHeadline('Realisasi Anggaran (SP2D)', '\u2014', '%', 'YTD kumulatif') +
         _kpiHeadline('Hari Operasi Kapal & Pesawat', '\u2014', 'hari', 'Realisasi periode ini') +
         _kpiHeadline('Armada Siap Operasi', '\u2014', 'kapal', 'Dari total armada aktif') +
@@ -495,11 +525,45 @@ function _renderOverview(el) {
       '</div>' +
     '</div>';
 
-  // ── 3. Ringkasan per Divisi — 9 cards ────────────────
+  // ── 3. Konteks — Tren (DESIGN §6.5: status → konteks → detail) ──
+  html +=
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Tren &amp; Kapasitas</div>' +
+      '<div class="chart-grid-2">' +
+        '<div class="chart-cell">' +
+          '<div class="chart-cell-hd">' +
+            '<div>' +
+              '<div class="chart-cell-title">Realisasi Anggaran (YTD)</div>' +
+              '<div class="chart-cell-sub">Januari s/d bulan terpilih pada filter (SP2D vs Akrual)</div>' +
+            '</div>' +
+            '<div class="chart-cell-chips">' +
+              '<span class="chart-chip"><i style="background:#2B3674;"></i>SP2D</span>' +
+              '<span class="chart-chip"><i style="background:rgba(43,54,116,0.6);"></i>Akrual</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="chart-box"><canvas id="ov-chart-real"></canvas></div>' +
+        '</div>' +
+        '<div class="chart-cell">' +
+          '<div class="chart-cell-hd">' +
+            '<div>' +
+              '<div class="chart-cell-title">Hari Operasi per Bulan</div>' +
+              '<div class="chart-cell-sub">Kapal pengawas vs pesawat udara</div>' +
+            '</div>' +
+            '<div class="chart-cell-chips">' +
+              '<span class="chart-chip"><i style="background:#2B3674;"></i>Kapal</span>' +
+              '<span class="chart-chip"><i style="background:rgba(43,54,116,0.35);"></i>Pesawat</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="chart-box"><canvas id="ov-chart-op"></canvas></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // ── 4. Ringkasan per Divisi — 9 cards ────────────────
   html +=
     '<div class="content-section">' +
       '<div class="content-section-hd">Ringkasan per Divisi</div>' +
-      '<div class="div-grid">' +
+      '<div class="div-grid" id="ov-div-grid">' +
         _divCard('Tata Usaha', [
           { lbl: 'Realisasi SP2D (YTD)',    val: '\u2014', unit: '%',   prog: true },
           { lbl: 'Realisasi Akrual (YTD)',  val: '\u2014', unit: '%',   prog: true },
@@ -529,7 +593,7 @@ function _renderOverview(el) {
         ]) +
         _divCard('Logistik', [
           { lbl: 'Realisasi BBM (YTD)',  val: '\u2014', unit: '%',   prog: true  },
-          { lbl: 'Tunggakan BBM',        val: '\u2014', unit: 'Rp',  prog: false },
+          { lbl: 'Tunggakan BBM',        val: '\u2014', unit: 'item', prog: false },
           { lbl: 'Stok Amunisi (total)', val: '\u2014', unit: 'butir', prog: false }
         ]) +
         _divCard('Pengawakan', [
@@ -537,7 +601,7 @@ function _renderOverview(el) {
           { lbl: 'AKN POA',                 val: '\u2014', unit: 'orang', prog: false },
           { lbl: 'Kegiatan Personel (YTD)', val: '\u2014', unit: 'kegiatan', prog: false }
         ]) +
-        _divCard('Kegiatan Direktorat', [
+        _divCard('Kegiatan Pendukung', [
           { lbl: 'Kegiatan YTD',            val: '\u2014', unit: 'kegiatan', prog: false },
           { lbl: 'Kegiatan Periode Ini',    val: '\u2014', unit: 'kegiatan', prog: false },
           { lbl: 'Terakhir Dicatat',        val: '\u2014', unit: '',         prog: false }
@@ -547,6 +611,293 @@ function _renderOverview(el) {
 
   el.innerHTML = html;
   if (canApprove) _loadApprovals();
+
+  APP_OV.key = null; // selalu isi ulang (server-side cache 300s membuatnya murah)
+  _ovLoadData();
+}
+
+// ── OVERVIEW — muat data agregasi (DashboardService.js) ────
+var APP_OV = { key: null };
+
+function _ovFilterKey() {
+  var f = APP.filter || {};
+  if (f.mode === 'range') return 'range_' + (f.dateFrom || '') + '_' + (f.dateTo || '');
+  return 'monthly_' + (f.year || '') + '_' + (f.month || '');
+}
+
+function _ovLoadData() {
+  if (APP_OV.key === _ovFilterKey()) return; // sudah dimuat untuk filter ini
+  APP_OV.key = _ovFilterKey();
+
+  var kpiRow = document.getElementById('ov-kpi-row');
+  var grid = document.getElementById('ov-div-grid');
+  if (!kpiRow && !grid) return;
+
+  _busyInc();
+  google.script.run
+    .withSuccessHandler(function (res) {
+      try {
+        if (res && res.success) _ovRenderData(res.data);
+      } finally {
+        _busyDec();
+      }
+    })
+    .withFailureHandler(function () { _busyDec(); })
+    .dashboard_getOverview(APP.token, APP.filter);
+}
+
+function _ovRenderData(d) {
+  if (!d) return;
+
+  var kpiRow = document.getElementById('ov-kpi-row');
+  if (kpiRow && d.headline) {
+    kpiRow.innerHTML = d.headline.map(function (h) {
+      return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub);
+    }).join('');
+  }
+
+  var grid = document.getElementById('ov-div-grid');
+  if (grid && d.divisi) {
+    grid.innerHTML = d.divisi.map(function (dv) {
+      var metrics = dv.metrics.map(function (m) { return _ovMetric(m); });
+      return _divCard(dv.title, metrics);
+    }).join('');
+  }
+
+  if (d.charts) {
+    var labels = d.charts.trendMonths || [];
+    if (d.charts.realisasi) {
+      _chartLine('ov-chart-real', labels, [
+        { label: 'SP2D',   data: d.charts.realisasi.sp2d,   color: _CHART_COLORS.primary },
+        { label: 'Akrual', data: d.charts.realisasi.akrual, color: _CHART_COLORS.primarySoft, fill: true }
+      ], { emptyMsg: 'Belum ada data realisasi pada rentang terpilih.' });
+    }
+    if (d.charts.hariOperasi) {
+      _chartBar('ov-chart-op', labels, [
+        { label: 'Kapal',   data: d.charts.hariOperasi.kapal,   color: _CHART_COLORS.primary },
+        { label: 'Pesawat', data: d.charts.hariOperasi.pesawat, color: _CHART_COLORS.primarySoft }
+      ], { emptyMsg: 'Belum ada data hari operasi pada rentang terpilih.' });
+    }
+  }
+}
+
+function _ovNum(v, unit) {
+  var n = Number(v);
+  if (isNaN(n)) return (v === null || v === undefined || v === '') ? '\u2014' : String(v);
+  if (unit === 'Rp') return _rupiah(n);
+  return _idNum(n);
+}
+
+function _ovMetric(m) {
+  var v = m.val;
+  if (v === null || v === undefined || v === '' || v === '\u2014') {
+    return { lbl: m.lbl, val: '\u2014', unit: m.unit, prog: !!m.prog };
+  }
+  var valStr = _ovNum(v, m.unit);
+  return { lbl: m.lbl, val: valStr, unit: m.unit, prog: !!m.prog };
+}
+
+// ── PROFIL KAPAL (DashboardService.js → dashboard_profilKapal) ──
+function _renderProfilKapal(el) {
+  if (!APP.profilKapalId) {
+    el.innerHTML =
+      '<div class="module-stub">' +
+        '<div class="module-stub-title">Belum ada kapal dipilih</div>' +
+        '<p>Buka halaman Master Data lalu klik "Profil" pada baris kapal yang ingin dilihat.</p>' +
+        '<div style="margin-top:16px;"><button class="btn-primary" onclick="_routeTo(\'master-data\')">Buka Master Data</button></div>' +
+      '</div>';
+    return;
+  }
+
+  var html =
+    '<div class="content-section">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+        '<div>' +
+          '<div class="content-section-hd" id="pk-nama" style="margin-bottom:2px;">' + _esc(APP.profilKapalId) + '</div>' +
+          '<div id="pk-sub" style="font-size:.8rem;color:var(--n-text-muted);">Memuat data&hellip;</div>' +
+        '</div>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;white-space:nowrap;" onclick="_routeTo(\'master-data\')">\u2190 Master Data</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="content-section">' +
+      '<div class="div-grid" id="pk-kpi"></div>' +
+    '</div>' +
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Stok &amp; Konsumsi</div>' +
+      '<div class="chart-grid-2">' +
+        '<div class="chart-cell"><div class="chart-cell-hd"><div><div class="chart-cell-title">Stok Amunisi per Jenis</div><div class="chart-cell-sub">Stok akhir = baseline \u2212 penggunaan kumulatif</div></div></div><div class="chart-box"><canvas id="pk-chart-amunisi"></canvas></div></div>' +
+        '<div class="chart-cell"><div class="chart-cell-hd"><div><div class="chart-cell-title">BBM \u2014 Pagu vs Realisasi</div><div class="chart-cell-sub">Rupiah per jenis</div></div></div><div class="chart-box"><canvas id="pk-chart-bbm"></canvas></div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div id="pk-tables"></div>';
+
+  el.innerHTML = html;
+  _pkLoad();
+}
+
+function _pkLoad() {
+  _busyInc();
+  google.script.run
+    .withSuccessHandler(function (res) {
+      try {
+        if (res && res.success) _pkRender(res.data);
+        else {
+          var sub = document.getElementById('pk-sub');
+          if (sub) sub.textContent = (res && res.error) ? res.error : 'Gagal memuat data.';
+        }
+      } finally {
+        _busyDec();
+      }
+    })
+    .withFailureHandler(function () {
+      _busyDec();
+      var sub = document.getElementById('pk-sub');
+      if (sub) sub.textContent = 'Gagal memuat data.';
+    })
+    .dashboard_profilKapal(APP.token, { kapalId: APP.profilKapalId });
+}
+
+function _pkBool(v) {
+  return v === true || v === 'true' || v === 1 || v === '1' || v === 'TRUE';
+}
+
+function _pkRender(d) {
+  var k = d.kapal || {};
+  var s = d.summary || {};
+  var cap = (k.nama ? k.nama + ' \u2014 ' : '') + k.kapalId + ' \u00B7 ' + (k.kelas || '-') + ' \u00B7 ' + (k.homebaseUpt || '-');
+  var sub = document.getElementById('pk-sub');
+  if (sub) sub.textContent = cap;
+
+  var kpi = document.getElementById('pk-kpi');
+  if (kpi) {
+    var kes = (s.statusKesiapan === null || s.statusKesiapan === undefined) ? '\u2014' : (s.statusKesiapan ? 'Siap' : 'Tidak Siap');
+    var dock = s.dockingAktif ? (s.tahapDocking || 'Docking') : 'Tidak dalam docking';
+    kpi.innerHTML =
+      _divCard('Kesiapan Operasi', [
+        { lbl: 'Status',       val: _esc(kes), unit: '', prog: false },
+        { lbl: 'Periode',      val: _esc(s.statusKesiapanPeriode || '\u2014'), unit: '', prog: false },
+        { lbl: 'Penyebab',     val: _esc(s.penyebabTidakSiap || '\u2014'), unit: '', prog: false }
+      ]) +
+      _divCard('Docking', [
+        { lbl: 'Status',   val: _esc(dock), unit: '', prog: false },
+        { lbl: 'Tahap',    val: _esc(s.tahapDocking || '\u2014'), unit: '', prog: false },
+        { lbl: 'Lokasi',   val: _esc(s.lokasiDocking || '\u2014'), unit: '', prog: false }
+      ]) +
+      _divCard('Operasi', [
+        { lbl: 'Hari Op Kapal',     val: _idNum(s.totalHariOperasiLaut),  unit: 'hari', prog: false },
+        { lbl: 'Hari Op Pesawat',   val: _idNum(s.totalHariOperasiUdara), unit: 'hari', prog: false },
+        { lbl: 'Kapal Ditangkap',   val: _idNum(s.totalKapalDitangkap),   unit: 'unit', prog: false },
+        { lbl: 'Kapal Dipantau',    val: _idNum(s.totalKapalDipantau),    unit: 'unit', prog: false },
+        { lbl: 'Marabahaya',        val: _idNum(s.totalMarabahaya),       unit: 'unit', prog: false }
+      ]);
+  }
+
+  // Stok Amunisi per jenis (objek) → charts
+  var stok = s.stokAmunisiAkhir || {};
+  var stokKeys = Object.keys(stok);
+  if (stokKeys.length) {
+    _chartBar('pk-chart-amunisi', stokKeys, [
+      { label: 'Stok Akhir', data: stokKeys.map(function (j) { return stok[j]; }), color: _CHART_COLORS.primary }
+    ], { emptyMsg: 'Belum ada stok amunisi.', fmt: _chartNum });
+  } else {
+    _chartEmpty('pk-chart-amunisi', 'Belum ada stok amunisi.');
+  }
+
+  // BBM: Pagu vs Realisasi per jenis (Rp)
+  var pagu = s.paguBBM || {}, real = s.realisasiBBM || {};
+  var bbmKeys = [];
+  Object.keys(pagu).forEach(function (j) { if (bbmKeys.indexOf(j) < 0) bbmKeys.push(j); });
+  Object.keys(real).forEach(function (j) { if (bbmKeys.indexOf(j) < 0) bbmKeys.push(j); });
+  if (bbmKeys.length) {
+    _chartBar('pk-chart-bbm', bbmKeys, [
+      { label: 'Pagu',       data: bbmKeys.map(function (j) { return pagu[j] || 0; }), color: _CHART_COLORS.primary },
+      { label: 'Realisasi',  data: bbmKeys.map(function (j) { return real[j] || 0; }), color: _CHART_COLORS.primarySoft }
+    ], { emptyMsg: 'Belum ada data BBM.', fmt: _chartNum });
+  } else {
+    _chartEmpty('pk-chart-bbm', 'Belum ada data BBM.');
+  }
+
+  // Riwayat
+  var rw = d.riwayat || {};
+  var tbl = document.getElementById('pk-tables');
+  if (tbl) {
+    var sections = '';
+
+    if (rw.kesiapan && rw.kesiapan.length) {
+      sections += _pkSection('Kesiapan Operasi', [
+        ['Periode', 'Status', 'Penyebab', 'Timestamp']
+      ].concat(rw.kesiapan.slice(0, 8).map(function (r) {
+        return [r.Periode, _pkBool(r.StatusSiap) ? 'Siap' : 'Tidak Siap', r.Penyebab || '\u2014', _fmtTs(r.Timestamp)];
+      })));
+    }
+
+    if (rw.docking && rw.docking.length) {
+      sections += _pkSection('Docking', [
+        ['Periode', 'Tahap', 'Lokasi', 'Timestamp']
+      ].concat(rw.docking.slice(0, 8).map(function (r) {
+        return [r.Periode, r.Tahap || '\u2014', r.Lokasi || '\u2014', _fmtTs(r.Timestamp)];
+      })));
+    }
+
+    if (rw.operasiLaut && rw.operasiLaut.length) {
+      sections += _pkSection('Operasi Laut', [
+        ['Periode', 'WPP', 'Hari Op', 'KII / KIA', 'Kapal Asing']
+      ].concat(rw.operasiLaut.slice(0, 8).map(function (r) {
+        return [r.periode, r.wppCode || '\u2014', _idNum(r.hariOperasi), (r.kii || 0) + ' / ' + (r.kia || 0), _esc(r.asalNegara || '\u2014')];
+      })));
+    }
+
+    if (rw.operasiUdara && rw.operasiUdara.length) {
+      sections += _pkSection('Operasi Udara', [
+        ['Periode', 'WPP', 'KII / KIA', 'Objek SDK', 'Cakupan (NM\u00B2)', 'Hari Op']
+      ].concat(rw.operasiUdara.slice(0, 8).map(function (r) {
+        return [r.periode, r.wppCode || '\u2014', (r.kii || 0) + ' / ' + (r.kia || 0), _idNum(r.objekSdk), _idNum(r.cakupanNm2), _idNum(r.hariOperasi)];
+      })));
+    }
+
+    if (rw.amunisi && rw.amunisi.length) {
+      sections += _pkSection('Logistik Amunisi', [
+        ['Periode', 'Jenis', 'Mode', 'Stok Awal', 'Penggunaan']
+      ].concat(rw.amunisi.slice(0, 8).map(function (r) {
+        return [r.periode, r.jenis || '\u2014', r.mode, r.stokAwal === '' ? '\u2014' : _idNum(r.stokAwal), r.penggunaan === '' ? '\u2014' : _idNum(r.penggunaan)];
+      })));
+    }
+
+    if (rw.bbm && rw.bbm.length) {
+      sections += _pkSection('Logistik BBM', [
+        ['Periode', 'Jenis', 'Mode', 'Pagu', 'Realisasi', 'Tunggakan']
+      ].concat(rw.bbm.slice(0, 8).map(function (r) {
+        return [r.periode, r.jenis || '\u2014', r.mode, r.pagu === '' ? '\u2014' : _rupiah(r.pagu), r.realisasi === '' ? '\u2014' : _idNum(r.realisasi), r.tunggakan || '\u2014'];
+      })));
+    }
+
+    if (rw.marabahaya && rw.marabahaya.length) {
+      sections += _pkSection('Kondisi Marabahaya', [
+        ['Periode', 'Kondisi', 'Penanganan', 'Timestamp']
+      ].concat(rw.marabahaya.slice(0, 8).map(function (r) {
+        return [r.periode, r.kondisi || '\u2014', r.penanganan || '\u2014', _fmtTs(r.timestamp)];
+      })));
+    }
+
+    tbl.innerHTML = sections || '<div style="padding:20px 24px;color:var(--n-text-muted);font-size:.875rem;">Belum ada riwayat operasional untuk kapal ini.</div>';
+  }
+}
+
+function _pkSection(title, rows) {
+  if (!rows || rows.length < 2) return '';
+  var head = rows[0].map(function (h) { return '<th>' + _esc(h) + '</th>'; }).join('');
+  var body = rows.slice(1).map(function (cols) {
+    return '<tr>' + cols.map(function (c) { return '<td>' + (c === null || c === undefined ? '\u2014' : String(c)) + '</td>'; }).join('') + '</tr>';
+  }).join('');
+  return '<div class="content-section">' +
+    '<div class="content-section-hd">' + _esc(title) + '</div>' +
+    '<div class="n-card" style="padding:0;overflow-x:auto;"><table class="n-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '</div>';
+}
+
+function _fmtTs(ts) {
+  var d = new Date(ts);
+  return isNaN(d) ? (ts || '\u2014') : d.toLocaleString('id-ID');
 }
 
 // Headline KPI card (top row, bigger number)
@@ -780,6 +1131,7 @@ function _mdRenderKapal(items) {
       '<td>' + _esc(k.homebaseUpt || '\u2014') + '</td>' +
       '<td>' + badge + '</td>' +
       '<td>' +
+        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_openProfilKapal(\'' + _esc(k.kapalId) + '\')">Profil</button>' +
         '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
         (k.statusAktif
           ? '<button class="btn-sm btn-sm-crit" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Nonaktifkan</button>'
@@ -2513,6 +2865,11 @@ function _opsLautRenderKPI(kpi) {
 }
 
 function opsLautOpenForm() {
+  _kapalInit('ops-kapal');
+  var kapalInput = document.getElementById('ops-kapal-input');
+  if (kapalInput) kapalInput.value = '';
+  var kapalHid = document.getElementById('ops-kapal');
+  if (kapalHid) kapalHid.value = '';
   ['ops-kii','ops-kia','ops-asal-negara','ops-valuasi-ikan','ops-rumpon','ops-valuasi-rumpon',
    'ops-riksa-kii','ops-riksa-kia','ops-riksa-sdk','ops-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -2666,6 +3023,43 @@ function _taGet(id) {
   return hid ? hid.value : '';
 }
 
+// ── PENCARIAN KAPAL (typeahead) — Fase 12 ─────────────────
+// Semua APPROVED boleh baca master kapal (PRD §6), jadi dropdown kapal
+// di form Operasi Laut/Udara & Logistik memakai master_getKapalList.
+var _KAPAL_ITEMS   = [];
+var _KAPAL_LABEL   = {}; // kapalId → nama (untuk tabel riwayat & profil)
+
+function _kapalInit(id) {
+  if (_KAPAL_ITEMS.length) { _taInit(id, _KAPAL_ITEMS); return; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res && res.success && res.data) {
+        _KAPAL_ITEMS = res.data.map(function (k) {
+          _KAPAL_LABEL[String(k.kapalId)] = String(k.nama || k.kapalId || '');
+          return { value: String(k.kapalId || ''), label: _KAPAL_LABEL[String(k.kapalId)] };
+        });
+      } else {
+        _KAPAL_ITEMS = [];
+      }
+      if (id) _taInit(id, _KAPAL_ITEMS);
+    })
+    .withFailureHandler(function () {
+      _KAPAL_ITEMS = [];
+      if (id) _taInit(id, _KAPAL_ITEMS);
+    })
+    .master_getKapalList(APP.token);
+}
+
+function _kapalName(kapalId) {
+  if (!kapalId) return '—';
+  return _KAPAL_LABEL[String(kapalId)] || String(kapalId);
+}
+
+function _kapalCellPlain(kapalId) {
+  if (!kapalId) return '—';
+  return '<span style="font-size:.82rem;">' + _esc(_kapalName(kapalId)) + '</span>';
+}
+
 function opsLautSubmit() {
   _msg('ops-laut-form-msg', '', '');
   var attachErr = _attachValidate('opslaut');
@@ -2677,6 +3071,7 @@ function opsLautSubmit() {
   var params = {
     Periode: _composePeriode(),
     WPPCode: _v('ops-wpp'),
+    KapalID: _taGet('ops-kapal'),
     KII_Ditangkap: parseInt(_v('ops-kii'), 10) || 0,
     KIA_Ditangkap: parseInt(_v('ops-kia'), 10) || 0,
     AsalNegaraAsing: _v('ops-asal-negara'),
@@ -2742,7 +3137,7 @@ function _opsLautRenderHistory(data) {
   var isPimpinan = (APP.user && (APP.user.role==='DIREKTUR' || APP.user.role==='SUPERADMIN' || APP.user.role==='KADIV'));
   
   var t = '<table class="n-table"><thead><tr>';
-  t += '<th>Periode</th><th>WPP</th><th>Kapal (KII/KIA)</th><th>Valuasi</th><th>Rumpon</th><th>Riksa</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
+  t += '<th>Periode</th><th>WPP</th><th>Kapal</th><th>Kapal Asing (KII/KIA)</th><th>Valuasi</th><th>Rumpon</th><th>Riksa</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
   t += '</tr></thead><tbody>';
   
   for(var i=0; i<data.length; i++) {
@@ -2762,6 +3157,7 @@ function _opsLautRenderHistory(data) {
     var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_OperasiLaut', r.RowID, 'Operasi Laut — Periode ' + r.Periode + ' (' + r.WPPCode + ')', [
       ['Periode', _esc(r.Periode)],
       ['WPP', _esc(r.WPPCode)],
+      ['Kapal', _esc(_kapalName(r.KapalID))],
       ['Kapal Asing Ditangkap (KII)', _esc(r.KII_Ditangkap)],
       ['Kapal Asing Ditangkap (KIA)', _esc(r.KIA_Ditangkap)],
       ['Asal Negara Asing', _esc(r.AsalNegaraAsing || '—')],
@@ -2784,6 +3180,7 @@ function _opsLautRenderHistory(data) {
     t += '<tr ' + rowCls + '>';
     t += '<td>' + r.Periode + '</td>';
     t += '<td>' + r.WPPCode + '</td>';
+    t += '<td>' + _kapalCellPlain(r.KapalID) + '</td>';
     t += '<td>' + r.KII_Ditangkap + ' / ' + r.KIA_Ditangkap + '</td>';
     t += '<td>' + _rupiah(r.ValuasiIllegalFishing) + '</td>';
     t += '<td>' + r.RumponDitertibkan + '</td>';
@@ -2794,7 +3191,7 @@ t += '<td>' + st + '</td>';
     t += '</tr>';
 
     if(r.Status === 'VOID' && r.VoidReason) {
-      t += '<tr style="background:#fef2f2;"><td colspan="9" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
+      t += '<tr style="background:#fef2f2;"><td colspan="10" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
       t += '<strong>Alasan Anulir:</strong> ' + r.VoidReason + ' (oleh ' + r.VoidedBy + ')';
       t += '</td></tr>';
     }
@@ -3083,6 +3480,11 @@ function _opsUdaraRenderKPI(kpi) {
 }
 
 function opsUdaraOpenForm() {
+  _kapalInit('oud-kapal');
+  var kapalInput = document.getElementById('oud-kapal-input');
+  if (kapalInput) kapalInput.value = '';
+  var kapalHid = document.getElementById('oud-kapal');
+  if (kapalHid) kapalHid.value = '';
   ['oud-kii','oud-kia','oud-sdk','oud-rumpon','oud-cakupan','oud-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
@@ -3110,6 +3512,7 @@ function opsUdaraSubmit() {
   var params = {
     Periode: _composePeriode('oud-'),
     WPPCode: _v('oud-wpp'),
+    KapalID: _taGet('oud-kapal'),
     KII: parseInt(_v('oud-kii'), 10) || 0,
     KIA: parseInt(_v('oud-kia'), 10) || 0,
     ObjekSDK: parseInt(_v('oud-sdk'), 10) || 0,
@@ -3169,7 +3572,7 @@ function _opsUdaraRenderHistory(data) {
   var isPimpinan = (APP.user && (APP.user.role==='DIREKTUR' || APP.user.role==='SUPERADMIN' || APP.user.role==='KADIV'));
 
   var t = '<table class="n-table"><thead><tr>';
-  t += '<th>Periode</th><th>WPP</th><th>KII/KIA</th><th>Objek SDK</th><th>Rumpon</th><th>Cakupan (NM&sup2;)</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
+  t += '<th>Periode</th><th>WPP</th><th>Kapal</th><th>KII/KIA</th><th>Objek SDK</th><th>Rumpon</th><th>Cakupan (NM&sup2;)</th><th>Hari Op</th><th>Status</th><th>Aksi</th>';
   t += '</tr></thead><tbody>';
 
   for(var i=0; i<data.length; i++) {
@@ -3189,6 +3592,7 @@ function _opsUdaraRenderHistory(data) {
     var bLk = '<button class="btn-mini" onclick="_hdOpen(' + _hdPush('TX_OperasiUdara', r.RowID, 'Operasi Udara — Periode ' + r.Periode + ' (' + r.WPPCode + ')', [
       ['Periode', _esc(r.Periode)],
       ['WPP', _esc(r.WPPCode)],
+      ['Kapal', _esc(_kapalName(r.KapalID))],
       ['Kapal Ditangkap (KII)', _idNum(r.KII)],
       ['Kapal Ditangkap (KIA)', _idNum(r.KIA)],
       ['Objek SDK', _idNum(r.ObjekSDK)],
@@ -3205,6 +3609,7 @@ function _opsUdaraRenderHistory(data) {
     t += '<tr ' + rowCls + '>';
     t += '<td>' + r.Periode + '</td>';
     t += '<td>' + r.WPPCode + '</td>';
+    t += '<td>' + _kapalCellPlain(r.KapalID) + '</td>';
     t += '<td>' + (r.KII||0) + ' / ' + (r.KIA||0) + '</td>';
     t += '<td>' + (r.ObjekSDK||0) + '</td>';
     t += '<td>' + (r.RumponLokalTeridentifikasi||0) + '</td>';
@@ -3215,7 +3620,7 @@ function _opsUdaraRenderHistory(data) {
     t += '</tr>';
 
     if(r.Status === 'VOID' && r.VoidReason) {
-      t += '<tr style="background:#fef2f2;"><td colspan="9" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
+      t += '<tr style="background:#fef2f2;"><td colspan="10" style="padding-top:0; border-bottom:1px solid #fee2e2; color:var(--n-status-critical); font-size:13px;">';
       t += '<strong>Alasan Anulir:</strong> ' + r.VoidReason + ' (oleh ' + r.VoidedBy + ')';
       t += '</td></tr>';
     }
@@ -3770,7 +4175,7 @@ var _KGD = {
 
 function _renderKegiatan(el) {
   var tpl = document.getElementById('view-tpl-kegiatan');
-  if (!tpl) { el.innerHTML = _moduleStub('Kegiatan Direktorat'); return; }
+  if (!tpl) { el.innerHTML = _moduleStub('Kegiatan Pendukung'); return; }
   el.innerHTML = tpl.innerHTML;
   _attachInit('kgd', { refSheet: 'TX_KegiatanDirektorat' });
 
@@ -5622,6 +6027,11 @@ function _logOpenForm(name) {
   var prefix = _LOG_PREFIX[name];
 
   if (name === 'amunisi') {
+    _kapalInit('lga-kapal');
+    var kapalA = document.getElementById('lga-kapal-input');
+    if (kapalA) kapalA.value = '';
+    var kapalHA = document.getElementById('lga-kapal');
+    if (kapalHA) kapalHA.value = '';
     var mode = document.getElementById('lga-mode');
     if (mode) mode.value = 'PENGGUNAAN';
     _logAmunisiModeChange();
@@ -5634,6 +6044,11 @@ function _logOpenForm(name) {
     var hvA = document.getElementById('lga-jenis');
     if (hvA) hvA.value = '';
   } else if (name === 'bbm') {
+    _kapalInit('lgb-kapal');
+    var kapalB = document.getElementById('lgb-kapal-input');
+    if (kapalB) kapalB.value = '';
+    var kapalHB = document.getElementById('lgb-kapal');
+    if (kapalHB) kapalHB.value = '';
     var modeB = document.getElementById('lgb-mode');
     if (modeB) modeB.value = 'PENGGUNAAN';
     _logBbmModeChange();
@@ -5890,6 +6305,7 @@ function _logRenderHistory(jenis, items) {
     if (jenis === 'amunisi') {
       detailFields = [
         ['Periode', _esc(r.periode)],
+        ['Kapal', _esc(_kapalName(r.kapalId))],
         ['Jenis', _esc(r.jenis)],
         ['Mode', _esc(r.mode)],
         ['Stok Awal', r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—'],
@@ -5900,6 +6316,7 @@ function _logRenderHistory(jenis, items) {
     } else if (jenis === 'bbm') {
       detailFields = [
         ['Periode', _esc(r.periode)],
+        ['Kapal', _esc(_kapalName(r.kapalId))],
         ['Jenis', _esc(r.jenis)],
         ['Mode', _esc(r.mode)],
         ['Pagu', r.mode === 'BASELINE' ? _idNum(r.pagu) : '—'],
@@ -5942,8 +6359,8 @@ function _logRenderHistory(jenis, items) {
 }
 
 function _logColumns(jenis) {
-  if (jenis === 'amunisi')  return ['Periode', 'Jenis', 'Mode', 'StokAwal', 'Penggunaan Minggu'];
-  if (jenis === 'bbm')      return ['Periode', 'Jenis', 'Mode', 'Pagu', 'Realisasi', 'Harga Acuan', 'Tunggakan'];
+  if (jenis === 'amunisi')  return ['Periode', 'Kapal', 'Jenis', 'Mode', 'StokAwal', 'Penggunaan Minggu'];
+  if (jenis === 'bbm')      return ['Periode', 'Kapal', 'Jenis', 'Mode', 'Pagu', 'Realisasi', 'Harga Acuan', 'Tunggakan'];
   return ['Periode', 'Komponen', 'Nilai (Rp)'];
 }
 
@@ -5951,6 +6368,7 @@ function _logCells(jenis, r) {
   if (jenis === 'amunisi') {
     return [
       _esc(r.periode),
+      _kapalCellPlain(r.kapalId),
       _esc(r.jenis),
       _logModeBadge(r.mode),
       r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—',
@@ -5960,6 +6378,7 @@ function _logCells(jenis, r) {
   if (jenis === 'bbm') {
     return [
       _esc(r.periode),
+      _kapalCellPlain(r.kapalId),
       _esc(r.jenis),
       _logModeBadge(r.mode),
       r.mode === 'BASELINE' ? _idNum(r.pagu) : '—',
@@ -5987,6 +6406,7 @@ function _logSubmitAmunisi() {
   var params = {
     periode: _composePeriode('lga-'),
     jenis:   _taGet('lga-jenis'),
+    kapalId: _taGet('lga-kapal'),
     mode:    base ? 'BASELINE' : 'PENGGUNAAN'
   };
   if (base) params.stokAwal = _v('lga-stok');
@@ -6019,6 +6439,7 @@ function _logSubmitBbm() {
   var params = {
     periode: _composePeriode('lgb-'),
     jenis:   _taGet('lgb-jenis'),
+    kapalId: _taGet('lgb-kapal'),
     mode:    base ? 'BASELINE' : 'PENGGUNAAN'
   };
   if (base) params.pagu = _v('lgb-pagu');

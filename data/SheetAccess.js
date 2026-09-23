@@ -93,6 +93,44 @@ function openLogSheet(sheetName) {
 }
 
 /**
+ * Pastikan sebuah kolom ada pada sheet transaksi (self-heal). Berguna saat
+ * skema bertambah setelah sheet dibuat (mis. kolom KapalID — Fase 12):
+ * `_createSheetWithHeaders` di Setup.js meng-skip sheet yang sudah ada, jadi
+ * kolom baru tidak otomatis muncul di DB terlanjur dibuat. Fungsi ini men-
+ * append header jika belum ada. Idempoten & aman dipanggil berulang.
+ *
+ * @param {string} sheetName  - nama sheet transaksi
+ * @param {string} colName    - nama kolom yang dipastikan ada
+ */
+function ensureTxColumn(sheetName, colName) {
+  var sheet = openTransaksiSheet(sheetName);
+  if (!sheet) return;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf(colName) !== -1) return;
+  var newCol = lastCol + 1;
+  var cell = sheet.getRange(1, newCol);
+  cell.setValue(colName);
+  cell.setFontWeight('bold');
+  cell.setBackground('#E8EAF6');
+  Logger.log('[ensureTxColumn] Kolom ' + colName + ' ditambahkan ke ' + sheetName + ' (kolom ' + newCol + ').');
+}
+
+/**
+ * Pastikan kolom KapalID ada di keempat sheet transaksi yang dihubungkan ke
+ * Profil Kapal (Fase 12): OperasiLaut, OperasiUdara, Logistik_Amunisi,
+ * Logistik_BBM. Dipanggil di titik tulis service terkait supaya DB lama
+ * ter-heal otomatis tanpa setupForce.
+ */
+function ensureKapalColumns() {
+  ensureTxColumn(SHEET_TX.OPERASI_LAUT,        'KapalID');
+  ensureTxColumn(SHEET_TX.OPERASI_UDARA,       'KapalID');
+  ensureTxColumn(SHEET_TX.LOGISTIK_AMUNISI,    'KapalID');
+  ensureTxColumn(SHEET_TX.LOGISTIK_BBM,        'KapalID');
+}
+
+/**
  * Pastikan sheet master `Opsi` ada (self-heal). Jika belum ada (mis. Master
  * dibuat sebelum revisi Opsi Fase 9/10), buat dengan header sesuai
  * DATA_SCHEMA.md `Opsi`. Aman dipanggil berulang (idempoten).

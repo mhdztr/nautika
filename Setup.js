@@ -141,7 +141,7 @@ function _setupTransaksi(props) {
   // TX_OperasiLaut
   _createSheetWithHeaders(ss, SHEET_TX.OPERASI_LAUT,
     STD_COLS.concat([
-      'WPPCode',
+      'WPPCode', 'KapalID',
       'KII_Ditangkap', 'KIA_Ditangkap', 'AsalNegaraAsing',
       'ValuasiIllegalFishing',
       'RumponDitertibkan', 'ValuasiRumpon',
@@ -153,7 +153,7 @@ function _setupTransaksi(props) {
   // TX_OperasiUdara
   _createSheetWithHeaders(ss, SHEET_TX.OPERASI_UDARA,
     STD_COLS.concat([
-      'WPPCode',
+      'WPPCode', 'KapalID',
       'KII', 'KIA', 'ObjekSDK',
       'RumponLokalTeridentifikasi',
       'CakupanWilayah_NM2',
@@ -201,14 +201,14 @@ function _setupTransaksi(props) {
   // TX_Logistik_Amunisi
   _createSheetWithHeaders(ss, SHEET_TX.LOGISTIK_AMUNISI,
     STD_COLS.concat([
-      'JenisAmunisi', 'StokAwal', 'Penggunaan_Minggu'
+      'KapalID', 'JenisAmunisi', 'StokAwal', 'Penggunaan_Minggu'
     ])
   );
 
   // TX_Logistik_BBM
   _createSheetWithHeaders(ss, SHEET_TX.LOGISTIK_BBM,
     STD_COLS.concat([
-      'Jenis', 'Pagu', 'Realisasi_Minggu', 'HargaAcuan', 'Tunggakan_Status'
+      'KapalID', 'Jenis', 'Pagu', 'Realisasi_Minggu', 'HargaAcuan', 'Tunggakan_Status'
     ])
   );
 

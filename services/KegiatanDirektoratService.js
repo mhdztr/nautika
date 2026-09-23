@@ -1,6 +1,6 @@
 /**
  * services/KegiatanDirektoratService.js
- * Service backend modul Kegiatan Direktorat — PRD §5.10.
+ * Service backend modul Kegiatan Pendukung — PRD §5.10.
  *
  * Bukan milik satu divisi: log kegiatan lintas-direktorat (pre-award meeting,
  * monitoring ABT, serah terima, dst). CRUD oleh Direktur + semua Kepala Divisi
@@ -69,7 +69,7 @@ function _kgdDivisiMap() {
 // ===========================================================================
 
 /**
- * KPI Kegiatan Direktorat untuk rentang filter.
+ * KPI Kegiatan Pendukung untuk rentang filter.
  * Kegiatan Periode Ini: entri ACTIVE dengan Tanggal tumpang-tindih range filter.
  * Kegiatan YTD: entri ACTIVE dari awal tahun s.d. akhir range.
  * Terakhir Dicatat: Timestamp entri ACTIVE terbaru dalam range.
@@ -309,7 +309,7 @@ function kegiatanDirektorat_anulir(token, params) {
             NotifID: Utilities.getUuid(),
             UserID: publisherId,
             Jenis: 'DATA_VOIDED',
-            Pesan: 'Kegiatan Direktorat (' + String(target.obj['JudulKegiatan'] || '-') +
+            Pesan: 'Kegiatan Pendukung (' + String(target.obj['JudulKegiatan'] || '-') +
                    ', ' + (target.obj['Tanggal'] ? _kgdNormDate(target.obj['Tanggal']).toISOString().substring(0, 10) : '-') +
                    ') telah dianulir oleh ' + session.role + '. Komentar: ' + alasan,
             IsRead: false,

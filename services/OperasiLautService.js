@@ -198,6 +198,10 @@ function operasiLaut_submit(token, params) {
       }
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_LAUT);
+      ensureKapalColumns(); // self-heal: pastikan kolom KapalID ada (Fase 12)
+      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
       var rows = sheetToObjects(sheet);
 
       // Cek duplikat ACTIVE untuk kombinasi Periode + WPP
@@ -223,6 +227,7 @@ function operasiLaut_submit(token, params) {
         VoidedAt: '',
         
         WPPCode: p.WPPCode,
+        KapalID: p.KapalID || '',
         KII_Ditangkap: p.KII_Ditangkap || 0,
         KIA_Ditangkap: p.KIA_Ditangkap || 0,
         AsalNegaraAsing: p.AsalNegaraAsing || '',
@@ -260,6 +265,10 @@ function operasiLaut_revisi(token, params) {
       if (!alasanRevisi) return { success: false, error: 'Alasan revisi wajib diisi.' };
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_LAUT);
+      ensureKapalColumns(); // self-heal (Fase 12)
+      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
       var oldRowData = findRowByField(sheet, 'RowID', targetRowId);
       if (!oldRowData || String(oldRowData.obj['Status']) !== ROW_STATUS.ACTIVE) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
@@ -289,6 +298,7 @@ function operasiLaut_revisi(token, params) {
         VoidedAt: '',
         
         WPPCode: oldObj.WPPCode, // Tidak bisa ubah WPPCode di revisi
+        KapalID: p.KapalID !== undefined ? p.KapalID : oldObj.KapalID,
         KII_Ditangkap: p.KII_Ditangkap !== undefined ? p.KII_Ditangkap : oldObj.KII_Ditangkap,
         KIA_Ditangkap: p.KIA_Ditangkap !== undefined ? p.KIA_Ditangkap : oldObj.KIA_Ditangkap,
         AsalNegaraAsing: p.AsalNegaraAsing !== undefined ? p.AsalNegaraAsing : oldObj.AsalNegaraAsing,

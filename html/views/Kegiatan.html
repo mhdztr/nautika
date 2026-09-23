@@ -1,6 +1,6 @@
 <!-- html/views/Kegiatan.html -->
 <!--
-  Modul Kegiatan Direktorat — PRD §5.10.
+  Modul Kegiatan Pendukung — PRD §5.10.
   Lintas-divisi (Direktur + semua Kadiv), feed kronologis per tanggal.
   Di-include ke Index.html via html_include(), dirender oleh _renderKegiatan().
   Form input memakai POLA POPUP (backlog A) — injector modal di Script_Main.html.
@@ -17,7 +17,7 @@
   <!-- ── FEED KRONOLOGIS ────────────────────────── -->
   <div class="content-section">
     <div class="content-section-hd" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>Feed Kegiatan Direktorat</span>
+      <span>Feed Kegiatan Pendukung</span>
       <button type="button" class="btn-primary" id="kgd-btn-open-form" onclick="kgdOpenForm()">+ Catat Kegiatan</button>
     </div>
     <div id="kgd-history-msg" class="n-msg"></div>
@@ -29,7 +29,7 @@
   <!-- ── MODAL — CATAT KEGIATAN (POPUP, BACKLOG A) ── -->
   <div class="n-overlay n-hidden" id="modal-kgd-form">
     <div class="n-modal" style="max-width:560px;width:100%;">
-      <h2>Catat Kegiatan Direktorat</h2>
+      <h2>Catat Kegiatan Pendukung</h2>
       <div id="kgd-form-msg" class="n-msg"></div>
 
       <div class="form-grp">

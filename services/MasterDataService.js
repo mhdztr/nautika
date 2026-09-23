@@ -87,6 +87,24 @@ function master_getKapalList(token) {
 }
 
 /**
+ * Helper internal (tanpa RBAC — pemanggil sudah assert scope masing-masing):
+ * cek apakah sebuah KapalID terdaftar di master kapal. Dipakai service lain
+ * (Operasi Laut/Udara, Logistik) untuk menvalidasi input opsional KapalID.
+ * @param {string} kapalId
+ * @returns {boolean}
+ */
+function master_kapalExists(kapalId) {
+  var id = String(kapalId || '').trim();
+  if (!id) return true; // KapalID opsional — kosong = valid
+  var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+  var rows = sheetToObjects(sheet);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['KapalID'] || '').trim() === id) return true;
+  }
+  return false;
+}
+
+/**
  * Tambah kapal baru.
  * @param {string} token
  * @param {{kapalId:string, nama:string, kelas:string, homebaseUpt:string, statusAktif:boolean}} params

@@ -618,7 +618,7 @@ function _renderOverview(el) {
     '</div>';
 
   el.innerHTML = html;
-  if (canApprove) _loadApprovals();
+  if (isApprover) _loadApprovals();
 
   APP_OV.key = null; // selalu isi ulang (server-side cache 300s membuatnya murah)
   _ovLoadData();
@@ -633,9 +633,8 @@ function _ovFilterKey() {
   return 'monthly_' + (f.year || '') + '_' + (f.month || '');
 }
 
-function _ovLoadData() {
-  if (APP_OV.key === _ovFilterKey()) return; // sudah dimuat untuk filter ini
-  APP_OV.key = _ovFilterKey();
+function _ovLoadData(force) {
+  if (!force && APP_OV.key === _ovFilterKey()) return; // sudah dimuat untuk filter ini
 
   var kpiRow = document.getElementById('ov-kpi-row');
   var grid = document.getElementById('ov-div-grid');
@@ -645,31 +644,66 @@ function _ovLoadData() {
   google.script.run
     .withSuccessHandler(function (res) {
       try {
-        if (res && res.success) _ovRenderData(res.data);
+        // Kunci cache hanya setelah server benar-benar menjawab sukses — kalau tidak,
+        // satu kegagalan sementara (sesi expired/timeout) akan membuat semua
+        // pemanggilan berikutnya dilewati sehingga Ikhtisar tidak pernah terisi.
+        APP_OV.key = _ovFilterKey();
+        if (res && res.success) {
+          _ovRenderData(res.data);
+        } else {
+          _ovLoadError((res && res.error) || 'Gagal memuat data Ikhtisar.');
+        }
       } finally {
         _busyDec();
       }
     })
-    .withFailureHandler(function () { _busyDec(); })
+    .withFailureHandler(function (err) {
+      // Gagal keras (UNAUTHORIZED/timeout) — jangan kunci filter, agar bisa dicoba ulang.
+      APP_OV.key = null;
+      _ovLoadError((err && err.message) || 'Gagal menghubungi server.');
+      _busyDec();
+    })
     .dashboard_getOverview(APP.token, APP.filter);
+}
+
+function _ovLoadError(msg) {
+  var kpiRow = document.getElementById('ov-kpi-row');
+  if (kpiRow) {
+    kpiRow.innerHTML = '<div class="n-msg error show">Data Ikhtisar gagal dimuat: ' +
+      _esc(msg) +
+      '. <button class="btn-sm" onclick="_ovLoadData(true)">Coba lagi</button></div>';
+  }
+  var grid = document.getElementById('ov-div-grid');
+  if (grid) grid.innerHTML = '';
 }
 
 function _ovRenderData(d) {
   if (!d) return;
 
   var kpiRow = document.getElementById('ov-kpi-row');
-  if (kpiRow && d.headline) {
-    kpiRow.innerHTML = d.headline.map(function (h) {
-      return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub);
-    }).join('');
+  if (kpiRow) {
+    if (d.headline && d.headline.length) {
+      kpiRow.innerHTML = d.headline.map(function (h) {
+        return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub);
+      }).join('');
+    } else {
+      kpiRow.innerHTML = '<div class="chart-empty">Belum ada laporan pada rentang terpilih — ' +
+        'isi minimal satu laporan (Operasi Laut/Udara/Intelijen/Pemantauan) pada periode ini ' +
+        'agar indikator Ikhtisar muncul.</div>';
+    }
   }
 
   var grid = document.getElementById('ov-div-grid');
-  if (grid && d.divisi) {
-    grid.innerHTML = d.divisi.map(function (dv) {
-      var metrics = dv.metrics.map(function (m) { return _ovMetric(m); });
-      return _divCard(dv.title, metrics);
-    }).join('');
+  if (grid) {
+    if (d.divisi && d.divisi.length) {
+      grid.innerHTML = d.divisi.map(function (dv) {
+        var metrics = dv.metrics.map(function (m) { return _ovMetric(m); });
+        return _divCard(dv.title, metrics);
+      }).join('');
+    } else {
+      grid.innerHTML = '<div class="chart-empty">Belum ada ringkasan divisi pada rentang terpilih — ' +
+        'laporan yang masuk akan ditampilkan sebagai kartu ringkas per divisi di sini.</div>';
+    }
   }
 
   if (d.charts) {

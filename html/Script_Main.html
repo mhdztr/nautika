@@ -3019,10 +3019,7 @@ function _opsLautRenderKPI(kpi) {
 
 function opsLautOpenForm() {
   _kapalInit('ops-kapal');
-  var kapalInput = document.getElementById('ops-kapal-input');
-  if (kapalInput) kapalInput.value = '';
-  var kapalHid = document.getElementById('ops-kapal');
-  if (kapalHid) kapalHid.value = '';
+  _kdlReset('ops-kapal');
   ['ops-kii','ops-kia','ops-asal-negara','ops-valuasi-ikan','ops-rumpon','ops-valuasi-rumpon',
    'ops-riksa-kii','ops-riksa-kia','ops-riksa-sdk','ops-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -3049,23 +3046,25 @@ function _v(id) {
   return el ? el.value : '';
 }
 
-// ── TYPEAHEAD COMBOBOX (backlog B — Fase 11) ─────────────
-// Input teks + autocomplete untuk Jenis/Kategori. Sumber saran =
-// Opsi master (via *_getOptions); nilai akhir tetap divalidasi server.
-// Markup (di tiap form): .ta-field{ input[type=text] id=X-input,
-// hidden id=X (token), ul id=X-dd }. Submit memakai _taGet('X').
-var _TA_DATA = {};
-
-// `arr` boleh berupa token mentah atau item {value,label} dari server `Opsi`.
-// `labelMap` opsional (dipakai bila pemanggil masih punya peta label).
-function _taTokensToItems(arr, labelMap) {
-  var out = [];
-  (arr || []).forEach(function (t) {
-    if (t && typeof t === 'object') out.push({ value: t.value, label: t.label || t.value });
-    else out.push({ value: t, label: (labelMap && labelMap[t]) || t });
-  });
-  return out;
-}
+// ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12) ────────────
+// Menggantikan combobox typeahead **Backlog B (dibatalkan)**. Enum
+// Jenis/Kategori kembali ke <select> Opsi biasa (PRD memakai istilah
+// dropdown). Field relasi Kapal memakai dropdown yang jelas terlihat
+// sebagai dropdown (chevron), dengan kotak cari di panel + tombol hapus.
+// Nilai akhir tetap divalidasi server.
+// Markup (di tiap form, lihat views/*.html):
+//   <div class="kdl-sel">
+//     <input  id="X-input"  class="kdl-field" readonly placeholder="…">
+//     <input type="hidden"  id="X">                 ← token terpilih
+//     <button id="X-clear"  class="kdl-clear" style="display:none;"></button>
+//     <span   class="kdl-caret"></span>
+//     <div    class="kdl-panel" id="X-panel">
+//       <input id="X-q" type="text" class="kdl-q" placeholder="Cari…">
+//       <ul    id="X-dd" class="kdl-list"></ul>
+//     </div>
+//   </div>
+// Submit membaca token via _v('X'); hapus keyword me-reset filter penuh.
+var _KDL_DATA = {};
 
 // Mengisi <select> biasa dari daftar item Opsi {value,label}; mempertahankan
 // nilai terpilih bila masih tersedia, juga untuk form revisi.
@@ -3089,31 +3088,76 @@ function _fillOpsiSelect(id, items, labelKosong) {
   sel.value = prev;
   return sel;
 }
-function _taInit(id, items) {
-  var input = document.getElementById(id + '-input');
-  var dd = document.getElementById(id + '-dd');
-  if (!input || !dd) return;
-  _TA_DATA[id] = items || [];
-  if (input.getAttribute('data-ta-bound')) return;
-  input.setAttribute('data-ta-bound', '1');
-  input.addEventListener('input', function () { _taFilter(id); });
-  input.addEventListener('focus', function () { _taFilter(id); });
-  input.addEventListener('keydown', function (e) { _taKey(id, e); });
-  input.addEventListener('blur', function () {
-    _taSync(id);
-    setTimeout(function () { _taClose(id); }, 120);
+function _kdlInit(id, items) {
+  var field = document.getElementById(id + '-input');
+  var hid   = document.getElementById(id);
+  var panel = document.getElementById(id + '-panel');
+  var q     = document.getElementById(id + '-q');
+  var dd    = document.getElementById(id + '-dd');
+  var clear = document.getElementById(id + '-clear');
+  if (!field || !hid || !panel) return;
+  _KDL_DATA[id] = items || [];
+  if (field.getAttribute('data-kdl-bound')) return;
+  field.setAttribute('data-kdl-bound', '1');
+
+  field.addEventListener('click', function () { _kdlToggle(id); });
+  field.addEventListener('keydown', function (e) {
+    if (e.keyCode === 40 || e.keyCode === 38 || e.keyCode === 13) { // ↓/↑/Enter buka
+      e.preventDefault();
+      _kdlOpen(id);
+    }
   });
-  dd.addEventListener('mousedown', function (e) { _taPickByEvent(id, e); });
+
+  if (q) {
+    q.addEventListener('input', function () { _kdlFilter(id); });
+    q.addEventListener('keydown', function (e) { _kdlKey(id, e); });
+  }
+  if (dd) dd.addEventListener('mousedown', function (e) { _kdlPickEvent(id, e); });
+  if (clear) clear.addEventListener('click', function (e) {
+    e.stopPropagation();
+    _kdlClear(id);
+  });
 }
 
-function _taFilter(id) {
-  var input = document.getElementById(id + '-input');
+function _kdlOpen(id) {
+  _kdlCloseAll();
+  var panel = document.getElementById(id + '-panel');
+  var q     = document.getElementById(id + '-q');
+  if (panel) panel.classList.add('kdl-open');
+  if (q) q.value = '';
+  _kdlFilter(id);
+  if (q) q.focus();
+}
+
+function _kdlToggle(id) {
+  var panel = document.getElementById(id + '-panel');
+  if (panel && panel.classList.contains('kdl-open')) _kdlClose(id);
+  else _kdlOpen(id);
+}
+
+function _kdlClose(id) {
+  var panel = document.getElementById(id + '-panel');
+  if (panel) panel.classList.remove('kdl-open');
+}
+
+function _kdlCloseAll() {
+  var els = document.querySelectorAll('.kdl-panel.kdl-open');
+  for (var i = 0; i < els.length; i++) els[i].classList.remove('kdl-open');
+}
+
+document.addEventListener('mousedown', function (e) {
+  if (e.target && e.target.closest && e.target.closest('.kdl-sel')) return;
+  _kdlCloseAll();
+});
+
+function _kdlFilter(id) {
+  var q  = document.getElementById(id + '-q');
   var dd = document.getElementById(id + '-dd');
-  if (!input || !dd) return;
-  var q = (input.value || '').toLowerCase();
+  if (!q || !dd) return;
+  var term = (q.value || '').toLowerCase();
   var shown = [];
-  (_TA_DATA[id] || []).forEach(function (it) {
-    if (!q || it.label.toLowerCase().indexOf(q) !== -1) shown.push(it);
+  (_KDL_DATA[id] || []).forEach(function (it) {
+    if (it && (it.label || '').toLowerCase().indexOf(term) !== -1) shown.push(it);
   });
   dd.innerHTML = '';
   shown.forEach(function (it) {
@@ -3121,35 +3165,36 @@ function _taFilter(id) {
     li.textContent = it.label;
     li.setAttribute('data-v', it.value);
     li.setAttribute('data-l', it.label);
-    if (it.label.toLowerCase() === q) li.className = 'ta-hl';
+    if (it.label && it.label.toLowerCase() === term) li.className = 'kdl-hl';
     dd.appendChild(li);
   });
-  if (!shown.length && q) {
+  if (!shown.length && term) {
     var empty = document.createElement('li');
     empty.textContent = 'Tidak ada opsi — tambahkan di Master Data';
-    empty.className = 'ta-empty';
+    empty.className = 'kdl-empty';
     dd.appendChild(empty);
   }
-  dd.style.display = (shown.length || q) ? 'block' : 'none';
 }
 
-function _taPickByEvent(id, e) {
+function _kdlPickEvent(id, e) {
   e.preventDefault();
   var li = e.target;
   while (li && li.tagName !== 'LI') li = li.parentNode;
   if (!li || !li.getAttribute('data-v')) return;
-  _taPick(id, li.getAttribute('data-v'), li.getAttribute('data-l'));
+  _kdlPick(id, li.getAttribute('data-v'), li.getAttribute('data-l'));
 }
 
-function _taPick(id, value, label) {
-  var input = document.getElementById(id + '-input');
-  var hid = document.getElementById(id);
-  if (input) input.value = label;
-  if (hid) hid.value = value;
-  _taClose(id);
+function _kdlPick(id, value, label) {
+  var field = document.getElementById(id + '-input');
+  var hid   = document.getElementById(id);
+  var clear = document.getElementById(id + '-clear');
+  if (field) field.value = label;
+  if (hid)   hid.value = value;
+  if (clear) clear.style.display = '';
+  _kdlClose(id);
 }
 
-function _taKey(id, e) {
+function _kdlKey(id, e) {
   var k = e.keyCode;
   var dd = document.getElementById(id + '-dd');
   if (!dd) return;
@@ -3158,57 +3203,64 @@ function _taKey(id, e) {
     e.preventDefault();
     var idx = -1;
     for (var i = 0; i < items.length; i++) {
-      if (items[i].classList.contains('ta-hl')) { idx = i; break; }
+      if (items[i].classList.contains('kdl-hl')) { idx = i; break; }
     }
     idx += (k === 40) ? 1 : -1;
     if (idx < 0) idx = 0;
     if (idx > items.length - 1) idx = items.length - 1;
-    for (var j = 0; j < items.length; j++) items[j].classList.remove('ta-hl');
-    if (items[idx]) items[idx].classList.add('ta-hl');
+    for (var j = 0; j < items.length; j++) items[j].classList.remove('kdl-hl');
+    if (items[idx]) items[idx].classList.add('kdl-hl');
   } else if (k === 13) {
     for (var m = 0; m < items.length; m++) {
-      if (items[m].classList.contains('ta-hl')) {
+      if (items[m].classList.contains('kdl-hl')) {
         e.preventDefault();
-        _taPick(id, items[m].getAttribute('data-v'), items[m].getAttribute('data-l'));
+        _kdlPick(id, items[m].getAttribute('data-v'), items[m].getAttribute('data-l'));
         return;
       }
     }
   } else if (k === 27) {
-    _taClose(id);
+    _kdlClose(id);
+    var field = document.getElementById(id + '-input');
+    if (field) field.focus();
   }
 }
 
-function _taSync(id) {
-  var input = document.getElementById(id + '-input');
-  var hid = document.getElementById(id);
-  if (!input || !hid) return;
-  var lq = (input.value || '').trim().toLowerCase();
-  var val = '';
-  (_TA_DATA[id] || []).forEach(function (it) {
-    if (it.label.toLowerCase() === lq || it.value.toLowerCase() === lq) val = it.value;
-  });
-  hid.value = val;
+// Hapus pilihan + keyword → filter kembali penuh saat panel dibuka kembali.
+function _kdlClear(id) {
+  _kdlSet(id, '', '');
+  var q = document.getElementById(id + '-q');
+  if (q) q.value = '';
+  _kdlFilter(id);
+  var field = document.getElementById(id + '-input');
+  if (field) field.focus();
 }
 
-function _taClose(id) {
-  var dd = document.getElementById(id + '-dd');
-  if (dd) dd.style.display = 'none';
+// Reset penuh saat form dibuka (pola Backlog A). Tidak membuka panel.
+function _kdlReset(id) {
+  _kdlSet(id, '', '');
+  _kdlClose(id);
+  var q = document.getElementById(id + '-q');
+  if (q) q.value = '';
+  _kdlFilter(id);
 }
 
-function _taGet(id) {
-  _taSync(id);
-  var hid = document.getElementById(id);
-  return hid ? hid.value : '';
+function _kdlSet(id, token, label) {
+  var field = document.getElementById(id + '-input');
+  var hid   = document.getElementById(id);
+  var clear = document.getElementById(id + '-clear');
+  if (field) field.value = label;
+  if (hid)   hid.value = token;
+  if (clear) clear.style.display = token ? '' : 'none';
 }
 
-// ── PENCARIAN KAPAL (typeahead) — Fase 12 ─────────────────
+// ── PENCARIAN KAPAL (search dropdown) — Fase 12 ──────────
 // Semua APPROVED boleh baca master kapal (PRD §6), jadi dropdown kapal
 // di form Operasi Laut/Udara & Logistik memakai master_getKapalList.
 var _KAPAL_ITEMS   = [];
 var _KAPAL_LABEL   = {}; // kapalId → nama (untuk tabel riwayat & profil)
 
 function _kapalInit(id) {
-  if (_KAPAL_ITEMS.length) { _taInit(id, _KAPAL_ITEMS); return; }
+  if (_KAPAL_ITEMS.length) { _kdlInit(id, _KAPAL_ITEMS); return; }
   google.script.run
     .withSuccessHandler(function (res) {
       if (res && res.success && res.data) {
@@ -3219,11 +3271,11 @@ function _kapalInit(id) {
       } else {
         _KAPAL_ITEMS = [];
       }
-      if (id) _taInit(id, _KAPAL_ITEMS);
+      if (id) _kdlInit(id, _KAPAL_ITEMS);
     })
     .withFailureHandler(function () {
       _KAPAL_ITEMS = [];
-      if (id) _taInit(id, _KAPAL_ITEMS);
+      if (id) _kdlInit(id, _KAPAL_ITEMS);
     })
     .master_getKapalList(APP.token);
 }
@@ -3249,7 +3301,7 @@ function opsLautSubmit() {
   var params = {
     Periode: _composePeriode(),
     WPPCode: _v('ops-wpp'),
-    KapalID: _taGet('ops-kapal'),
+    KapalID: _v('ops-kapal'),
     KII_Ditangkap: parseInt(_v('ops-kii'), 10) || 0,
     KIA_Ditangkap: parseInt(_v('ops-kia'), 10) || 0,
     AsalNegaraAsing: _v('ops-asal-negara'),
@@ -3659,10 +3711,7 @@ function _opsUdaraRenderKPI(kpi) {
 
 function opsUdaraOpenForm() {
   _kapalInit('oud-kapal');
-  var kapalInput = document.getElementById('oud-kapal-input');
-  if (kapalInput) kapalInput.value = '';
-  var kapalHid = document.getElementById('oud-kapal');
-  if (kapalHid) kapalHid.value = '';
+  _kdlReset('oud-kapal');
   ['oud-kii','oud-kia','oud-sdk','oud-rumpon','oud-cakupan','oud-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
@@ -3690,7 +3739,7 @@ function opsUdaraSubmit() {
   var params = {
     Periode: _composePeriode('oud-'),
     WPPCode: _v('oud-wpp'),
-    KapalID: _taGet('oud-kapal'),
+    KapalID: _v('oud-kapal'),
     KII: parseInt(_v('oud-kii'), 10) || 0,
     KIA: parseInt(_v('oud-kia'), 10) || 0,
     ObjekSDK: parseInt(_v('oud-sdk'), 10) || 0,
@@ -6238,10 +6287,7 @@ function _logOpenForm(name) {
 
   if (name === 'amunisi') {
     _kapalInit('lga-kapal');
-    var kapalA = document.getElementById('lga-kapal-input');
-    if (kapalA) kapalA.value = '';
-    var kapalHA = document.getElementById('lga-kapal');
-    if (kapalHA) kapalHA.value = '';
+    _kdlReset('lga-kapal');
     var mode = document.getElementById('lga-mode');
     if (mode) mode.value = 'PENGGUNAAN';
     _logAmunisiModeChange();
@@ -6249,16 +6295,11 @@ function _logOpenForm(name) {
     if (stok) stok.value = '';
     var pakai = document.getElementById('lga-penggunaan');
     if (pakai) pakai.value = '';
-    var taA = document.getElementById('lga-jenis-input');
-    if (taA) taA.value = '';
-    var hvA = document.getElementById('lga-jenis');
-    if (hvA) hvA.value = '';
+    var selA = document.getElementById('lga-jenis');
+    if (selA) selA.selectedIndex = 0;
   } else if (name === 'bbm') {
     _kapalInit('lgb-kapal');
-    var kapalB = document.getElementById('lgb-kapal-input');
-    if (kapalB) kapalB.value = '';
-    var kapalHB = document.getElementById('lgb-kapal');
-    if (kapalHB) kapalHB.value = '';
+    _kdlReset('lgb-kapal');
     var modeB = document.getElementById('lgb-mode');
     if (modeB) modeB.value = 'PENGGUNAAN';
     _logBbmModeChange();
@@ -6266,17 +6307,13 @@ function _logOpenForm(name) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    var taB = document.getElementById('lgb-jenis-input');
-    if (taB) taB.value = '';
-    var hvB = document.getElementById('lgb-jenis');
-    if (hvB) hvB.value = '';
+    var selB = document.getElementById('lgb-jenis');
+    if (selB) selB.selectedIndex = 0;
   } else {
     var nilai = document.getElementById('lgp-nilai');
     if (nilai) nilai.value = '';
-    var taP = document.getElementById('lgp-komponen-input');
-    if (taP) taP.value = '';
-    var hvP = document.getElementById('lgp-komponen');
-    if (hvP) hvP.value = '';
+    var selP = document.getElementById('lgp-komponen');
+    if (selP) selP.selectedIndex = 0;
   }
 
   _logFillFormContext(name);
@@ -6322,9 +6359,9 @@ function _logLoadOptions() {
 
 function _logPopulateOptions() {
   if (!_LOG.options) return;
-  _taInit('lga-jenis', _LOG.options.amunisi);
-  _taInit('lgb-jenis', _LOG.options.bbm);
-  _taInit('lgp-komponen', _LOG.options.personil);
+  _fillOpsiSelect('lga-jenis', _LOG.options.amunisi, '(Pilih Jenis)');
+  _fillOpsiSelect('lgb-jenis', _LOG.options.bbm, '(Pilih Jenis)');
+  _fillOpsiSelect('lgp-komponen', _LOG.options.personil, '(Pilih Komponen)');
 }
 
 // ── MODE BASELINE / PENGGUNAAN ───────────────────────────
@@ -6615,8 +6652,8 @@ function _logSubmitAmunisi() {
   var base = _v('lga-mode') === 'BASELINE';
   var params = {
     periode: _composePeriode('lga-'),
-    jenis:   _taGet('lga-jenis'),
-    kapalId: _taGet('lga-kapal'),
+    jenis:   _v('lga-jenis'),
+    kapalId: _v('lga-kapal'),
     mode:    base ? 'BASELINE' : 'PENGGUNAAN'
   };
   if (base) params.stokAwal = _v('lga-stok');
@@ -6648,8 +6685,8 @@ function _logSubmitBbm() {
   var base = _v('lgb-mode') === 'BASELINE';
   var params = {
     periode: _composePeriode('lgb-'),
-    jenis:   _taGet('lgb-jenis'),
-    kapalId: _taGet('lgb-kapal'),
+    jenis:   _v('lgb-jenis'),
+    kapalId: _v('lgb-kapal'),
     mode:    base ? 'BASELINE' : 'PENGGUNAAN'
   };
   if (base) params.pagu = _v('lgb-pagu');
@@ -6684,7 +6721,7 @@ function _logSubmitPersonil() {
   _setLoading(btn, true);
   var params = {
     periode:  _composePeriode('lgp-'),
-    komponen: _taGet('lgp-komponen'),
+    komponen: _v('lgp-komponen'),
     nilai:    _v('lgp-nilai')
   };
   google.script.run
@@ -6969,10 +7006,8 @@ function _awkOpenForm(name) {
     });
     var scope = document.getElementById('akn-scope');
     if (scope && scope.options.length) scope.selectedIndex = 0; // scope pertama dari `Opsi`
-    var inA = document.getElementById('akn-kategori-input');
-    if (inA) inA.value = '';
-    var hvA = document.getElementById('akn-kategori');
-    if (hvA) hvA.value = '';
+    var kat = document.getElementById('akn-kategori');
+    if (kat) kat.selectedIndex = 0; // placeholder "(Pilih Kategori)" dari `Opsi`
   } else {
     ['akk-judul','akk-tglmulai','akk-tglselesai','akk-wilayah','akk-peserta','akk-deskripsi'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -7004,7 +7039,7 @@ function _awkLoadOptions() {
 
 function _awkPopulateOptions() {
   if (!_AWK.options) return;
-  _taInit('akn-kategori', _AWK.options.kategori);
+  _fillOpsiSelect('akn-kategori', _AWK.options.kategori, '(Pilih Kategori)');
   _fillOpsiSelect('akn-scope', _AWK.options.scopes);
 }
 
@@ -7246,7 +7281,7 @@ function _awkSubmitAkn() {
   var params = {
     periode:  _composePeriode('akn-'),
     scope:    _v('akn-scope'),
-    kategori: _taGet('akn-kategori'),
+    kategori: _v('akn-kategori'),
     jumlah:   _v('akn-jumlah')
   };
   google.script.run

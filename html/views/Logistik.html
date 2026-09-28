@@ -149,21 +149,23 @@
           </div>
           <div class="form-grp">
             <label for="lga-jenis">Jenis Amunisi</label>
-            <div class="ta-field">
-              <input type="text" id="lga-jenis-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
-              <input type="hidden" id="lga-jenis">
-              <ul class="ta-dd" id="lga-jenis-dd"></ul>
-            </div>
+            <!-- Isi option runtime dari sheet Opsi (logistik_getOptions) -->
+            <select id="lga-jenis"></select>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
           <div class="form-grp">
             <label for="lga-kapal">Kapal Pengawas <span style="color:var(--n-text-muted);font-weight:400;">(opsional — untuk Profil Kapal)</span></label>
-            <div class="ta-field">
-              <input type="text" id="lga-kapal-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
+            <div class="kdl-sel">
+              <input type="text" id="lga-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
               <input type="hidden" id="lga-kapal">
-              <ul class="ta-dd" id="lga-kapal-dd"></ul>
+              <button type="button" id="lga-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+              <span class="kdl-caret"></span>
+              <div class="kdl-panel" id="lga-kapal-panel">
+                <input type="text" id="lga-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
+                <ul class="kdl-list" id="lga-kapal-dd"></ul>
+              </div>
             </div>
           </div>
           <div class="form-grp"></div>
@@ -249,21 +251,23 @@
           </div>
           <div class="form-grp">
             <label for="lgb-jenis">Jenis BBM</label>
-            <div class="ta-field">
-              <input type="text" id="lgb-jenis-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
-              <input type="hidden" id="lgb-jenis">
-              <ul class="ta-dd" id="lgb-jenis-dd"></ul>
-            </div>
+            <!-- Isi option runtime dari sheet Opsi (logistik_getOptions) -->
+            <select id="lgb-jenis"></select>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
           <div class="form-grp">
             <label for="lgb-kapal">Kapal Pengawas <span style="color:var(--n-text-muted);font-weight:400;">(opsional — untuk Profil Kapal)</span></label>
-            <div class="ta-field">
-              <input type="text" id="lgb-kapal-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
+            <div class="kdl-sel">
+              <input type="text" id="lgb-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
               <input type="hidden" id="lgb-kapal">
-              <ul class="ta-dd" id="lgb-kapal-dd"></ul>
+              <button type="button" id="lgb-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+              <span class="kdl-caret"></span>
+              <div class="kdl-panel" id="lgb-kapal-panel">
+                <input type="text" id="lgb-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
+                <ul class="kdl-list" id="lgb-kapal-dd"></ul>
+              </div>
             </div>
           </div>
           <div class="form-grp"></div>
@@ -352,11 +356,8 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="lgp-komponen">Komponen</label>
-            <div class="ta-field">
-              <input type="text" id="lgp-komponen-input" class="ta-input" autocomplete="off" placeholder="Ketik untuk memilih…">
-              <input type="hidden" id="lgp-komponen">
-              <ul class="ta-dd" id="lgp-komponen-dd"></ul>
-            </div>
+            <!-- Isi option runtime dari sheet Opsi (logistik_getOptions) -->
+            <select id="lgp-komponen"></select>
           </div>
           <div class="form-grp">
             <label for="lgp-nilai">Nilai Minggu Ini (Rp)</label>

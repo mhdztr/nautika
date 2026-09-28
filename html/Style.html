@@ -167,32 +167,78 @@ a { text-decoration: none; color: inherit; }
   padding-right: 36px;
 }
 
-/* ── TYPEAHEAD COMBOBOX (backlog B — Fase 11) ────────── */
-.ta-field { position: relative; }
-.ta-input { width: 100%; }
-.ta-dd {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0; right: 0; z-index: 60;
-  margin: 0; padding: 4px;
-  list-style: none;
+/* ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12) ──────────
+   Menggantikan typeahead Backlog B. Tampil sebagai dropdown (readonly +
+   chevron), panel berisi kotak cari + daftar, tombol hapus me-reset filter. */
+.kdl-sel { position: relative; width: 100%; }
+.form-grp .kdl-field {
+  width: 100%;
+  padding: 10px 13px;
+  padding-right: 58px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-size: 0.9375rem;
+  color: var(--n-text-primary);
+  background: var(--n-surface-2);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+.form-grp .kdl-field:focus {
+  border-color: var(--n-primary);
+  background: var(--n-surface-1);
+}
+.kdl-field::placeholder { color: var(--n-text-muted); }
+.kdl-caret {
+  position: absolute; top: 50%; right: 14px; margin-top: -8px;
+  width: 16px; height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AED0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center;
+  pointer-events: none;
+}
+.kdl-clear {
+  position: absolute; top: 50%; right: 38px; margin-top: -9px;
+  width: 18px; height: 18px; margin: 0; padding: 0;
+  border: none; background: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AED0' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center;
+  cursor: pointer;
+}
+.kdl-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
   background: var(--n-surface-1);
   border: 1px solid var(--n-border-subtle);
   border-radius: var(--n-r-sm);
   box-shadow: var(--n-shadow-card);
-  max-height: 240px; overflow-y: auto;
   display: none;
 }
-.ta-dd li {
+.kdl-panel.kdl-open { display: block; }
+.kdl-q {
+  width: 100%;
+  padding: 10px 13px;
+  border: none;
+  border-bottom: 1px solid var(--n-border-subtle);
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--n-text-primary);
+  background: var(--n-surface-2);
+}
+.kdl-q::placeholder { color: var(--n-text-muted); }
+.kdl-list {
+  margin: 0; padding: 4px;
+  list-style: none;
+  max-height: 240px; overflow-y: auto;
+}
+.kdl-list li {
   padding: 9px 12px;
   border-radius: 8px;
   font-size: 0.875rem;
   color: var(--n-text-primary);
   cursor: pointer;
 }
-.ta-dd li:hover,
-.ta-dd li.ta-hl { background: var(--n-surface-hover); color: var(--n-primary); }
-.ta-dd .ta-empty {
+.kdl-list li:hover,
+.kdl-list li.kdl-hl { background: var(--n-surface-hover); color: var(--n-primary); }
+.kdl-list .kdl-empty {
   color: var(--n-text-muted);
   font-size: 0.8125rem;
   cursor: default;

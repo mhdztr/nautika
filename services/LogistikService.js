@@ -73,9 +73,12 @@ function logistik_getOptions(token) {
     return {
       success: true,
       data: {
-        amunisi:  getOpsiList(OPSI_KODE.AMUNISI),
-        bbm:      getOpsiList(OPSI_KODE.BBM),
-        personil: getOpsiList(OPSI_KODE.KOM_PERSONIL)
+        amunisi:  getOpsiItems(OPSI_KODE.AMUNISI),
+        bbm:      getOpsiItems(OPSI_KODE.BBM),
+        personil: getOpsiItems(OPSI_KODE.KOM_PERSONIL),
+        labelAmunisi:  getOpsiLabelMap(OPSI_KODE.AMUNISI),
+        labelBbm:      getOpsiLabelMap(OPSI_KODE.BBM),
+        labelPersonil: getOpsiLabelMap(OPSI_KODE.KOM_PERSONIL)
       }
     };
   } catch (e) {
@@ -355,7 +358,11 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
   if (!master_kapalExists(kapalId)) return { error: 'KapalID tidak terdaftar di master kapal.' };
 
   if (jenis === 'AMUNISI') {
-    var jenisAm = String(p.jenis || '').toUpperCase();
+    // Saat revisi, kolom identitas (Jenis Amunisi) tidak bisa diedit di form
+    // revisi — nilainya diambil dari baris lama bila params tidak mengirimnya.
+    var jenisAm = isRevision
+      ? (String(p.jenis || '').trim().toUpperCase() || String(oldRow['JenisAmunisi'] || '').trim().toUpperCase())
+      : String(p.jenis || '').toUpperCase();
     if (getOpsiList(OPSI_KODE.AMUNISI).indexOf(jenisAm) === -1) return { error: 'Jenis amunisi tidak valid.' };
     var mode = isRevision
       ? (_logIsBaselineRow({ jenis: 'AMUNISI' }, oldRow) ? LOG_MODE_BASELINE : LOG_MODE_USAGE)
@@ -405,7 +412,9 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
   }
 
   if (jenis === 'BBM') {
-    var jenisBb = String(p.jenis || '').toUpperCase();
+    var jenisBb = isRevision
+      ? (String(p.jenis || '').trim().toUpperCase() || String(oldRow['Jenis'] || '').trim().toUpperCase())
+      : String(p.jenis || '').toUpperCase();
     if (getOpsiList(OPSI_KODE.BBM).indexOf(jenisBb) === -1) return { error: 'Jenis BBM tidak valid.' };
     var modeB = isRevision
       ? (_logIsBaselineRow({ jenis: 'BBM' }, oldRow) ? LOG_MODE_BASELINE : LOG_MODE_USAGE)
@@ -454,7 +463,9 @@ function _logBuildPayload(jenis, p, periode, pr, oldRow) {
   }
 
   // PERSONIL
-  var komponen = String(p.komponen || '').toUpperCase();
+  var komponen = isRevision
+    ? (String(p.komponen || '').trim().toUpperCase() || String(oldRow['Komponen'] || '').trim().toUpperCase())
+    : String(p.komponen || '').toUpperCase();
   if (getOpsiList(OPSI_KODE.KOM_PERSONIL).indexOf(komponen) === -1) return { error: 'Komponen logistik personil tidak valid.' };
   var nilai = (isRevision ? _logProvided(p.nilai, oldRow['Nilai_Minggu']) : _logNum(p.nilai));
   if (isNaN(nilai) || nilai < 0) return { error: 'Nilai wajib berupa angka ≥ 0.' };

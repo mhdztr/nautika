@@ -120,8 +120,14 @@ function dashboard_getOverview(token, filter) {
 
     // ── PENGAWAKAN ───────────────────────────────────────────────
     var awakRows = _dashActiveRows(SHEET_TX.PENGAWAKAN_AKN);
-    var aknKeseluruhan = _dashLatestScopeSum(awakRows, 'KESELURUHAN', range);
-    var aknPoa         = _dashLatestScopeSum(awakRows, 'POA', range);
+    // Satu total per scope; token & label dari sheet `Opsi`.
+    var aknTotalPerScope = {};
+    var aknLabelPerScope = {};
+    var aknScopeMap = getOpsiLabelMap(OPSI_KODE.AWAK_SCOPE);
+    getOpsiList(OPSI_KODE.AWAK_SCOPE).forEach(function (sc) {
+      aknTotalPerScope[sc] = _dashLatestScopeSum(awakRows, sc, range);
+      aknLabelPerScope[sc] = aknScopeMap[sc] || sc;
+    });
     var awakKeg = _dashActiveRows(SHEET_TX.PENGAWAKAN_KEGIATAN);
     var awakKegYtd = _dashRowsIn(awakKeg, ytdRange);
 
@@ -199,8 +205,9 @@ function dashboard_getOverview(token, filter) {
       {
         title: 'Pengawakan',
         metrics: [
-          { lbl: 'AKN Keseluruhan',         val: aknKeseluruhan, unit: 'orang',    prog: false },
-          { lbl: 'AKN POA',                 val: aknPoa,         unit: 'orang',    prog: false },
+          ...Object.keys(aknTotalPerScope).map(function (sc) {
+            return { lbl: 'AKN ' + aknLabelPerScope[sc], val: aknTotalPerScope[sc], unit: 'orang', prog: false };
+          }),
           { lbl: 'Kegiatan Personel (YTD)', val: awakKegYtd.length, unit: 'kegiatan', prog: false }
         ]
       },

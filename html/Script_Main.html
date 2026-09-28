@@ -1604,16 +1604,19 @@ function _mdRenderOpsi(d) {
     html += '<div class="content-section" style="margin-top:0;">' +
       '<div class="content-section-hd">' + _esc(judul) + '</div>' +
       '<div style="font-size:.8125rem;color:var(--n-text-muted);margin-bottom:12px;">' +
-        'Tersimpan di basis data sebagai nasab; output dropdown memakai label ini.</div>' +
+        'Tersimpan di basis data sebagai nasab; output dropdown memakai teks "Tampil sebagai".</div>' +
       '<div class="attach-list" style="margin-bottom:14px;">';
 
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
+      var tampil = it.labelTampil || it.label;
       html += '<div class="attach-chip" style="display:inline-flex;">' +
         '<b>' + (it.aktif ? '\u2713' : '\u2715') + '</b>' +
-        '<span>' + _esc(it.label) + '</span>' +
+        '<span>' + _esc(it.label) + (tampil !== it.label ? ' \u2192 ' + _esc(tampil) : '') + '</span>' +
         (canWrite
-          ? '<button type="button" title="' + (it.aktif ? 'Nonaktifkan' : 'Aktifkan') + '" onclick="_mdOpsiToggle(\'' + kode + '\',\'' + _escJs(it.label) + '\',' + (it.aktif ? 'false' : 'true') + ')">' +
+          ? '<button type="button" title="Ubah teks tampilan" onclick="_mdOpsiEditLabel(\'' + kode + '\',\'' + _escJs(it.label) + '\',\'' + _escJs(tampil) + '\')">' +
+              '\u270e</button>' +
+              '<button type="button" title="' + (it.aktif ? 'Nonaktifkan' : 'Aktifkan') + '" onclick="_mdOpsiToggle(\'' + kode + '\',\'' + _escJs(it.label) + '\',' + (it.aktif ? 'false' : 'true') + ')">' +
               (it.aktif ? '\u25af' : '\u25b6') + '</button>'
           : '') +
         '</div>';
@@ -1654,6 +1657,26 @@ function _mdOpsiAdd(kode) {
     })
     .withFailureHandler(function () { _mdMsg('md-opsi-msg', 'error', 'Terjadi kesalahan koneksi.'); })
     .master_addOpsiJenis(APP.token, { kode: kode, label: label });
+}
+
+// Ubah kolom `LabelTampil` (teks yang tampil di dropdown) tanpa mengganti
+// token nasab, sehingga data transaksi lama tetap terbaca.
+function _mdOpsiEditLabel(kode, label, tampilSaatIni) {
+  if (!_mdOpsiCanWrite()) { _mdMsg('md-opsi-msg', 'error', 'Tidak punya hak untuk mengubah opsi.'); return; }
+  var v = window.prompt('Teks yang tampil di dropdown untuk "' + label + '":', tampilSaatIni || label);
+  if (v === null) return;
+  v = String(v).trim();
+  if (!v) { _mdMsg('md-opsi-msg', 'error', 'Tampil sebagai wajib diisi.'); return; }
+  if (v.length > 80) { _mdMsg('md-opsi-msg', 'error', 'Tampil sebagai maksimal 80 karakter.'); return; }
+  _mdMsg('md-opsi-msg', null);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _mdMsg('md-opsi-msg', 'error', res.error); return; }
+      _mdMsg('md-opsi-msg', 'success', res.message);
+      _mdLoadOpsi();
+    })
+    .withFailureHandler(function () { _mdMsg('md-opsi-msg', 'error', 'Terjadi kesalahan koneksi.'); })
+    .master_setOpsiLabelTampil(APP.token, { kode: kode, label: label, labelTampil: v });
 }
 
 function _mdOpsiToggle(kode, label, aktif) {
@@ -2904,7 +2927,9 @@ function _opsLautLoadOptions() {
     .withSuccessHandler(function(res) {
       if (res.success) {
         _OPSLAUT.wppData = res.data;
+        _OPSLAUT.opsi = res.opsi || {};
         _opsLautPopulateWpp();
+        _opsLautPopulateOpsi();
       } else {
         var sel = document.getElementById('ops-wpp');
         if (sel) sel.innerHTML = '<option value="">(Gagal: ' + res.error + ')</option>';
@@ -2915,6 +2940,18 @@ function _opsLautLoadOptions() {
       if (sel) sel.innerHTML = '<option value="">(Gagal memuat WPP)</option>';
     })
     .operasiLaut_getOptions(APP.token);
+}
+// Isi <select> enum dari sheet `Opsi` (Kategori Riksa & Kategori Hari Operasi).
+function _opsLautPopulateOpsi() {
+  var opsi = _OPSLAUT.opsi || {};
+  [
+    { id: 'ops-riksa-kategori',   items: opsi.riksa, kosong: '(Pilih Kategori)' },
+    { id: 'ops-hari-kategori',    items: opsi.hari,  kosong: '(Pilih Kategori)' },
+    { id: 'rv-ops-riksa-kategori', items: opsi.riksa, kosong: '-' },
+    { id: 'rv-ops-hari-kategori',  items: opsi.hari,  kosong: '-' }
+  ].forEach(function (cfg) {
+    _fillOpsiSelect(cfg.id, cfg.items, cfg.kosong);
+  });
 }
 function _opsLautPopulateWpp() {
   var sel = document.getElementById('ops-wpp');
@@ -3019,14 +3056,39 @@ function _v(id) {
 // hidden id=X (token), ul id=X-dd }. Submit memakai _taGet('X').
 var _TA_DATA = {};
 
+// `arr` boleh berupa token mentah atau item {value,label} dari server `Opsi`.
+// `labelMap` opsional (dipakai bila pemanggil masih punya peta label).
 function _taTokensToItems(arr, labelMap) {
   var out = [];
   (arr || []).forEach(function (t) {
-    out.push({ value: t, label: (labelMap && labelMap[t]) || t });
+    if (t && typeof t === 'object') out.push({ value: t.value, label: t.label || t.value });
+    else out.push({ value: t, label: (labelMap && labelMap[t]) || t });
   });
   return out;
 }
 
+// Mengisi <select> biasa dari daftar item Opsi {value,label}; mempertahankan
+// nilai terpilih bila masih tersedia, juga untuk form revisi.
+function _fillOpsiSelect(id, items, labelKosong) {
+  var sel = document.getElementById(id);
+  if (!sel) return;
+  var prev = sel.value;
+  sel.innerHTML = '';
+  if (labelKosong !== undefined) {
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = labelKosong;
+    sel.appendChild(o0);
+  }
+  (items || []).forEach(function (it) {
+    var o = document.createElement('option');
+    o.value = it.value;
+    o.textContent = it.label;
+    sel.appendChild(o);
+  });
+  sel.value = prev;
+  return sel;
+}
 function _taInit(id, items) {
   var input = document.getElementById(id + '-input');
   var dd = document.getElementById(id + '-dd');
@@ -5239,18 +5301,21 @@ var _RAWAT_SHEET  = { kesiapan: 'TX_Perawatan_Kesiapan', docking: 'TX_Perawatan_
 var _RAWAT_LABEL  = { kesiapan: 'Kesiapan Kapal', docking: 'Docking', item: 'Item Pekerjaan' };
 var _RAWAT_PREFIX = { kesiapan: 'rawk', docking: 'rawd', item: 'rawi' };
 
-var _RAWAT_TAHAP_LABEL = {
-  PROSES_PENGADAAN: 'Proses Pengadaan',
-  TANDATANGAN_KONTRAK: 'Tanda Tangan Kontrak',
-  PROSES_DOCKING: 'Proses Docking',
-  SELESAI: 'Selesai'
-};
-var _RAWAT_LOKASI_LABEL = { PUSAT: 'Pusat', UPT: 'UPT' };
-var _RAWAT_KATEGORI_LABEL = {
-  PERENCANAAN: 'Perencanaan',
-  PROSES_PEMBAYARAN: 'Proses Pembayaran',
-  SELESAI: 'Selesai'
-};
+// Peta token -> teks tampilan & daftar pilihan semuanya berasal dari sheet
+// `Opsi` (server: perawatan_getOptions) — bukan lagi peta hardcoded di frontend.
+function _rawatLbl(map, token) {
+  var t = String(token || '');
+  return ((_RAWAT.options || {})[map] || {})[t] || t;
+}
+// Daftar token aktif sebuah grup Opsi (dari server), untuk mengisi <select> &
+// membangunkunci chart. Selalu berupa array (kosong sebelum opsi termuat).
+function _rawatOpsi(grup) {
+  var items = (_RAWAT.options || {})[grup] || [];
+  return items.map(function (it) { return typeof it === 'string' ? it : it.value; });
+}
+function _rawatLokasiLbl(t)   { return _rawatLbl('labelLokasi', t); }
+function _rawatTahapLbl(t)    { return _rawatLbl('labelTahap', t); }
+function _rawatKategoriLbl(t) { return _rawatLbl('labelKategori', t); }
 
 // ── RENDER UTAMA ──────────────────────────────────────────
 
@@ -5346,16 +5411,16 @@ function _rawatOpenForm(name) {
     var kontraktor = document.getElementById('rawd-kontraktor');
     if (kontraktor) kontraktor.value = '';
     var lokasi = document.getElementById('rawd-lokasi');
-    if (lokasi) lokasi.value = 'PUSAT';
+    if (lokasi) lokasi.selectedIndex = 0;
     var tahap = document.getElementById('rawd-tahap');
-    if (tahap) tahap.value = 'PROSES_PENGADAAN';
+    if (tahap) tahap.selectedIndex = 0;
   } else {
     var nama = document.getElementById('rawi-nama');
     if (nama) nama.value = '';
     var nilai = document.getElementById('rawi-nilai');
     if (nilai) nilai.value = '';
     var kategori = document.getElementById('rawi-kategori');
-    if (kategori) kategori.value = 'PERENCANAAN';
+    if (kategori) kategori.selectedIndex = 0;
     var dock = document.getElementById('rawi-docking');
     if (dock) dock.value = '';
   }
@@ -5410,6 +5475,27 @@ function _rawatPopulateOptions() {
     });
     if (pd) dSel.value = pd;
   }
+
+  // Select enum Perawatannya diisi dari sheet `Opsi` (isi & urutanIkut server).
+  [
+    { id: 'rawd-lokasi',    items: _RAWAT.options.lokasi },
+    { id: 'rawd-tahap',     items: _RAWAT.options.tahap },
+    { id: 'rawi-kategori',  items: _RAWAT.options.kategori }
+  ].forEach(function (cfg) {
+    var sel = document.getElementById(cfg.id);
+    if (!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '';
+    (cfg.items || []).forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it.value;
+      o.textContent = it.label;
+      sel.appendChild(o);
+    });
+    // Pertahankan pilihan lama bila masih ada; selain itu ambil yang pertama.
+    if (prev && sel.querySelector('option[value="' + prev + '"]')) sel.value = prev;
+    else if (sel.options.length) sel.selectedIndex = 0;
+  });
 }
 
 // ── KPI ───────────────────────────────────────────────────
@@ -5482,17 +5568,17 @@ function _rawatBuildPaneCharts() {
   if (!kpi) return;
 
   var dk = kpi.docking;
-  var tahapKeys = ['PROSES_PENGADAAN', 'TANDATANGAN_KONTRAK', 'PROSES_DOCKING', 'SELESAI'];
+  var tahapKeys = _rawatOpsi('tahap');
   _chartBar('rawd-chart-tahap',
-    tahapKeys.map(function (t) { return _RAWAT_TAHAP_LABEL[t] || t; }),
+    tahapKeys.map(function (t) { return _rawatTahapLbl(t); }),
     [{ label: 'Kapal', data: tahapKeys.map(function (t) { return dk.byTahap[t] || 0; }), color: _CHART_COLORS.primary }],
     { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada progres docking pada periode ini.' }
   );
 
   var it = kpi.item;
-  var katKeys = ['PERENCANAAN', 'PROSES_PEMBAYARAN', 'SELESAI'];
+  var katKeys = _rawatOpsi('kategori');
   _chartDonut('rawi-chart-kategori',
-    katKeys.map(function (k) { return _RAWAT_KATEGORI_LABEL[k] || k; }),
+    katKeys.map(function (k) { return _rawatKategoriLbl(k); }),
     katKeys.map(function (k) { return (it.byKategori[k] || {}).count || 0; }),
     [_CHART_COLORS.primary, _CHART_COLORS.warn, _CHART_COLORS.ok],
     { center: it.total, centerSub: 'Item', emptyMsg: 'Belum ada item pekerjaan pada periode ini.' }
@@ -5569,8 +5655,8 @@ function _rawatRenderHistory(jenis, items) {
       detailFields = [
         ['Periode', _esc(r.periode)],
         ['Kapal', _esc(r.kapalNama)],
-        ['Lokasi', _esc(_RAWAT_LOKASI_LABEL[r.lokasi] || r.lokasi)],
-        ['Tahap', _esc(_RAWAT_TAHAP_LABEL[r.tahap] || r.tahap)],
+        ['Lokasi', _esc(_rawatLokasiLbl(r.lokasi))],
+        ['Tahap', _esc(_rawatTahapLbl(r.tahap))],
         ['Nilai Kontrak', _rupiah(r.nilaiKontrak)],
         ['Kontraktor', _esc(r.kontraktor || '—')],
         ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
@@ -5580,7 +5666,7 @@ function _rawatRenderHistory(jenis, items) {
       detailFields = [
         ['Periode', _esc(r.periode)],
         ['Nama Pekerjaan', _esc(r.namaPekerjaan)],
-        ['Kategori', _esc(_RAWAT_KATEGORI_LABEL[r.kategori] || r.kategori)],
+        ['Kategori', _esc(_rawatKategoriLbl(r.kategori))],
         ['Nilai', _rupiah(r.nilai)],
         ['Terkait Docking', _esc(r.dockingLabel || '—')],
         ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
@@ -5627,8 +5713,8 @@ function _rawatCells(jenis, r) {
     return [
       _esc(r.periode),
       _esc(r.kapalNama),
-      _esc(_RAWAT_LOKASI_LABEL[r.lokasi] || r.lokasi),
-      _esc(_RAWAT_TAHAP_LABEL[r.tahap] || r.tahap),
+      _esc(_rawatLokasiLbl(r.lokasi)),
+      _esc(_rawatTahapLbl(r.tahap)),
       _rupiah(r.nilaiKontrak),
       _esc(r.kontraktor || '—')
     ];
@@ -5636,7 +5722,7 @@ function _rawatCells(jenis, r) {
   return [
     _esc(r.periode),
     _esc(r.namaPekerjaan),
-    _esc(_RAWAT_KATEGORI_LABEL[r.kategori] || r.kategori),
+    _esc(_rawatKategoriLbl(r.kategori)),
     _rupiah(r.nilai),
     _esc(r.dockingLabel || '—')
   ];
@@ -5790,11 +5876,11 @@ function _rawatRevisiFieldsHtml(jenis, row) {
       '</div>';
   }
   if (jenis === 'docking') {
-    var lok = ['PUSAT', 'UPT'].map(function (v) {
-      return '<option value="' + v + '"' + (row.lokasi === v ? ' selected' : '') + '>' + _RAWAT_LOKASI_LABEL[v] + '</option>';
+    var lok = _rawatOpsi('lokasi').map(function (v) {
+      return '<option value="' + v + '"' + (row.lokasi === v ? ' selected' : '') + '>' + _rawatLokasiLbl(v) + '</option>';
     }).join('');
-    var tah = ['PROSES_PENGADAAN', 'TANDATANGAN_KONTRAK', 'PROSES_DOCKING', 'SELESAI'].map(function (v) {
-      return '<option value="' + v + '"' + (row.tahap === v ? ' selected' : '') + '>' + _RAWAT_TAHAP_LABEL[v] + '</option>';
+    var tah = _rawatOpsi('tahap').map(function (v) {
+      return '<option value="' + v + '"' + (row.tahap === v ? ' selected' : '') + '>' + _rawatTahapLbl(v) + '</option>';
     }).join('');
     return '<div class="form-grp"><label>Kapal</label>' +
       '<input type="text" value="' + _esc(row.kapalNama) + '" disabled></div>' +
@@ -5807,8 +5893,8 @@ function _rawatRevisiFieldsHtml(jenis, row) {
         '<div class="form-grp"><label>Kontraktor</label><input type="text" id="rv-rawd-kontraktor" value="' + _esc(row.kontraktor || '') + '"></div>' +
       '</div>';
   }
-  var kat = ['PERENCANAAN', 'PROSES_PEMBAYARAN', 'SELESAI'].map(function (v) {
-    return '<option value="' + v + '"' + (row.kategori === v ? ' selected' : '') + '>' + _RAWAT_KATEGORI_LABEL[v] + '</option>';
+  var kat = _rawatOpsi('kategori').map(function (v) {
+    return '<option value="' + v + '"' + (row.kategori === v ? ' selected' : '') + '>' + _rawatKategoriLbl(v) + '</option>';
   }).join('');
   var dockOpts = '<option value="">— Tidak terkait —</option>' +
     ((_RAWAT.options && _RAWAT.options.docking) || []).map(function (d) {
@@ -6051,10 +6137,18 @@ var _LOG = {
 var _LOG_LABEL  = { amunisi: 'Amunisi', bbm: 'BBM', personil: 'Logistik Personil' };
 var _LOG_PREFIX = { amunisi: 'lga', bbm: 'lgb', personil: 'lgp' };
 var _LOG_MODE_LABEL = { BASELINE: 'Baseline', PENGGUNAAN: 'Penggunaan' };
-var _LOG_BBM_LABEL = { REGULER: 'Reguler', ABT: 'ABT' };
-var _LOG_KOM_LABEL = {
-  NATURA: 'Natura', BPDT: 'BPDT', AIR_BERSIH: 'Air Bersih', DELEGASI: 'Delegasi', JAGA_SANDAR: 'Jaga Sandar'
-};
+
+// Peta token -> teks tampilan. Diisi dari sheet `Opsi` (server) via
+// logistik_getOptions; bukan lagi peta hardcoded.
+function _logLabel(group, token) {
+  var opts = _LOG.options || {};
+  var map = group === 'amunisi' ? opts.labelAmunisi
+          : group === 'bbm'     ? opts.labelBbm
+          : group === 'personil'? opts.labelPersonil
+          : null;
+  var t = String(token || '');
+  return (map && map[t]) || t;
+}
 
 function _idNum(v) {
   var n = Number(v);
@@ -6228,9 +6322,9 @@ function _logLoadOptions() {
 
 function _logPopulateOptions() {
   if (!_LOG.options) return;
-  _taInit('lga-jenis', _taTokensToItems(_LOG.options.amunisi));
-  _taInit('lgb-jenis', _taTokensToItems(_LOG.options.bbm, _LOG_BBM_LABEL));
-  _taInit('lgp-komponen', _taTokensToItems(_LOG.options.personil, _LOG_KOM_LABEL));
+  _taInit('lga-jenis', _LOG.options.amunisi);
+  _taInit('lgb-jenis', _LOG.options.bbm);
+  _taInit('lgp-komponen', _LOG.options.personil);
 }
 
 // ── MODE BASELINE / PENGGUNAAN ───────────────────────────
@@ -6353,7 +6447,7 @@ function _logBuildPaneCharts() {
 
   // Bar nilai personil per komponen
   _chartBar('lgp-chart-komponen',
-    k.personil.map(function (x) { return _LOG_KOM_LABEL[x.komponen] || x.komponen; }),
+    k.personil.map(function (x) { return _logLabel('personil', x.komponen); }),
     [{ label: 'Nilai', data: k.personil.map(function (x) { return x.total; }), color: _CHART_COLORS.primary }],
     { horizontal: true, fmt: _rupiah, emptyMsg: 'Belum ada nilai logistik personil pada periode ini.' }
   );
@@ -6422,7 +6516,7 @@ function _logRenderHistory(jenis, items) {
       detailFields = [
         ['Periode', _esc(r.periode)],
         ['Kapal', _esc(_kapalName(r.kapalId))],
-        ['Jenis', _esc(r.jenis)],
+        ['Jenis', _esc(_logLabel('amunisi', r.jenis))],
         ['Mode', _esc(r.mode)],
         ['Stok Awal', r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—'],
         ['Penggunaan Minggu Ini', r.mode === 'PENGGUNAAN' ? _idNum(r.penggunaan) : '—'],
@@ -6433,7 +6527,7 @@ function _logRenderHistory(jenis, items) {
       detailFields = [
         ['Periode', _esc(r.periode)],
         ['Kapal', _esc(_kapalName(r.kapalId))],
-        ['Jenis', _esc(r.jenis)],
+        ['Jenis', _esc(_logLabel('bbm', r.jenis))],
         ['Mode', _esc(r.mode)],
         ['Pagu', r.mode === 'BASELINE' ? _idNum(r.pagu) : '—'],
         ['Realisasi', r.mode === 'PENGGUNAAN' ? _idNum(r.realisasi) : '—'],
@@ -6445,7 +6539,7 @@ function _logRenderHistory(jenis, items) {
     } else {
       detailFields = [
         ['Periode', _esc(r.periode)],
-        ['Komponen', _esc(_LOG_KOM_LABEL[r.komponen] || r.komponen)],
+        ['Komponen', _esc(_logLabel('personil', r.komponen))],
         ['Nilai (Rp)', _rupiah(r.nilai)],
         ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
         ['Status', _esc(r.status)]
@@ -6485,7 +6579,7 @@ function _logCells(jenis, r) {
     return [
       _esc(r.periode),
       _kapalCellPlain(r.kapalId),
-      _esc(r.jenis),
+      _esc(_logLabel('amunisi', r.jenis)),
       _logModeBadge(r.mode),
       r.mode === 'BASELINE' ? _idNum(r.stokAwal) : '—',
       r.mode === 'PENGGUNAAN' ? _idNum(r.penggunaan) : '—'
@@ -6495,7 +6589,7 @@ function _logCells(jenis, r) {
     return [
       _esc(r.periode),
       _kapalCellPlain(r.kapalId),
-      _esc(r.jenis),
+      _esc(_logLabel('bbm', r.jenis)),
       _logModeBadge(r.mode),
       r.mode === 'BASELINE' ? _idNum(r.pagu) : '—',
       r.mode === 'PENGGUNAAN' ? _idNum(r.realisasi) : '—',
@@ -6505,7 +6599,7 @@ function _logCells(jenis, r) {
   }
   return [
     _esc(r.periode),
-    _esc(_LOG_KOM_LABEL[r.komponen] || r.komponen),
+    _esc(_logLabel('personil', r.komponen)),
     _rupiah(r.nilai)
   ];
 }
@@ -6633,24 +6727,24 @@ function _logRevisiFieldsHtml(jenis, row) {
   if (jenis === 'amunisi') {
     if (m === 'BASELINE') {
       return '<div class="form-grp"><label>Jenis Amunisi</label>' +
-        '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+        '<input type="text" value="' + _esc(_logLabel('amunisi', row.jenis)) + '" disabled></div>' +
         '<div class="form-grp"><label>Stok Awal Tahun</label>' +
         '<input type="number" id="rv-lga-stok" min="0" step="1" value="' + (row.stokAwal || 0) + '"></div>';
     }
     return '<div class="form-grp"><label>Jenis Amunisi</label>' +
-      '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+      '<input type="text" value="' + _esc(_logLabel('amunisi', row.jenis)) + '" disabled></div>' +
       '<div class="form-grp"><label>Penggunaan Minggu Ini</label>' +
       '<input type="number" id="rv-lga-penggunaan" min="0" step="1" value="' + (row.penggunaan || 0) + '"></div>';
   }
   if (jenis === 'bbm') {
     if (m === 'BASELINE') {
       return '<div class="form-grp"><label>Jenis BBM</label>' +
-        '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+        '<input type="text" value="' + _esc(_logLabel('bbm', row.jenis)) + '" disabled></div>' +
         '<div class="form-grp"><label>Pagu Tahun</label>' +
         '<input type="number" id="rv-lgb-pagu" min="0" step="1" value="' + (row.pagu || 0) + '"></div>';
     }
     return '<div class="form-grp"><label>Jenis BBM</label>' +
-      '<input type="text" value="' + _esc(row.jenis) + '" disabled></div>' +
+      '<input type="text" value="' + _esc(_logLabel('bbm', row.jenis)) + '" disabled></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
         '<div class="form-grp"><label>Realisasi</label>' +
         '<input type="number" id="rv-lgb-realisasi" min="0" step="1" value="' + (row.realisasi || 0) + '"></div>' +
@@ -6661,7 +6755,7 @@ function _logRevisiFieldsHtml(jenis, row) {
       '<input type="text" id="rv-lgb-tunggakan" value="' + _esc(row.tunggakan || '') + '"></div>';
   }
   return '<div class="form-grp"><label>Komponen</label>' +
-    '<input type="text" value="' + _esc(_LOG_KOM_LABEL[row.komponen] || row.komponen) + '" disabled></div>' +
+    '<input type="text" value="' + _esc(_logLabel('personil', row.komponen)) + '" disabled></div>' +
     '<div class="form-grp"><label>Nilai (Rp)</label>' +
     '<input type="number" id="rv-lgp-nilai" min="0" step="1" value="' + (row.nilai || 0) + '"></div>';
 }
@@ -6778,15 +6872,18 @@ var _AWK = {
 };
 var _AWK_LABEL  = { akn: 'Komposisi AKN', kegiatan: 'Kegiatan Personel' };
 var _AWK_PREFIX = { akn: 'akn', kegiatan: 'akk' };
-var _AWK_SCOPE_LABEL = { KESELURUHAN: 'Keseluruhan', POA: 'POA' };
-var _AWK_KAT_ORDER = ['PNS', 'PPPK_FUNGSIONAL', 'PPPK_PELAKSANA', 'PPPK_PARUH_WAKTU', 'PJLP'];
-var _AWK_KAT_LABEL = {
-  PNS: 'PNS',
-  PPPK_FUNGSIONAL: 'PPPK Fungsional',
-  PPPK_PELAKSANA: 'PPPK Pelaksana',
-  PPPK_PARUH_WAKTU: 'PPPK Paruh Waktu',
-  PJLP: 'PJLP'
-};
+// Label & urutan token AKN berasal dari sheet `Opsi` (server: awak_getOptions).
+function _awkLbl(map, token) {
+  var t = String(token || '');
+  return ((_AWK.options || {})[map] || {})[t] || t;
+}
+function _awkScopeLbl(t) { return _awkLbl('labelScope', t); }
+function _awkKatLbl(t)   { return _awkLbl('labelKategori', t); }
+function _awkKatOrder()  { return ((_AWK.options || {}).kategori || []).map(function (it) { return it.value; }); }
+function _awkScopeOrder(){ return ((_AWK.options || {}).scopes || []).map(function (it) { return it.value; }); }
+// Palet seri untuk chart multi-scope;(netral, lalu warna aksen)
+var _AWK_SCOPE_COLORS = [_CHART_COLORS.neutral, _CHART_COLORS.primary, _CHART_COLORS.warn, _CHART_COLORS.ok, _CHART_COLORS.primarySoft, _CHART_COLORS.primaryAlpha];
+function _awkScopeColor(i) { return _AWK_SCOPE_COLORS[i % _AWK_SCOPE_COLORS.length]; }
 
 // ── RENDER UTAMA ────────────────────────────────────────
 
@@ -6871,7 +6968,7 @@ function _awkOpenForm(name) {
       if (el) el.value = '';
     });
     var scope = document.getElementById('akn-scope');
-    if (scope) scope.value = 'KESELURUHAN';
+    if (scope && scope.options.length) scope.selectedIndex = 0; // scope pertama dari `Opsi`
     var inA = document.getElementById('akn-kategori-input');
     if (inA) inA.value = '';
     var hvA = document.getElementById('akn-kategori');
@@ -6907,7 +7004,8 @@ function _awkLoadOptions() {
 
 function _awkPopulateOptions() {
   if (!_AWK.options) return;
-  _taInit('akn-kategori', _taTokensToItems(_AWK.options.kategori, _AWK_KAT_LABEL));
+  _taInit('akn-kategori', _AWK.options.kategori);
+  _fillOpsiSelect('akn-scope', _AWK.options.scopes);
 }
 
 // ── KPI ───────────────────────────────────────────────────
@@ -6934,10 +7032,13 @@ function _awkLoadKPI() {
 function _awkRenderKPI(d) {
   var el = document.getElementById('awak-kpi-strip');
   if (!el) return;
+  // Satu kartu KPI per scope; label & urutan dari sheet `Opsi`.
+  var scopeCards = _awkScopeOrder().map(function (sc) {
+    return _kpiHeadline('Total AKN ' + _awkScopeLbl(sc), _idNum((d.akn.totalPerScope || {})[sc] || 0), 'orang', 'Komposisi tahun berjalan');
+  }).join('');
   el.innerHTML =
     '<div class="ov-kpi-row">' +
-      _kpiHeadline('Total AKN Keseluruhan', _idNum(d.akn.totalKeseluruhan), 'orang', 'Komposisi tahun berjalan') +
-      _kpiHeadline('Total AKN POA', _idNum(d.akn.totalPoa), 'orang', 'Komposisi tahun berjalan') +
+      scopeCards +
       _kpiHeadline('Kegiatan Personel', _idNum(d.kegiatan.count), 'kegiatan', 'Dalam rentang filter') +
       _kpiHeadline('Total Peserta Kegiatan', _idNum(d.kegiatan.totalPeserta), 'peserta', 'Dalam rentang filter') +
     '</div>';
@@ -6949,14 +7050,18 @@ function _awkBuildCharts() {
   var k = _AWK.kpi;
   if (!k) return;
 
-  var kat = _AWK_KAT_ORDER.filter(function (x) { return _AWK_KAT_LABEL[x]; });
+  var kat = _awkKatOrder();
   var kes = k.akn.perKategori;
   _chartBar('awak-chart-komposisi',
-    kat.map(function (x) { return _AWK_KAT_LABEL[x]; }),
-    [
-      { label: 'Keseluruhan', data: kat.map(function (x) { return (kes[x] || {}).keseluruhan || 0; }), color: _CHART_COLORS.primary },
-      { label: 'POA',         data: kat.map(function (x) { return (kes[x] || {}).poa || 0; }),          color: _CHART_COLORS.warn }
-    ],
+    kat.map(function (x) { return _awkKatLbl(x); }),
+    // Satu seri per scope, label & warna mengikuti sheet `Opsi`.
+    _awkScopeOrder().map(function (sc, i) {
+      return {
+        label: _awkScopeLbl(sc),
+        data:  kat.map(function (x) { return (kes[x] || {})[sc] || 0; }),
+        color: _awkScopeColor(i)
+      };
+    }),
     { horizontal: true, fmt: _chartNum, emptyMsg: 'Belum ada komposisi AKN tahun berjalan.' }
   );
 
@@ -6969,10 +7074,13 @@ function _awkLoadTren() {
       if (!res.success) return;
       var d = res.data;
       var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
-      _chartLine('awak-chart-tren', labels, [
-        { label: 'Total AKN Keseluruhan', data: d.aknKeseluruhan, color: _CHART_COLORS.primary },
-        { label: 'Total AKN POA',         data: d.aknPoa,          color: _CHART_COLORS.warn }
-      ], { fmt: _chartNum, emptyMsg: 'Belum ada komposisi AKN pada rentang terpilih.' });
+      // Satu seri per scope; label dari sheet `Opsi` (server: aknScopeLabels).
+      _chartLine('awak-chart-tren', labels,
+        _awkScopeOrder().map(function (sc, i) {
+          return { label: (d.aknScopeLabels || {})[sc] || _awkScopeLbl(sc),
+                   data: (d.aknPerScope || {})[sc] || [], color: _awkScopeColor(i) };
+        }),
+        { fmt: _chartNum, emptyMsg: 'Belum ada komposisi AKN pada rentang terpilih.' });
     })
     .withFailureHandler(function () {})
     .awak_getTren(APP.token, APP.filter);
@@ -6988,14 +7096,17 @@ function _awkRenderKomposisi(d) {
     return;
   }
   rows.sort(function (a, b) {
-    var so = a.scope === b.scope ? 0 : (a.scope === 'KESELURUHAN' ? -1 : 1);
-    if (so !== 0) return so;
-    return _AWK_KAT_ORDER.indexOf(a.kategori) - _AWK_KAT_ORDER.indexOf(b.kategori);
+    // Urutan mengikuti sheet `Opsi`, bukan nama scope tertentu.
+    var so = _awkScopeOrder();
+    var dso = so.indexOf(a.scope) - so.indexOf(b.scope);
+    if (dso !== 0) return dso;
+    var ord = _awkKatOrder();
+    return ord.indexOf(a.kategori) - ord.indexOf(b.kategori);
   });
   var t = '<table class="n-table"><thead><tr><th>Scope</th><th>Kategori</th><th>Jumlah</th><th>Periode Terakhir</th></tr></thead><tbody>';
   rows.forEach(function (r) {
-    t += '<tr><td>' + _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope) + '</td>' +
-      '<td>' + _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori) + '</td>' +
+    t += '<tr><td>' + _esc(_awkScopeLbl(r.scope)) + '</td>' +
+      '<td>' + _esc(_awkKatLbl(r.kategori)) + '</td>' +
       '<td>' + _idNum(r.jumlah) + '</td>' +
       '<td>' + _esc(r.periode) + '</td></tr>';
   });
@@ -7059,8 +7170,8 @@ function _awkRenderHistory(jenis, items) {
     if (jenis === 'akn') {
       detailFields = [
         ['Periode', _esc(r.periode)],
-        ['Scope', _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope)],
-        ['Kategori', _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori)],
+        ['Scope', _esc(_awkScopeLbl(r.scope))],
+        ['Kategori', _esc(_awkKatLbl(r.kategori))],
         ['Jumlah', _idNum(r.jumlah)],
         ['Dikirim', _esc(r.timestamp ? new Date(r.timestamp).toLocaleString('id-ID') : '—')],
         ['Status', _esc(r.status)]
@@ -7109,8 +7220,8 @@ function _awkCells(jenis, r) {
   if (jenis === 'akn') {
     return [
       _esc(r.periode),
-      _esc(_AWK_SCOPE_LABEL[r.scope] || r.scope),
-      _esc(_AWK_KAT_LABEL[r.kategori] || r.kategori),
+      _esc(_awkScopeLbl(r.scope)),
+      _esc(_awkKatLbl(r.kategori)),
       _idNum(r.jumlah)
     ];
   }
@@ -7209,9 +7320,9 @@ function _awkRevisiFieldsHtml(jenis, row) {
   if (jenis === 'akn') {
     return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">' +
         '<div class="form-grp"><label>Scope</label>' +
-        '<input type="text" value="' + _esc(_AWK_SCOPE_LABEL[row.scope] || row.scope) + '" disabled></div>' +
+        '<input type="text" value="' + _esc(_awkScopeLbl(row.scope)) + '" disabled></div>' +
         '<div class="form-grp"><label>Kategori</label>' +
-        '<input type="text" value="' + _esc(_AWK_KAT_LABEL[row.kategori] || row.kategori) + '" disabled></div>' +
+        '<input type="text" value="' + _esc(_awkKatLbl(row.kategori)) + '" disabled></div>' +
       '</div>' +
       '<div class="form-grp"><label>Jumlah (Total Terbaru)</label>' +
       '<input type="number" id="rv-akn-jumlah" min="0" step="1" value="' + (row.jumlah || 0) + '"></div>';

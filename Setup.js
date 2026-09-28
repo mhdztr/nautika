@@ -108,7 +108,7 @@ function _setupMaster(props) {
   ]);
 
   _createSheetWithHeaders(ss, SHEET_MASTER.OPSI, [
-    'Kode', 'Urutan', 'Label', 'Aktif', 'DibuatOleh', 'DibuatAt'
+    'Kode', 'Urutan', 'Label', 'LabelTampil', 'Aktif', 'DibuatOleh', 'DibuatAt'
   ]);
 
   // Hapus sheet default bawaan GAS
@@ -394,37 +394,170 @@ function _seedSuperadmin(masterSS) {
 }
 
 // ===========================================================================
-// SEED DATA — Opsi (daftar pilihan dinamis)
-// Mencatat default setiap grup ke sheet `Opsi`. Baris yang sudah ada (match
-// Kode+Label) dilewati agar hasil edit/penambahan user tidak tertimpa saat
-// setupForce dijalankan ulang.
+// SEED DATA — Opsi (daftar pilihan dinamis) — sumber OTORITATIF enum domain
+//
+// Ini satu-satunya tempat nilai enum domain ditulis sebagai kode. Setelah
+// sheet `Opsi` ter-seed, SELURUH aplikasi membacanya lewat getOpsiList() /
+// getOpsiLabelMap() — tidak ada lagi daftar hardcoded di Constants.js atau
+// di service mana pun.
+//
+// `label`  = token yang disimpan ke kolom enum di sheet transaksi ( immutable
+//            pada kode ini; yang boleh ditambah Superadmin lewat Master Data).
+// `tampil` = teks yang dilihat user. Disalin persis dari peta label yang
+//            sebelumnya hardcoded di frontend — tidak ada arti domain baru
+//            yang dikarang di sini.
+//
+// CATATAN: kelompok AMUNISI sengaja memakai `tampil` = `label` (token mentah).
+// Nilai-nilai itu sebelumnya tampil apa adanya di UI dan tidak punya teks
+// tampilan resmi di dokumen mana pun (mis. sufiks "HAMPA" tidak dijelaskan),
+// jadi tidak ditebak. Superadmin dapat mengisinya lewat Master Data →
+// kolom "Tampil sebagai".
 // ===========================================================================
+var OPSI_SEED = {
+  AMUNISI: [
+    { label: 'PISTOL_P3A',        tampil: 'PISTOL_P3A' },
+    { label: 'PM1_A2',            tampil: 'PM1_A2' },
+    { label: 'SS1V5_SS2',         tampil: 'SS1V5_SS2' },
+    { label: 'SM5',               tampil: 'SM5' },
+    { label: 'SS1V5_SS2_HAMPA',   tampil: 'SS1V5_SS2_HAMPA' }
+  ],
+  BBM: [
+    { label: 'REGULER', tampil: 'Reguler' },
+    { label: 'ABT',     tampil: 'ABT' }
+  ],
+  KOM_PERSONIL: [
+    { label: 'NATURA',       tampil: 'Natura' },
+    { label: 'BPDT',         tampil: 'BPDT' },
+    { label: 'AIR_BERSIH',   tampil: 'Air Bersih' },
+    { label: 'DELEGASI',     tampil: 'Delegasi' },
+    { label: 'JAGA_SANDAR',  tampil: 'Jaga Sandar' }
+  ],
+  AWAK_KATEGORI: [
+    { label: 'PNS',                 tampil: 'PNS' },
+    { label: 'PPPK_FUNGSIONAL',     tampil: 'PPPK Fungsional' },
+    { label: 'PPPK_PELAKSANA',      tampil: 'PPPK Pelaksana' },
+    { label: 'PPPK_PARUH_WAKTU',    tampil: 'PPPK Paruh Waktu' },
+    { label: 'PJLP',                tampil: 'PJLP' }
+  ],
+  AWAK_SCOPE: [
+    { label: 'KESELURUHAN', tampil: 'Keseluruhan' },
+    { label: 'POA',         tampil: 'POA' }
+  ],
+  RAWAT_LOKASI: [
+    { label: 'PUSAT', tampil: 'Pusat' },
+    { label: 'UPT',   tampil: 'UPT' }
+  ],
+  RAWAT_TAHAP: [
+    { label: 'PROSES_PENGADAAN',    tampil: 'Proses Pengadaan' },
+    { label: 'TANDATANGAN_KONTRAK', tampil: 'Tanda Tangan Kontrak' },
+    { label: 'PROSES_DOCKING',      tampil: 'Proses Docking' },
+    { label: 'SELESAI',             tampil: 'Selesai' }
+  ],
+  RAWAT_KATEGORI: [
+    { label: 'PERENCANAAN',      tampil: 'Perencanaan' },
+    { label: 'PROSES_PEMBAYARAN', tampil: 'Proses Pembayaran' },
+    { label: 'SELESAI',           tampil: 'Selesai' }
+  ],
+  OPS_RIKSA_KATEGORI: [
+    { label: 'PUSAT',     tampil: 'Pusat' },
+    { label: 'UPT',       tampil: 'UPT' },
+    { label: 'SPEEDBOAT', tampil: 'Speedboat' }
+  ],
+  OPS_HARI_KATEGORI: [
+    { label: 'KAPAL_PUSAT',  tampil: 'Kapal Pusat' },
+    { label: 'SEMUA_KAPAL',  tampil: 'Semua Kapal' },
+    { label: 'SPEEDBOAT',    tampil: 'Speedboat' }
+  ]
+};
 
+/**
+ * Seed sheet `Opsi` dari `OPSI_SEED`. Idempoten: baris yang Kode+Label-nya
+ * sudah ada DILEWATI (hasil tambah/ubah user tidak tertimpa), dan baris yang
+ * sudah ada tapi `LabelTampil`-nya kosong akan diisi dari seed.
+ *
+ * Aman dijalankan berulang — dipakai oleh `setup()` dan `setupSeedOpsi()`.
+ * @param {GoogleAppsScript.Spreadsheet} masterSS
+ * @returns {number} jumlah baris baru yang ditambahkan
+ */
 function _seedOpsi(masterSS) {
   Logger.log('[Setup] Seeding daftar Opsi...');
   var sheet = masterSS.getSheetByName(SHEET_MASTER.OPSI);
+  if (!sheet) {
+    Logger.log('[Setup] Sheet Opsi tidak ada — dilewati.');
+    return 0;
+  }
+  ensureOpsiColumns(sheet); // self-heal kolom LabelTampil
 
   var existing = sheetToObjects(sheet);
   var seen = {};
-  existing.forEach(function (r) {
-    seen[String(r['Kode']) + '|' + String(r['Label'])] = true;
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  // Perbaiki `LabelTampil` pada baris lama. Aturannya:
+  //  - token di luar seed        -> jangan disentuh sama sekali
+  //  - LabelTampil sudah dikustom-> jangan ditimpa (harga_user_mahal)
+  //  - LabelTampil = Label       -> ini hasil isi-otomatis `ensureOpsiColumns`,
+  //                                  boleh dinaikkan ke teks seed yang lebih rapi
+  var colTampil = headers.indexOf('LabelTampil') + 1;
+  var fixes = [];
+  existing.forEach(function (r, i) {
+    var kode = String(r['Kode']);
+    var label = String(r['Label']);
+    seen[kode + '|' + label] = true;
+    var seedTampil = _opsiSeedTampil(kode, label);
+    if (!seedTampil) return;
+    var tampil = String(r['LabelTampil'] || '').trim();
+    if (tampil === seedTampil) return;   // sudah benar
+    if (tampil && tampil !== label) return; // sudah dikustom user -> hormati
+    fixes.push({ rowIndex: i + 2, col: colTampil, value: seedTampil });
+  });
+  fixes.forEach(function (f) {
+    if (f.col > 0) sheet.getRange(f.rowIndex, f.col).setValue(f.value);
   });
 
   var rows = [];
-  var kodeList = [OPSI_KODE.AMUNISI, OPSI_KODE.BBM, OPSI_KODE.KOM_PERSONIL, OPSI_KODE.AWAK_KATEGORI];
-  for (var k = 0; k < kodeList.length; k++) {
-    var kode = kodeList[k];
-    var labels = OPSI_DEFAULT[kode] || [];
-    for (var i = 0; i < labels.length; i++) {
-      if (seen[kode + '|' + labels[i]]) continue;
-      rows.push([kode, i + 1, labels[i], true, 'SYSTEM', new Date()]);
-    }
-  }
+  Object.keys(OPSI_SEED).forEach(function (kode) {
+    OPSI_SEED[kode].forEach(function (item, i) {
+      if (seen[kode + '|' + item.label]) return;
+      rows.push([kode, i + 1, item.label, item.tampil, true, 'SYSTEM', new Date()]);
+    });
+  });
 
   if (rows.length > 0) {
-    sheet.getRange(2 + existing.length, 1, rows.length, rows[0].length).setValues(rows);
+    var start = 2 + existing.length;
+    sheet.getRange(start, 1, rows.length, rows[0].length).setValues(rows);
   }
-  Logger.log('[Setup] Opsi selesai di-seed (' + (existing.length + rows.length) + ' baris).');
+  var total = existing.length + rows.length;
+  Logger.log('[Setup] Opsi selesai di-seed (' + total + ' baris total; ' + rows.length +
+    ' baris baru, ' + fixes.length + ' LabelTampil diperbaiki).');
+  return rows.length;
+}
+
+/** Teks tampilan seed untuk satu token, atau '' bila token bukan milik seed. */
+function _opsiSeedTampil(kode, label) {
+  var list = OPSI_SEED[kode];
+  if (!list) return '';
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].label === label) return list[i].tampil;
+  }
+  return '';
+}
+
+/**
+ * Jalankan seed Opsi SAJA, tanpa mengulang setup spreadsheet. Dipakai saat
+ * kode baru menambah grup Opsi atau menambah kolom `LabelTampil` — sheet
+ * yang sudah ada akan melengkapi dirinya sendiri.
+ *
+ * Cara pakai: jalankan fungsi ini sekali di editor Apps Script setelah
+ * `clasp push`, lalu muat ulang aplikasinya.
+ */
+function setupSeedOpsi() {
+  var masterSS = SpreadsheetApp.openById(getSpreadsheetIds().masterId);
+  var added = _seedOpsi(masterSS);
+  SpreadsheetApp.flush();
+  clearOpsiCache();
+  Logger.log('[setupSeedOpsi] Selesai. ' + added + ' baris baru ditambahkan.');
+  return { ok: true, barisBaru: added };
 }
 
 /**

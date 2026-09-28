@@ -237,22 +237,21 @@ function _riwDetailRawKep(r, L) {
   ];
 }
 
-var _RIW_LOKASI = { PUSAT: 'Pusat', UPT: 'UPT' };
-var _RIW_TAHAP = {
-  PROSES_PENGADAAN:     'Proses Pengadaan',
-  TANDATANGAN_KONTRAK:  'Tandatangan Kontrak',
-  PROSES_DOCKING:       'Proses Docking',
-  SELESAI:              'Selesai'
-};
+// Label docking (lokasi & tahap) & kategori dibaca dari sheet `Opsi`.
+function _riwLokasiLbl(t) { return getOpsiLabelMap(OPSI_KODE.RAWAT_LOKASI)[String(t || '')] || t || '\u2014'; }
+function _riwTahapLbl(t)  { return getOpsiLabelMap(OPSI_KODE.RAWAT_TAHAP)[String(t || '')] || t || '\u2014'; }
+function _riwKategoriLbl(t){ return getOpsiLabelMap(OPSI_KODE.RAWAT_KATEGORI)[String(t || '')] || t || '\u2014'; }
+function _riwAknScopeLbl(t)  { return getOpsiLabelMap(OPSI_KODE.AWAK_SCOPE)[String(t || '')] || t || '\u2014'; }
+function _riwAknKategoriLbl(t){ return getOpsiLabelMap(OPSI_KODE.AWAK_KATEGORI)[String(t || '')] || t || '\u2014'; }
 function _riwRingkasRawDok(r, L) {
   var kapal = L.kapal[String(r['KapalID'] || '')] || r['KapalID'] || '—';
-  return kapal + ' — ' + (_RIW_LOKASI[r['Lokasi']] || r['Lokasi'] || '—') + ' / ' + (_RIW_TAHAP[r['Tahap']] || r['Tahap'] || '—');
+  return kapal + ' — ' + _riwLokasiLbl(r['Lokasi']) + ' / ' + _riwTahapLbl(r['Tahap']);
 }
 function _riwDetailRawDok(r, L) {
   return [
     ['Kapal', L.kapal[String(r['KapalID'] || '')] || r['KapalID'] || '—'],
-    ['Lokasi', _RIW_LOKASI[r['Lokasi']] || r['Lokasi'] || '—'],
-    ['Tahap', _RIW_TAHAP[r['Tahap']] || r['Tahap'] || '—'],
+    ['Lokasi', _riwLokasiLbl(r['Lokasi'])],
+    ['Tahap', _riwTahapLbl(r['Tahap'])],
     ['Nilai Kontrak', (r['NilaiKontrak'] !== '' && r['NilaiKontrak'] != null) ? _riwRupiah(r['NilaiKontrak']) : '—'],
     ['Kontraktor', r['Kontraktor'] || '—']
   ];
@@ -264,7 +263,7 @@ function _riwRingkasRawItem(r, L) {
 function _riwDetailRawItem(r, L) {
   return [
     ['Nama Pekerjaan', r['NamaPekerjaan'] || '—'],
-    ['Kategori', r['Kategori'] || '—'],
+    ['Kategori', _riwKategoriLbl(r['Kategori'])],
     ['Nilai', _riwRupiah(r['Nilai'])],
     ['Terkait Docking', r['DockingRowID'] ? 'Ya (' + r['DockingRowID'] + ')' : '—']
   ];
@@ -311,12 +310,12 @@ function _riwDetailLogPer(r, L) {
 }
 
 function _riwRingkasAwkAkn(r, L) {
-  return (r['Scope'] || '—') + ' / ' + (r['Kategori'] || '—') + ' · ' + _riwNum(r['Jumlah']);
+  return _riwAknScopeLbl(r['Scope']) + ' / ' + _riwAknKategoriLbl(r['Kategori']) + ' · ' + _riwNum(r['Jumlah']);
 }
 function _riwDetailAwkAkn(r, L) {
   return [
-    ['Scope', r['Scope'] || '—'],
-    ['Kategori', r['Kategori'] || '—'],
+    ['Scope', _riwAknScopeLbl(r['Scope'])],
+    ['Kategori', _riwAknKategoriLbl(r['Kategori'])],
     ['Jumlah', _riwNum(r['Jumlah'])]
   ];
 }

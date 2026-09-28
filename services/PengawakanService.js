@@ -65,7 +65,12 @@ function awak_getOptions(token) {
   try {
     var session = _awakRequireSession(token);
     _awakAssertRead(session);
-    return { success: true, data: { scopes: AWAK_SCOPE, kategori: getOpsiList(OPSI_KODE.AWAK_KATEGORI) } };
+    return { success: true, data: {
+      scopes: getOpsiItems(OPSI_KODE.AWAK_SCOPE),
+      kategori: getOpsiItems(OPSI_KODE.AWAK_KATEGORI),
+      labelScope: getOpsiLabelMap(OPSI_KODE.AWAK_SCOPE),
+      labelKategori: getOpsiLabelMap(OPSI_KODE.AWAK_KATEGORI)
+    } };
   } catch (e) {
     Logger.log('[awak_getOptions] ' + e.message);
     return { success: false, error: e.message };
@@ -102,16 +107,22 @@ function awak_getKPI(token, filter) {
       : (f.year || new Date().getFullYear());
 
     // ── AKN (komposisi tahun berjalan) ──
+    // Scope & kategori dibaca dari sheet `Opsi`; komposisi dikelompokkan
+    // berdasarkan token scope, tanpa asumsi nama scope tertentu.
     var latest = _awakKomposisiTahun(tahunRef);
+    var kategoriList = getOpsiList(OPSI_KODE.AWAK_KATEGORI);
+    var scopeList = getOpsiList(OPSI_KODE.AWAK_SCOPE);
     var perKategori = {};
-    getOpsiList(OPSI_KODE.AWAK_KATEGORI).forEach(function (k) { perKategori[k] = { keseluruhan: 0, poa: 0 }; });
+    kategoriList.forEach(function (k) {
+      perKategori[k] = {};
+      scopeList.forEach(function (sc) { perKategori[k][sc] = 0; });
+    });
     var rows = [];
-    AWAK_SCOPE.forEach(function (scope) {
-      getOpsiList(OPSI_KODE.AWAK_KATEGORI).forEach(function (kat) {
+    scopeList.forEach(function (scope) {
+      kategoriList.forEach(function (kat) {
         var r = latest[scope + '|' + kat];
         var jml = r ? _awakNum(r['Jumlah']) : 0;
-        if (scope === 'KESELURUHAN') perKategori[kat].keseluruhan = jml;
-        else perKategori[kat].poa = jml;
+        perKategori[kat][scope] = jml;
         if (r) {
           rows.push({
             rowId:      String(r['RowID'] || ''),
@@ -124,8 +135,11 @@ function awak_getKPI(token, filter) {
         }
       });
     });
-    var totalKeseluruhan = getOpsiList(OPSI_KODE.AWAK_KATEGORI).reduce(function (s, k) { return s + perKategori[k].keseluruhan; }, 0);
-    var totalPoa = getOpsiList(OPSI_KODE.AWAK_KATEGORI).reduce(function (s, k) { return s + perKategori[k].poa; }, 0);
+    var totalPerScope = {};
+    scopeList.forEach(function (sc) {
+      totalPerScope[sc] = kategoriList.reduce(function (s, k) { return s + (perKategori[k][sc] || 0); }, 0);
+    });
+    var totalAkn = scopeList.reduce(function (s, sc) { return s + totalPerScope[sc]; }, 0);
 
     // ── Kegiatan (dalam rentang filter) ──
     var kegiatanCount = 0, kegiatanPeserta = 0;
@@ -140,9 +154,8 @@ function awak_getKPI(token, filter) {
       success: true,
       data: {
         akn: {
-          totalKeseluruhan: totalKeseluruhan,
-          totalPoa:         totalPoa,
-          total:            totalKeseluruhan + totalPoa,
+          totalPerScope:    totalPerScope,
+          total:            totalAkn,
           perKategori:      perKategori,
           rows:             rows
         },
@@ -248,9 +261,15 @@ function _awakBuildPayload(jenis, p, periode, oldRow) {
   var isRevision = !!oldRow;
 
   if (jenis === 'AKN') {
-    var scope = String(p.scope || '').toUpperCase();
-    var kategori = String(p.kategori || '').toUpperCase();
-    if (AWAK_SCOPE.indexOf(scope) === -1) return { error: 'Scope AKN tidak valid.' };
+    // Saat revisi, Scope & Kategori tidak bisa diedit di form revisi — nilainya
+    // diambil dari baris lama bila params tidak mengirimnya.
+    var scope = isRevision
+      ? (String(p.scope || '').trim().toUpperCase() || String(oldRow['Scope'] || '').trim().toUpperCase())
+      : String(p.scope || '').toUpperCase();
+    var kategori = isRevision
+      ? (String(p.kategori || '').trim().toUpperCase() || String(oldRow['Kategori'] || '').trim().toUpperCase())
+      : String(p.kategori || '').toUpperCase();
+    if (getOpsiList(OPSI_KODE.AWAK_SCOPE).indexOf(scope) === -1) return { error: 'Scope AKN tidak valid.' };
     if (getOpsiList(OPSI_KODE.AWAK_KATEGORI).indexOf(kategori) === -1) return { error: 'Kategori personil tidak valid.' };
     var jumlah = (isRevision ? _awakProvided(p.jumlah, oldRow['Jumlah']) : _awakNum(p.jumlah));
     if (isNaN(jumlah) || jumlah < 0) return { error: 'Jumlah wajib berupa angka ≥ 0.' };
@@ -438,8 +457,14 @@ function awak_getTren(token, filter) {
       return out;
     }
 
-    var keseluruhan = aknSeries('KESELURUHAN');
-    var poa = aknSeries('POA');
+    // Satu seri per scope; token & label dari sheet `Opsi`.
+    var aknPerScope = {};
+    var aknScopeLabels = {};
+    getOpsiList(OPSI_KODE.AWAK_SCOPE).forEach(function (sc) {
+      aknPerScope[sc] = aknSeries(sc);
+    });
+    var aknScopeMap = getOpsiLabelMap(OPSI_KODE.AWAK_SCOPE);
+    Object.keys(aknPerScope).forEach(function (sc) { aknScopeLabels[sc] = aknScopeMap[sc] || sc; });
 
     // Kegiatan — count & peserta per bulan
     var kegiatanCount = [], kegiatanPeserta = [];
@@ -456,8 +481,8 @@ function awak_getTren(token, filter) {
       success: true,
       data: {
         months: months,
-        aknKeseluruhan: keseluruhan,
-        aknPoa: poa,
+        aknPerScope: aknPerScope,
+        aknScopeLabels: aknScopeLabels,
         kegiatanCount: kegiatanCount,
         kegiatanPeserta: kegiatanPeserta
       }

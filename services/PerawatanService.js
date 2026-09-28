@@ -89,18 +89,36 @@ function perawatan_getOptions(token) {
       };
     }).sort(function (a, b) { return (a.nama || '').localeCompare(b.nama || ''); });
 
+    // Opsi enum Perawatan dibaca dari sheet `Opsi` (sumber tunggal).
+    var lokasi = getOpsiList(OPSI_KODE.RAWAT_LOKASI);
+    var tahap  = getOpsiList(OPSI_KODE.RAWAT_TAHAP);
+    var kategoriList = getOpsiList(OPSI_KODE.RAWAT_KATEGORI);
+    var labelLokasi = getOpsiLabelMap(OPSI_KODE.RAWAT_LOKASI);
+    var labelTahap  = getOpsiLabelMap(OPSI_KODE.RAWAT_TAHAP);
+    var labelKategori = getOpsiLabelMap(OPSI_KODE.RAWAT_KATEGORI);
+
     // Opsi docking = progres docking ACTIVE terbaru per kapal
     var dRows = sheetToObjects(openTransaksiSheet(SHEET_TX.PERAWATAN_DOCKING));
     var latest = _rawatLatestPerKapal(dRows);
     var docking = Object.keys(latest).map(function (kapalId) {
       var r = latest[kapalId];
+      var t = String(r['Tahap'] || '');
       return {
         rowId: String(r['RowID']),
-        label: (kmap[kapalId] ? kmap[kapalId].nama : kapalId) + ' — ' + String(r['Tahap'] || '')
+        label: (kmap[kapalId] ? kmap[kapalId].nama : kapalId) + ' — ' + (labelTahap[t] || t)
       };
     });
 
-    return { success: true, data: { kapal: kapal, docking: docking } };
+    return { success: true, data: {
+      kapal: kapal,
+      docking: docking,
+      lokasi: lokasi.map(function (t) { return { value: t, label: labelLokasi[t] || t }; }),
+      tahap: tahap.map(function (t) { return { value: t, label: labelTahap[t] || t }; }),
+      kategori: kategoriList.map(function (t) { return { value: t, label: labelKategori[t] || t }; }),
+      labelLokasi: labelLokasi,
+      labelTahap: labelTahap,
+      labelKategori: labelKategori
+    } };
   } catch (e) {
     Logger.log('[perawatan_getOptions] ' + e.message);
     return { success: false, error: e.message };
@@ -142,7 +160,7 @@ function perawatan_getKPI(token, filter) {
     // ── Docking ──
     var dRows = _rawatActiveInRange(SHEET_TX.PERAWATAN_DOCKING, range);
     var dLatest = _rawatLatestPerKapal(dRows);
-    var byTahap = {}; RAWAT_TAHAP.forEach(function (t) { byTahap[t] = 0; });
+    var byTahap = {}; getOpsiList(OPSI_KODE.RAWAT_TAHAP).forEach(function (t) { byTahap[t] = 0; });
     var dockingList = [], totalNilaiKontrak = 0;
     Object.keys(dLatest).forEach(function (kapalId) {
       var r = dLatest[kapalId];
@@ -164,7 +182,7 @@ function perawatan_getKPI(token, filter) {
 
     // ── Item Pekerjaan ──
     var iRows = _rawatActiveInRange(SHEET_TX.PERAWATAN_ITEM, range);
-    var byKategori = {}; RAWAT_KATEGORI.forEach(function (k) { byKategori[k] = { count: 0, nilai: 0 }; });
+    var byKategori = {}; getOpsiList(OPSI_KODE.RAWAT_KATEGORI).forEach(function (k) { byKategori[k] = { count: 0, nilai: 0 }; });
     var itemList = [], totalItemNilai = 0;
     iRows.forEach(function (r) {
       var kat = String(r['Kategori'] || '');
@@ -542,9 +560,9 @@ function _rawatBuildPayload(jenis, p, rows, periode, oldRow) {
     if (!kmap[dKapalId]) return { error: 'Kapal tidak terdaftar di Master Data.' };
 
     var lokasi = String(p.lokasi || '').toUpperCase();
-    if (RAWAT_LOKASI.indexOf(lokasi) === -1) return { error: 'Lokasi docking tidak valid (PUSAT/UPT).' };
+    if (getOpsiList(OPSI_KODE.RAWAT_LOKASI).indexOf(lokasi) === -1) return { error: 'Lokasi docking tidak valid.' };
     var tahap = String(p.tahap || '').toUpperCase();
-    if (RAWAT_TAHAP.indexOf(tahap) === -1) return { error: 'Tahap docking tidak valid.' };
+    if (getOpsiList(OPSI_KODE.RAWAT_TAHAP).indexOf(tahap) === -1) return { error: 'Tahap docking tidak valid.' };
     var nilaiKontrak = _rawatNum(p.nilaiKontrak);
     if (nilaiKontrak < 0) return { error: 'Nilai kontrak tidak boleh negatif.' };
     var kontraktor = String(p.kontraktor || '').trim();
@@ -565,7 +583,7 @@ function _rawatBuildPayload(jenis, p, rows, periode, oldRow) {
     var nama = String(p.namaPekerjaan || '').trim();
     if (!nama) return { error: 'Nama pekerjaan wajib diisi.' };
     var kategori = String(p.kategori || '').toUpperCase();
-    if (RAWAT_KATEGORI.indexOf(kategori) === -1) return { error: 'Kategori pekerjaan tidak valid.' };
+    if (getOpsiList(OPSI_KODE.RAWAT_KATEGORI).indexOf(kategori) === -1) return { error: 'Kategori pekerjaan tidak valid.' };
     var nilai = _rawatNum(p.nilai);
     if (nilai < 0) return { error: 'Nilai pekerjaan tidak boleh negatif.' };
 

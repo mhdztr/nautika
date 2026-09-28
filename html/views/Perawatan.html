@@ -246,22 +246,15 @@
           </div>
           <div class="form-grp">
             <label for="rawd-lokasi">Lokasi Docking</label>
-            <select id="rawd-lokasi">
-              <option value="PUSAT">Pusat</option>
-              <option value="UPT">UPT</option>
-            </select>
+            <!-- Isi & urutan option diisi runtime dari sheet Opsi (perawatan_getOptions) -->
+            <select id="rawd-lokasi"></select>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="rawd-tahap">Tahap</label>
-            <select id="rawd-tahap">
-              <option value="PROSES_PENGADAAN">Proses Pengadaan</option>
-              <option value="TANDATANGAN_KONTRAK">Tanda Tangan Kontrak</option>
-              <option value="PROSES_DOCKING">Proses Docking</option>
-              <option value="SELESAI">Selesai</option>
-            </select>
+            <select id="rawd-tahap"></select>
           </div>
           <div class="form-grp">
             <label for="rawd-nilai">Nilai Kontrak (Rp)</label>
@@ -336,11 +329,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="rawi-kategori">Kategori</label>
-            <select id="rawi-kategori">
-              <option value="PERENCANAAN">Perencanaan</option>
-              <option value="PROSES_PEMBAYARAN">Proses Pembayaran</option>
-              <option value="SELESAI">Selesai</option>
-            </select>
+            <select id="rawi-kategori"></select>
           </div>
           <div class="form-grp">
             <label for="rawi-nilai">Nilai (Rp)</label>

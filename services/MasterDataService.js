@@ -408,23 +408,22 @@ function master_getOpsiJenis(token) {
       groups[OPSI_KODE[k]] = getOpsiDetail(OPSI_KODE[k]);
     });
 
-    var labels = {};
-    labels[OPSI_KODE.AMUNISI]       = 'Jenis Amunisi';
-    labels[OPSI_KODE.BBM]           = 'Jenis BBM';
-    labels[OPSI_KODE.KOM_PERSONIL]  = 'Komponen Logistik Personil';
-    labels[OPSI_KODE.AWAK_KATEGORI] = 'Kategori Personil Pengawakan';
-
-    return { success: true, data: { groups: groups, labels: labels, kodeList: Object.keys(OPSI_KODE) } };
+    return { success: true, data: { groups: groups, labels: OPSI_GROUP_LABEL, kodeList: Object.keys(OPSI_KODE) } };
   } catch (e) {
     Logger.log('[master_getOpsiJenis] ' + e.message);
     return { success: false, error: e.message };
   }
 }
 
+/** true bila `kode` adalah grup Opsi yang dikenal. */
+function _opsiKodeValid(kode) {
+  return Object.keys(OPSI_KODE).indexOf(String(kode || '')) !== -1;
+}
+
 /**
  * Tambah satu nilai baru ke sebuah grup opsi.
  * @param {string} token
- * @param {{kode:string, label:string}} params
+ * @param {{kode:string, label:string, labelTampil?:string}} params
  */
 function master_addOpsiJenis(token, params) {
   try {
@@ -435,11 +434,15 @@ function master_addOpsiJenis(token, params) {
       var p = params || {};
       var kode  = _reqText(p.kode, 'Kode opsi');
       var label = _reqText(p.label, 'Nama opsi').toUpperCase();
-      if (!OPSI_DEFAULT[kode]) {
+      var labelTampil = String(p.labelTampil || '').trim() || label;
+      if (!_opsiKodeValid(kode)) {
         return { success: false, error: 'Kode opsi tidak dikenal.' };
       }
       if (label.length > 40) {
         return { success: false, error: 'Nama opsi maksimal 40 karakter.' };
+      }
+      if (labelTampil.length > 80) {
+        return { success: false, error: 'Tampil sebagai maksimal 80 karakter.' };
       }
 
       var sheet = ensureOpsiSheet();
@@ -456,25 +459,79 @@ function master_addOpsiJenis(token, params) {
       if (exists) {
         return { success: false, error: 'Nilai "' + label + '" sudah ada di grup ini.' };
       }
-      if ((OPSI_DEFAULT[kode] || []).indexOf(label) !== -1) {
-        return { success: false, error: 'Nilai "' + label + '" adalah bawaan sistem.' };
-      }
 
       appendRowData(sheet, {
-        'Kode':       kode,
-        'Urutan':     maxUrutan + 1,
-        'Label':      label,
-        'Aktif':      true,
-        'DibuatOleh': session.userId,
-        'DibuatAt':   new Date()
+        'Kode':        kode,
+        'Urutan':      maxUrutan + 1,
+        'Label':       label,
+        'LabelTampil': labelTampil,
+        'Aktif':       true,
+        'DibuatOleh':  session.userId,
+        'DibuatAt':    new Date()
       });
+      clearOpsiCache();
       _mdAuditLog(session.userId, 'CREATE', SHEET_MASTER.OPSI, kode,
         'Tambah opsi ' + kode + ' = ' + label);
 
-      return { success: true, message: 'Opsi "' + label + '" ditambahkan ke ' + kode + '.' };
+      return { success: true, message: 'Opsi "' + labelTampil + '" ditambahkan ke ' + (OPSI_GROUP_LABEL[kode] || kode) + '.' };
     });
   } catch (e) {
     Logger.log('[master_addOpsiJenis] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Ubah teks tampilan sebuah nilai opsi (kolom `LabelTampil`). Token `Label`
+ * tidak diubah — token itulah yang sudah tersimpan di sheet transaksi.
+ * @param {string} token
+ * @param {{kode:string, label:string, labelTampil:string}} params
+ */
+function master_setOpsiLabelTampil(token, params) {
+  try {
+    return withLock(function () {
+      var session = _mdRequireSession(token);
+      _mdAssertWrite(session);
+
+      var p = params || {};
+      var kode  = _reqText(p.kode, 'Kode opsi');
+      var label = _reqText(p.label, 'Nama opsi').toUpperCase();
+      var labelTampil = String(p.labelTampil || '').trim() || label;
+      if (!_opsiKodeValid(kode)) {
+        return { success: false, error: 'Kode opsi tidak dikenal.' };
+      }
+      if (labelTampil.length > 80) {
+        return { success: false, error: 'Tampil sebagai maksimal 80 karakter.' };
+      }
+
+      var sheet = ensureOpsiSheet();
+      var lastCol = sheet.getLastColumn();
+      var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      var col = headers.indexOf('LabelTampil') + 1;
+      if (col < 1) {
+        return { success: false, error: 'Kolom LabelTampil belum ada. Jalankan setupSeedOpsi() lebih dulu.' };
+      }
+
+      var rows = sheetToObjects(sheet);
+      var found = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i]['Kode']) === kode && String(rows[i]['Label']) === label) {
+          found = i + 2; // baris data (header = 1)
+          break;
+        }
+      }
+      if (!found) {
+        return { success: false, error: 'Nilai "' + label + '" tidak ditemukan di ' + (OPSI_GROUP_LABEL[kode] || kode) + '.' };
+      }
+      updateRowCells(sheet, found, { 'LabelTampil': labelTampil });
+      clearOpsiCache();
+      _mdAuditLog(session.userId, 'UPDATE', SHEET_MASTER.OPSI, kode,
+        'Ubah teks tampilan ' + kode + ' = ' + label + ' → "' + labelTampil + '"');
+
+      return { success: true, message: 'Teks tampilan "' + label + '" kini "' + labelTampil + '".' };
+    });
+  } catch (e) {
+    Logger.log('[master_setOpsiLabelTampil] ' + e.message);
     return { success: false, error: e.message };
   }
 }
@@ -495,7 +552,7 @@ function master_setOpsiJenisAktif(token, params) {
       var kode  = _reqText(p.kode, 'Kode opsi');
       var label = _reqText(p.label, 'Nama opsi').toUpperCase();
       var aktif = p.aktif === true || p.aktif === 'true';
-      if (!OPSI_DEFAULT[kode]) {
+      if (!_opsiKodeValid(kode)) {
         return { success: false, error: 'Kode opsi tidak dikenal.' };
       }
 
@@ -509,9 +566,10 @@ function master_setOpsiJenisAktif(token, params) {
         }
       }
       if (!found) {
-        return { success: false, error: 'Nilai "' + label + '" tidak ditemukan di ' + kode + '.' };
+        return { success: false, error: 'Nilai "' + label + '" tidak ditemukan di ' + (OPSI_GROUP_LABEL[kode] || kode) + '.' };
       }
       updateRowCells(sheet, found, { 'Aktif': aktif });
+      clearOpsiCache();
       _mdAuditLog(session.userId, 'UPDATE', SHEET_MASTER.OPSI, kode,
         'Ubah status opsi ' + kode + ' = ' + label + ' → ' + (aktif ? 'aktif' : 'non-aktif'));
 

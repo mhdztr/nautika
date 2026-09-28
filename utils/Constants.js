@@ -116,23 +116,41 @@ var DIVISI_ID = {
 };
 
 // ===========================================================================
-// ENUM — Modul Perawatan (Fase 9)
-// Nilai enum harus persis sama dengan DATA_SCHEMA.md.
+// OPSI (daftar pilihan dinamis) — sumber OTORITATIF ada di sheet `Opsi`
+// (Nautika_Master). Tidak ada lagi daftar nilai hardcoded di sini: semua
+// nilai enum yang bisa ditambah / diubah Superadmin diambil dari sheet
+// melalui `getOpsiList(kode)` / `getOpsiLabelMap(kode)` (data/SheetAccess.js).
+//
+// Isi awal sheet di-seed oleh `Setup.js` (`_seedOpsi`, idempotent & bisa
+// dijalankan ulang) — lihat `OPSI_SEED` di file tersebut.
 // ===========================================================================
-var RAWAT_LOKASI = ['PUSAT', 'UPT'];
+var OPSI_KODE = {
+  AMUNISI:        'AMUNISI',
+  BBM:            'BBM',
+  KOM_PERSONIL:   'KOM_PERSONIL',
+  AWAK_KATEGORI:  'AWAK_KATEGORI',
+  AWAK_SCOPE:     'AWAK_SCOPE',
+  RAWAT_LOKASI:   'RAWAT_LOKASI',
+  RAWAT_TAHAP:    'RAWAT_TAHAP',
+  RAWAT_KATEGORI: 'RAWAT_KATEGORI',
+  OPS_RIKSA_KATEGORI: 'OPS_RIKSA_KATEGORI',
+  OPS_HARI_KATEGORI: 'OPS_HARI_KATEGORI'
+};
 
-var RAWAT_TAHAP = [
-  'PROSES_PENGADAAN',
-  'TANDATANGAN_KONTRAK',
-  'PROSES_DOCKING',
-  'SELESAI'
-];
-
-var RAWAT_KATEGORI = [
-  'PROSES_PEMBAYARAN',
-  'SELESAI',
-  'PERENCANAAN'
-];
+// Judul grup untuk UI Master Data (chrome, bukan data domain — nilainya tidak
+// bisa ditambah/diubah user, hanya label antarmuka).
+var OPSI_GROUP_LABEL = {
+  AMUNISI:        'Jenis Amunisi',
+  BBM:            'Jenis BBM',
+  KOM_PERSONIL:   'Komponen Logistik Personil',
+  AWAK_KATEGORI:  'Kategori Personil Pengawakan',
+  AWAK_SCOPE:     'Scope Pengawakan',
+  RAWAT_LOKASI:   'Lokasi Docking',
+  RAWAT_TAHAP:    'Tahap Docking',
+  RAWAT_KATEGORI: 'Kategori Pekerjaan',
+  OPS_RIKSA_KATEGORI: 'Kategori Riksa',
+  OPS_HARI_KATEGORI: 'Kategori Hari Operasi'
+};
 
 // ===========================================================================
 // EVIDENCE — struktur folder & batas ukuran (PRD §11, ARCHITECTURE §6)
@@ -144,67 +162,18 @@ var EVIDENCE_LIMIT_BYTES = {
 };
 
 // ===========================================================================
-// ENUM — Modul Logistik (Fase 10)
-// Nilai harus persis sama dengan DATA_SCHEMA.md (kolom enum).
-// ===========================================================================
-var LOG_JENIS_AMUNISI = [
-  'PISTOL_P3A',
-  'PM1_A2',
-  'SS1V5_SS2',
-  'SM5',
-  'SS1V5_SS2_HAMPA'
-];
-
-var LOG_JENIS_BBM = ['REGULER', 'ABT'];
-
-var LOG_KOMPONEN_PERSONIL = [
-  'NATURA',
-  'BPDT',
-  'AIR_BERSIH',
-  'DELEGASI',
-  'JAGA_SANDAR'
-];
-
+// MODE — Modul Logistik (Fase 10)
 // Mode submit Baris Logistik — disimpan tersirat (tidak ada kolom):
 //   'BASELINE'     → baris inisialisasi siklus tahunan (isi StokAwal / Pagu;
 //                    kolom penggunaan/realisasi = 0). Satu baris ACTIVE per
 //                    jenis per tahun; revisi via supersede.
 //   'PENGGUNAAN'   → baris mingguan biasa (isi Penggunaan_Minggu /
 //                    Realisasi_Minggu). Satu baris ACTIVE per jenis per periode.
+// Ini perilaku sistem (bukan daftar referensi yang dikelola admin), jadi tetap
+// berupa konstanta — bukan baris sheet `Opsi`.
+// ===========================================================================
 var LOG_MODE_BASELINE = 'BASELINE';
 var LOG_MODE_USAGE    = 'PENGGUNAAN';
-
-// ===========================================================================
-// ENUM — Modul Pengawakan (Fase 10)
-// ===========================================================================
-var AWAK_SCOPE = ['KESELURUHAN', 'POA'];
-
-var AWAK_KATEGORI_PERSONIL = [
-  'PNS',
-  'PPPK_FUNGSIONAL',
-  'PPPK_PELAKSANA',
-  'PPPK_PARUH_WAKTU',
-  'PJLP'
-];
-
-// ===========================================================================
-// OPSI (daftar pilihan dinamis) — keputusan revisi Fase 10
-// Sheet `Opsi` di Nautika_Master menjadi sumber otoritatif; daftar di bawah
-// adalah DEFAULT/seed (lihat DATA_SCHEMA.md `Opsi`). Sistem = gabungan
-// baris Aktif di sheet + default (fallback saat sheet belum ter-seed).
-// ===========================================================================
-var OPSI_KODE = {
-  AMUNISI:      'AMUNISI',
-  BBM:          'BBM',
-  KOM_PERSONIL: 'KOM_PERSONIL',
-  AWAK_KATEGORI: 'AWAK_KATEGORI'
-};
-
-var OPSI_DEFAULT = {};
-OPSI_DEFAULT[OPSI_KODE.AMUNISI]       = LOG_JENIS_AMUNISI;
-OPSI_DEFAULT[OPSI_KODE.BBM]           = LOG_JENIS_BBM;
-OPSI_DEFAULT[OPSI_KODE.KOM_PERSONIL]  = LOG_KOMPONEN_PERSONIL;
-OPSI_DEFAULT[OPSI_KODE.AWAK_KATEGORI] = AWAK_KATEGORI_PERSONIL;
 
 // ===========================================================================
 // WPP NRI — referensi dari wpp_final.geojson (source of truth geospasial)

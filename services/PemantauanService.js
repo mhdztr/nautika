@@ -378,13 +378,6 @@ function pemantauan_revisi(token, params) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
       }
 
-      updateRowCells(sheet, oldRowData.rowIndex, {
-        Status: ROW_STATUS.SUPERSEDED,
-        VoidReason: alasanRevisi,
-        VoidedBy: session.userId,
-        VoidedAt: new Date().toISOString()
-      });
-
       var oldObj = oldRowData.obj;
       var newRowId = 'PNT-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
 
@@ -399,6 +392,16 @@ function pemantauan_revisi(token, params) {
           return { success: false, error: 'Status penanganan harus DALAM_PENANGANAN atau SELESAI.' };
         }
       }
+
+      // Tandai baris lama SUPERSEDED HANYA setelah seluruh validasi lolos —
+      // bila ditulis lebih dulu, validasi yang gagal akan membuat laporan lama
+      // hilang tanpa baris pengganti (data loss).
+      updateRowCells(sheet, oldRowData.rowIndex, {
+        Status: ROW_STATUS.SUPERSEDED,
+        VoidReason: alasanRevisi,
+        VoidedBy: session.userId,
+        VoidedAt: new Date().toISOString()
+      });
 
       appendRowData(sheet, {
         RowID: newRowId,

@@ -66,7 +66,12 @@ function operasiLaut_getOptions(token) {
       success: true,
       data: wpp.data.map(function(row) {
         return { value: row.WPPCode, text: row.WPPCode + ' - ' + row.NamaWilayah };
-      })
+      }),
+      // Enum referensi diambil dari sheet `Opsi`.
+      opsi: {
+        riksa: getOpsiItems(OPSI_KODE.OPS_RIKSA_KATEGORI),
+        hari:  getOpsiItems(OPSI_KODE.OPS_HARI_KATEGORI)
+      }
     };
   } catch (e) {
     return { success: false, error: e.message };
@@ -202,6 +207,15 @@ function operasiLaut_submit(token, params) {
       if (p.KapalID && !master_kapalExists(p.KapalID)) {
         return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
       }
+      // Kategori Riksa & Hari Operasi = enum referensi dari sheet `Opsi`.
+      var riksaKat = String(p.HasilRiksa_Kategori || '').trim().toUpperCase();
+      if (riksaKat && getOpsiList(OPSI_KODE.OPS_RIKSA_KATEGORI).indexOf(riksaKat) === -1) {
+        return { success: false, error: 'Kategori Riksa tidak valid.' };
+      }
+      var hariKat = String(p.HariOperasi_Kategori || '').trim().toUpperCase();
+      if (hariKat && getOpsiList(OPSI_KODE.OPS_HARI_KATEGORI).indexOf(hariKat) === -1) {
+        return { success: false, error: 'Kategori Hari Operasi tidak valid.' };
+      }
       var rows = sheetToObjects(sheet);
 
       // Cek duplikat ACTIVE untuk kombinasi Periode + WPP
@@ -234,11 +248,11 @@ function operasiLaut_submit(token, params) {
         ValuasiIllegalFishing: p.ValuasiIllegalFishing || 0,
         RumponDitertibkan: p.RumponDitertibkan || 0,
         ValuasiRumpon: p.ValuasiRumpon || 0,
-        HasilRiksa_Kategori: p.HasilRiksa_Kategori || '',
+        HasilRiksa_Kategori: riksaKat,
         HasilRiksa_KII: p.HasilRiksa_KII || 0,
         HasilRiksa_KIA: p.HasilRiksa_KIA || 0,
         HasilRiksa_ObjekSDK: p.HasilRiksa_ObjekSDK || 0,
-        HariOperasi_Kategori: p.HariOperasi_Kategori || '',
+        HariOperasi_Kategori: hariKat,
         HariOperasi_Jumlah: p.HariOperasi_Jumlah || 0,
         HariOperasi_Target: p.HariOperasi_Target || 180
       };
@@ -274,6 +288,17 @@ function operasiLaut_revisi(token, params) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
       }
 
+      var oldObj = oldRowData.obj;
+      // Validasi enum referensi (sumber: sheet `Opsi`) bila dikirim.
+      var riksaKat = String(p.HasilRiksa_Kategori || '').trim().toUpperCase();
+      if (riksaKat && getOpsiList(OPSI_KODE.OPS_RIKSA_KATEGORI).indexOf(riksaKat) === -1) {
+        return { success: false, error: 'Kategori Riksa tidak valid.' };
+      }
+      var hariKat = String(p.HariOperasi_Kategori || '').trim().toUpperCase();
+      if (hariKat && getOpsiList(OPSI_KODE.OPS_HARI_KATEGORI).indexOf(hariKat) === -1) {
+        return { success: false, error: 'Kategori Hari Operasi tidak valid.' };
+      }
+
       // Tandai lama sebagai SUPERSEDED
       updateRowCells(sheet, oldRowData.rowIndex, {
         Status: ROW_STATUS.SUPERSEDED,
@@ -282,7 +307,6 @@ function operasiLaut_revisi(token, params) {
         VoidedAt: new Date().toISOString()
       });
 
-      var oldObj = oldRowData.obj;
       var newRowId = Utilities.getUuid();
       
       var newRow = {
@@ -305,11 +329,11 @@ function operasiLaut_revisi(token, params) {
         ValuasiIllegalFishing: p.ValuasiIllegalFishing !== undefined ? p.ValuasiIllegalFishing : oldObj.ValuasiIllegalFishing,
         RumponDitertibkan: p.RumponDitertibkan !== undefined ? p.RumponDitertibkan : oldObj.RumponDitertibkan,
         ValuasiRumpon: p.ValuasiRumpon !== undefined ? p.ValuasiRumpon : oldObj.ValuasiRumpon,
-        HasilRiksa_Kategori: p.HasilRiksa_Kategori !== undefined ? p.HasilRiksa_Kategori : oldObj.HasilRiksa_Kategori,
+        HasilRiksa_Kategori: riksaKat !== undefined && riksaKat !== '' ? riksaKat : String(oldObj.HasilRiksa_Kategori || ''),
         HasilRiksa_KII: p.HasilRiksa_KII !== undefined ? p.HasilRiksa_KII : oldObj.HasilRiksa_KII,
         HasilRiksa_KIA: p.HasilRiksa_KIA !== undefined ? p.HasilRiksa_KIA : oldObj.HasilRiksa_KIA,
         HasilRiksa_ObjekSDK: p.HasilRiksa_ObjekSDK !== undefined ? p.HasilRiksa_ObjekSDK : oldObj.HasilRiksa_ObjekSDK,
-        HariOperasi_Kategori: p.HariOperasi_Kategori !== undefined ? p.HariOperasi_Kategori : oldObj.HariOperasi_Kategori,
+        HariOperasi_Kategori: hariKat !== undefined && hariKat !== '' ? hariKat : String(oldObj.HariOperasi_Kategori || ''),
         HariOperasi_Jumlah: p.HariOperasi_Jumlah !== undefined ? p.HariOperasi_Jumlah : oldObj.HariOperasi_Jumlah,
         HariOperasi_Target: p.HariOperasi_Target !== undefined ? p.HariOperasi_Target : oldObj.HariOperasi_Target
       };

@@ -138,16 +138,54 @@ function ensureKapalColumns() {
  */
 function ensureOpsiSheet() {
   var existing = openMasterSheet(SHEET_MASTER.OPSI);
-  if (existing) return existing;
+  if (existing) { ensureOpsiColumns(existing); return existing; }
   var ss = SpreadsheetApp.openById(getSpreadsheetIds().masterId);
   var sheet = ss.insertSheet(SHEET_MASTER.OPSI);
-  sheet.getRange(1, 1, 1, 6)
-    .setValues([['Kode', 'Urutan', 'Label', 'Aktif', 'DibuatOleh', 'DibuatAt']])
+  sheet.getRange(1, 1, 1, 7)
+    .setValues([['Kode', 'Urutan', 'Label', 'LabelTampil', 'Aktif', 'DibuatOleh', 'DibuatAt']])
     .setFontWeight('bold')
     .setBackground('#E8EAF6');
   sheet.setFrozenRows(1);
   Logger.log('[ensureOpsiSheet] Sheet ' + SHEET_MASTER.OPSI + ' dibuat otomatis.');
   return sheet;
+}
+
+/**
+ * Self-heal kolom `LabelTampil` pada sheet `Opsi` yang dibuat sebelum kolom ini
+ * ada (versi lama 6 kolom). Kolom baru disisipkan tepat setelah `Label` supaya
+ * urutan kolom tetap sama dengan header kanonik di `DATA_SCHEMA.md` — seluruh
+ * penulisan baris Opsi memakai urutan header tersebut, sehingga bila kolom baru
+ * hanya ditambahkan di posisi terakhir, baris baru akan masuk ke kolom keliru.
+ * Aman dipanggil berulang (idempoten).
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ */
+function ensureOpsiColumns(sheet) {
+  if (!sheet) return;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf('LabelTampil') !== -1) return;
+
+  // Sisipkan sesudah kolom `Label`; bila header tidak wajar, sisipkan di akhir.
+  var labelCol = headers.indexOf('Label') + 1; // 1-based
+  if (labelCol < 1) labelCol = lastCol;
+  sheet.insertColumnAfter(labelCol);
+  var newCol = labelCol + 1;
+
+  var cell = sheet.getRange(1, newCol);
+  cell.setValue('LabelTampil');
+  cell.setFontWeight('bold');
+  cell.setBackground('#E8EAF6');
+
+  // Baris lama yang LabelTampil-nya kosong diisi dengan nilai Label agar UI
+  // tidak menampilkan token mentah untuk data yang sudah ada.
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, newCol, lastRow - 1, 1)
+      .setValues(sheet.getRange(2, labelCol, lastRow - 1, 1).getValues());
+  }
+  Logger.log('[ensureOpsiColumns] Kolom LabelTampil disisipkan di ' + SHEET_MASTER.OPSI +
+    ' (kolom ' + newCol + '), diisi dari kolom Label.');
 }
 
 /**
@@ -255,13 +293,13 @@ function updateRowCells(sheet, rowIndex, updates) {
 
 /**
  * Ambil daftar label aktif untuk sebuah grup Opsi (DATA_SCHEMA.md `Opsi`).
- * Sumber = sheet master `Opsi` + semua default (fallback). Baris NON-aktif
- * hanya berguna untuk riwayat — tidak dimasukkan. Hasil di-cache ke
- * CacheService (TTL 10 menit) supaya getOptions/KPI/tren tidak scan ulang
- * tiap kali.
+ * Sumber TUNGGAL = sheet master `Opsi` (tidak ada daftar hardcoded lagi; isi
+ * awal di-seed oleh `Setup.js`). Baris NON-aktif hanya berguna untuk riwayat —
+ * tidak dimasukkan. Hasil di-cache ke CacheService (TTL 10 menit) supaya
+ * getOptions/KPI/tren tidak scan ulang tiap kali.
  *
- * @param {string} kode - OPSI_KODE.AMUNISI / BBM / KOM_PERSONIL / AWAK_KATEGORI
- * @returns {string[]} label terurut (Urutan)
+ * @param {string} kode - kunci dari OPSI_KODE
+ * @returns {string[]} token label terurut (Urutan)
  */
 function getOpsiList(kode) {
   var key = 'OPSI_LIST_' + String(kode || '');
@@ -272,11 +310,6 @@ function getOpsiList(kode) {
   }
 
   var orderMap = {};
-  var num = 0;
-  (OPSI_DEFAULT[kode] || []).forEach(function (label) {
-    num += 10;
-    orderMap[label] = (orderMap[label] === undefined) ? num : orderMap[label];
-  });
 
   try {
     readOpsiRows().forEach(function (r) {
@@ -286,10 +319,7 @@ function getOpsiList(kode) {
       var aktif = String(r['Aktif']).toLowerCase() !== 'false';
       if (!aktif) return;
       var urutan = Number(r['Urutan']) || 0;
-      // Baris dari sheet (seed & tambahan user) menang atas order default;
-      // urutan seed (1..N) & tambahan (max+1) dipetakan ke rentang 1000+ supaya
-      // urutan antar-baris sheet tetap, dan selalu tampil urut.
-      orderMap[label] = urutan + 1000;
+      orderMap[label] = urutan;
     });
   } catch (e) {
     Logger.log('[getOpsiList] ' + e.message);
@@ -303,10 +333,61 @@ function getOpsiList(kode) {
 }
 
 /**
- * Detail baris opsi satu grup (untuk halaman Master Data): semua baris
- * termasuk non-aktif, berikut urutan.
+ * Peta `token -> teks tampilan` untuk satu grup Opsi, untuk seluruh baris di
+ * sheet — termasuk token yang sudah dinonaktifkan dan token yang tidak lagi
+ * ada di `getOpsiList` — agar baris riwayat lama tetap tampil memakai nama
+ * yang benar, bukan token mentah.
+ *
  * @param {string} kode
- * @returns {Array<{label:string, aktif:boolean, urutan:number}>}
+ * @returns {Object.<string,string>}
+ */
+function getOpsiLabelMap(kode) {
+  var key = 'OPSI_MAP_' + String(kode || '');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(key);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+
+  var map = {};
+  try {
+    readOpsiRows().forEach(function (r) {
+      if (String(r['Kode']) !== String(kode)) return;
+      var label = String(r['Label'] || '').trim();
+      if (!label) return;
+      // `LabelTampil` tetap dipakai walau token sudah dinonaktifkan — status
+      // `Aktif` hanya mengatur boleh/tidaknya token muncul di dropdown
+      // (lihat getOpsiList), bukan menghapus nama yang tampil di riwayat.
+      // Token tanpa `LabelTampil` (baris lama) memakai `Label` sebagai gantinya.
+      var tampil = String(r['LabelTampil'] || '').trim() || label;
+      map[label] = tampil;
+    });
+  } catch (e) {
+    Logger.log('[getOpsiLabelMap] ' + e.message);
+  }
+  try { cache.put(key, JSON.stringify(map), 600); } catch (e) { /* ignore */ }
+  return map;
+}
+
+/**
+ * Item siap pakai untuk combobox typeahead: `value` = token yang disimpan ke
+ * sheet transaksi, `label` = teks yang dilihat user.
+ *
+ * @param {string} kode
+ * @returns {Array<{value:string,label:string}>}
+ */
+function getOpsiItems(kode) {
+  var map = getOpsiLabelMap(kode);
+  return getOpsiList(kode).map(function (token) {
+    return { value: token, label: map[token] || token };
+  });
+}
+
+/**
+ * Detail baris opsi satu grup (untuk halaman Master Data): semua baris
+ * termasuk non-aktif, berikut urutan & teks tampilan.
+ * @param {string} kode
+ * @returns {Array<{label:string, labelTampil:string, aktif:boolean, urutan:number}>}
  */
 function getOpsiDetail(kode) {
   var out = [];
@@ -317,8 +398,10 @@ function getOpsiDetail(kode) {
         var label = String(r['Label'] || '').trim();
         if (!label || seen[label]) return;
         seen[label] = true;
+        var tampil = String(r['LabelTampil'] || '').trim();
         out.push({
           label: label,
+          labelTampil: tampil || label,
           aktif: String(r['Aktif']).toLowerCase() !== 'false',
           urutan: Number(r['Urutan']) || 0
         });
@@ -326,11 +409,16 @@ function getOpsiDetail(kode) {
   } catch (e) {
     Logger.log('[getOpsiDetail] ' + e.message);
   }
-  (OPSI_DEFAULT[kode] || []).forEach(function (label) {
-    if (!seen[label]) {
-      out.push({ label: label, aktif: true, urutan: 0 });
-    }
-  });
   out.sort(function (a, b) { return a.urutan - b.urutan || a.label.localeCompare(b.label); });
   return out;
+}
+
+/** Buang cache daftar & peta label Opsi (dipanggil setelah Superadmin mengubah sheet). */
+function clearOpsiCache() {
+  var cache = CacheService.getScriptCache();
+  Object.keys(OPSI_KODE).forEach(function (k) {
+    var kode = OPSI_KODE[k];
+    cache.remove('OPSI_LIST_' + kode);
+    cache.remove('OPSI_MAP_' + kode);
+  });
 }

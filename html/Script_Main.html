@@ -567,6 +567,32 @@ function _renderOverview(el) {
       '</div>' +
     '</div>';
 
+  // ── 3b. Konteks — Status & Penindakan (DESIGN §6.5) ──
+  html +=
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Status &amp; Penindakan</div>' +
+      '<div class="chart-grid-2">' +
+        '<div class="chart-cell">' +
+          '<div class="chart-cell-hd">' +
+            '<div>' +
+              '<div class="chart-cell-title">Komposisi Penindakan</div>' +
+              '<div class="chart-cell-sub">Kapal ditangkap &amp; dipantau YTD — KII vs KIA</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="chart-box" id="ov-chart-penindakan"></div>' +
+        '</div>' +
+        '<div class="chart-cell">' +
+          '<div class="chart-cell-hd">' +
+            '<div>' +
+              '<div class="chart-cell-title">Kapal Pengawas Teraktif</div>' +
+              '<div class="chart-cell-sub">Top 5 berdasarkan hari operasi pada periode terpilih</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="chart-box" id="ov-chart-teraktif"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   // ── 4. Ringkasan per Divisi — 9 cards ────────────────
   html +=
     '<div class="content-section">' +
@@ -613,6 +639,11 @@ function _renderOverview(el) {
           { lbl: 'Kegiatan YTD',            val: '\u2014', unit: 'kegiatan', prog: false },
           { lbl: 'Kegiatan Periode Ini',    val: '\u2014', unit: 'kegiatan', prog: false },
           { lbl: 'Terakhir Dicatat',        val: '\u2014', unit: '',         prog: false }
+        ]) +
+        _divCard('Cakupan Laporan', [
+          { lbl: 'Divisi Melapor Minggu Ini', val: '\u2014', unit: '/ 7', prog: true },
+          { lbl: 'Divisi Belum Melapor',      val: '\u2014', unit: 'divisi', prog: false },
+          { lbl: 'Periode Aktif',             val: '\u2014', unit: '', prog: false }
         ]) +
       '</div>' +
     '</div>';
@@ -684,7 +715,8 @@ function _ovRenderData(d) {
   if (kpiRow) {
     if (d.headline && d.headline.length) {
       kpiRow.innerHTML = d.headline.map(function (h) {
-        return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub);
+        return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub,
+          { ring: h.ring, spark: h.spark, minibars: h.minibars, donut: h.donut, dots: h.dots, trend: h.trend });
       }).join('');
     } else {
       kpiRow.innerHTML = '<div class="chart-empty">Belum ada laporan pada rentang terpilih — ' +
@@ -698,7 +730,7 @@ function _ovRenderData(d) {
     if (d.divisi && d.divisi.length) {
       grid.innerHTML = d.divisi.map(function (dv) {
         var metrics = dv.metrics.map(function (m) { return _ovMetric(m); });
-        return _divCard(dv.title, metrics);
+        return _divCard(dv.title, metrics, dv.stack, dv.dots);
       }).join('');
     } else {
       grid.innerHTML = '<div class="chart-empty">Belum ada ringkasan divisi pada rentang terpilih — ' +
@@ -720,6 +752,20 @@ function _ovRenderData(d) {
         { label: 'Pesawat', data: d.charts.hariOperasi.pesawat, color: _CHART_COLORS.primarySoft }
       ], { emptyMsg: 'Belum ada data hari operasi pada rentang terpilih.' });
     }
+
+    var penEl = document.getElementById('ov-chart-penindakan');
+    if (penEl) {
+      var penSegs = d.charts.penindakan || [];
+      penEl.innerHTML = _ovSegTotal(penSegs) > 0 ? _ovPlotDonut(penSegs, 150)
+        : '<div class="chart-empty">Belum ada penindakan pada rentang terpilih.</div>';
+    }
+    var topEl = document.getElementById('ov-chart-teraktif');
+    if (topEl) {
+      var teraktif = (d.charts.kapalTeraktif || []).filter(function (k) { return (Number(k.val) || 0) > 0; });
+      topEl.innerHTML = teraktif.length
+        ? '<div class="ov-plot-bars">' + _ovBars(teraktif) + '</div>'
+        : '<div class="chart-empty">Belum ada data hari operasi pada periode terpilih.</div>';
+    }
   }
 }
 
@@ -733,10 +779,10 @@ function _ovNum(v, unit) {
 function _ovMetric(m) {
   var v = m.val;
   if (v === null || v === undefined || v === '' || v === '\u2014') {
-    return { lbl: m.lbl, val: '\u2014', unit: m.unit, prog: !!m.prog };
+    return { lbl: m.lbl, val: '\u2014', unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: null };
   }
   var valStr = _ovNum(v, m.unit);
-  return { lbl: m.lbl, val: valStr, unit: m.unit, prog: !!m.prog };
+  return { lbl: m.lbl, val: valStr, unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: v };
 }
 
 // ── PROFIL KAPAL (DashboardService.js → dashboard_profilKapal) ──
@@ -819,19 +865,19 @@ function _pkRender(d) {
         { lbl: 'Status',       val: _esc(kes), unit: '', prog: false },
         { lbl: 'Periode',      val: _esc(s.statusKesiapanPeriode || '\u2014'), unit: '', prog: false },
         { lbl: 'Penyebab',     val: _esc(s.penyebabTidakSiap || '\u2014'), unit: '', prog: false }
-      ]) +
+      ], null, null, { hero: false, foot: false }) +
       _divCard('Docking', [
         { lbl: 'Status',   val: _esc(dock), unit: '', prog: false },
         { lbl: 'Tahap',    val: _esc(s.tahapDocking || '\u2014'), unit: '', prog: false },
         { lbl: 'Lokasi',   val: _esc(s.lokasiDocking || '\u2014'), unit: '', prog: false }
-      ]) +
+      ], null, null, { hero: false, foot: false }) +
       _divCard('Operasi', [
         { lbl: 'Hari Op Kapal',     val: _idNum(s.totalHariOperasiLaut),  unit: 'hari', prog: false },
         { lbl: 'Hari Op Pesawat',   val: _idNum(s.totalHariOperasiUdara), unit: 'hari', prog: false },
         { lbl: 'Kapal Ditangkap',   val: _idNum(s.totalKapalDitangkap),   unit: 'unit', prog: false },
         { lbl: 'Kapal Dipantau',    val: _idNum(s.totalKapalDipantau),    unit: 'unit', prog: false },
         { lbl: 'Marabahaya',        val: _idNum(s.totalMarabahaya),       unit: 'unit', prog: false }
-      ]);
+      ], null, null, { hero: false, foot: false });
   }
 
   // Stok Amunisi per jenis (objek) → charts
@@ -943,36 +989,318 @@ function _fmtTs(ts) {
 }
 
 // Headline KPI card (top row, bigger number)
-function _kpiHeadline(label, value, unit, sub) {
+// opt (semua optional, hanya dirender saat data nyata, value != '\u2014'):
+//   ring    {pct}              → gauge cincin % (mis. SP2D)
+//   spark   [Number]           → sparkline area seri bulanan
+//   minibars [Number]          → strip batang 6 bulan terakhir
+//   donut   {segs,tone,center} → donut ≤4 irisan + angka tengah (mis. armada)
+//   dots    [{label,melapor}]  → titik per item (mis. 7 divisi melapor)
+//   trend   {delta,prev}       → panah delta vs bulan sebelumnya
+function _kpiHeadline(label, value, unit, sub, opt) {
+  opt = opt || {};
+  var hasData = value !== '\u2014';
+  var trendHtml = '';
+  if (opt.trend && opt.trend.delta && hasData) {
+    var d = Number(opt.trend.delta) || 0;
+    if (d !== 0) {
+      trendHtml = '<div class="ov-trend">' +
+        (d > 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d) +
+        ' <span class="ov-trend-cmp">vs ' + _ovMonthLabel(opt.trend.prev) + '</span>' +
+      '</div>';
+    }
+  }
+
+  var vis = '';
+  if (!hasData) {
+    vis = '';
+  } else if (opt.ring) {
+    vis = '<div class="kpi-vis">' + _ovRing(Number(opt.ring.pct) || 0, 68) + '</div>';
+  } else if (opt.donut && opt.donut.segs) {
+    var donut = _ovDonut(opt.donut.segs, 76, _idNum(opt.donut.center !== undefined ? opt.donut.center : _ovSegTotal(opt.donut.segs)));
+    if (donut) vis = '<div class="kpi-vis">' + donut + '</div>';
+  } else if (opt.spark) {
+    var sp = _ovSpark(opt.spark, 'var(--n-primary)', 'rgba(43,54,116,0.14)');
+    if (sp) vis = '<div class="kpi-vis">' + sp + '</div>';
+  } else if (opt.minibars) {
+    var mb = _ovMiniBars(opt.minibars, 'var(--n-primary)');
+    if (mb) vis = '<div class="kpi-vis">' + mb + '</div>';
+  } else if (opt.dots) {
+    vis = '<div class="kpi-vis">' + _ovDots(opt.dots) + '</div>';
+  }
+
   return '<div class="kpi-card">' +
-    '<div class="kpi-label">' + label + '</div>' +
-    '<div class="kpi-value">' + value +
-      (unit ? '<span style="font-size:0.95rem;font-weight:500;margin-left:3px;color:var(--n-text-secondary);">' + unit + '</span>' : '') +
+    '<div class="kpi-main">' +
+      '<div class="kpi-label">' + label + '</div>' +
+      '<div class="kpi-value">' + value +
+        (unit ? '<span style="font-size:0.95rem;font-weight:500;margin-left:3px;color:var(--n-text-secondary);">' + unit + '</span>' : '') +
+      '</div>' +
+      '<div class="kpi-sub">' + sub + '</div>' +
+      trendHtml +
     '</div>' +
-    '<div class="kpi-sub">' + sub + '</div>' +
+    vis +
   '</div>';
 }
 
+// ── Visual mini KPI (SVG inline; palet token tema, tanpa axis) ──
+
+// Gauge cincin % (DESIGN §10.2: pengganti gauge analog; tetap baca jelas lewat angka).
+function _ovRing(pct, size) {
+  size = size || 68;
+  var r = (size - 12) / 2;
+  var c = 2 * Math.PI * r;
+  var filled = Math.max(0, Math.min(100, Number(pct) || 0)) / 100 * c;
+  var cx = size / 2, cy = size / 2;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--n-surface-2)" stroke-width="8"/>' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="var(--n-primary)" stroke-width="8" stroke-linecap="round" ' +
+      'stroke-dasharray="' + filled.toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cy + ')"/>' +
+    '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="' + Math.round(size * 0.26) + '" font-weight="800" fill="var(--n-text-primary)">' + Math.round(pct) + '%</text>' +
+  '</svg>';
+}
+
+// Sparkline area seri bulanan (Jan → terpilih); disembunyikan bila < 2 titik.
+function _ovSpark(series, color, fillColor) {
+  var nums = (series || []).map(function (n) { return Number(n) || 0; });
+  if (nums.length < 2 || nums.every(function (n) { return n === 0; })) return '';
+  var w = 120, h = 40, pad = 3;
+  var max = Math.max.apply(null, nums.concat([1]));
+  var stepX = (w - pad * 2) / (nums.length - 1);
+  var pts = nums.map(function (n, i) {
+    return [pad + i * stepX, h - pad - (n / max) * (h - pad * 2)];
+  });
+  var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + (p[1].toFixed(1)); }).join(' ');
+  var area = line + ' L' + (w - pad).toFixed(1) + ' ' + (h - pad) + ' L' + pad + ' ' + (h - pad) + ' Z';
+  var last = pts[pts.length - 1];
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+    '<path d="' + area + '" fill="' + (fillColor || 'rgba(43,54,116,0.14)') + '" stroke="none"/>' +
+    '<path d="' + line + '" fill="none" stroke="' + (color || 'var(--n-primary)') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<rect x="' + (last[0] - 3) + '" y="' + (last[1] - 3) + '" width="6" height="6" rx="3" fill="' + (color || 'var(--n-primary)') + '"/>' +
+  '</svg>';
+}
+
+// Strip batang nilai total (6 bulan terakhir) — konteks tren cepat.
+function _ovMiniBars(values, color) {
+  var nums = (values || []).map(function (n) { return Number(n) || 0; });
+  if (!nums.length) return '';
+  nums = nums.slice(-6);
+  var max = Math.max.apply(null, nums.concat([1]));
+  var bw = 10, gap = 5, h = 40, padT = 6;
+  var w = nums.length * (bw + gap) + 10;
+  var bars = nums.map(function (v, i) {
+    var hh = Math.max(2, (v / max) * (h - padT - 3));
+    var x = 5 + i * (bw + gap);
+    return '<rect x="' + x + '" y="' + (h - hh - 3) + '" width="' + bw + '" height="' + hh + '" rx="2.5" fill="' + (color || 'var(--n-primary)') + '"/>';
+  }).join('');
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + bars + '</svg>';
+}
+
+// Donut komposisi (≤4 irisan) + angka tengah; segmen 0 dilewati, total ≤ 0 → hidden.
+function _ovDonut(segs, size, center) {
+  var total = _ovSegTotal(segs);
+  if (total <= 0) return '';
+  size = size || 76;
+  var r = (size - 14) / 2;
+  var c = 2 * Math.PI * r;
+  var cx = size / 2, cy = size / 2, sw = 12;
+  var off = 0;
+  var arcs = segs.filter(function (s) { return (Number(s.val) || 0) > 0; }).map(function (s) {
+    var len = (Number(s.val) || 0) / total * c;
+    var el = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + _ovTone(s.tone) + '" stroke-width="' + sw + '" ' +
+      'stroke-dasharray="' + Math.max(1, len - 2).toFixed(1) + ' ' + (c - len + 2).toFixed(1) + '" stroke-dashoffset="' + (-off).toFixed(1) + '" ' +
+      'transform="rotate(-90 ' + cx + ' ' + cy + ')"/>';
+    off += len + 2;
+    return el;
+  }).join('');
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + arcs +
+    '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="' + Math.round(size * 0.24) + '" font-weight="800" fill="var(--n-text-primary)">' + _esc(String(center !== undefined ? center : '')) + '</text>' +
+  '</svg>';
+}
+
+// Deretan titik status (7 divisi melapor) — isi = melapor.
+function _ovDots(items) {
+  if (!items || !items.length) return '';
+  return '<div class="ov-dots">' + items.map(function (it) {
+    var st = it.melapor ? ' on' : '';
+    return '<span class="ov-dot' + st + '" title="' + _esc(it.label) + (it.melapor ? '\u2014 melapor' : '\u2014 belum melapor') + '"></span>';
+  }).join('') + '</div>';
+}
+
+// Baris batang horizontal (label + track + nilai) — kapal teraktif / stok.
+function _ovBars(items) {
+  if (!items || !items.length) return '';
+  var max = Math.max.apply(null, items.map(function (it) { return Number(it.val) || 0; }).concat([1]));
+  return '<div class="ov-bars">' + items.map(function (it) {
+    var pct = Math.max(2, (Number(it.val) || 0) / max * 100);
+    return '<div class="bar-line">' +
+      '<div class="bar-line-lbl">' + _esc(it.label) + '</div>' +
+      '<div class="bar-line-track"><div class="bar-line-fill" style="width:' + pct + '%;background:' + _ovTone(it.tone) + ';"></div></div>' +
+      '<div class="bar-line-val">' + _idNum(it.val) + '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function _ovSegTotal(segs) {
+  return (segs || []).reduce(function (a, s) { return a + (Number(s.val) || 0); }, 0);
+}
+
+// Plot donut + legenda untuk sel chart (DESIGN §6.3: komposisi → donut ≤4).
+function _ovPlotDonut(segs, size) {
+  var total = _ovSegTotal(segs);
+  if (total <= 0) return '';
+  var donut = _ovDonut(segs, size || 150, _idNum(total));
+  var legend = segs.filter(function (s) { return (Number(s.val) || 0) > 0; }).map(function (s) {
+    var pct = Math.round((Number(s.val) || 0) / total * 100);
+    return '<div class="legend-row">' +
+      '<i style="background:' + _ovTone(s.tone) + ';"></i>' +
+      '<span class="legend-lbl">' + _esc(s.label) + '</span>' +
+      '<span class="legend-val">' + _idNum(s.val) + '</span>' +
+      '<span class="legend-pct">' + pct + '%</span>' +
+    '</div>';
+  }).join('');
+  return '<div class="ov-plot">' + donut + '<div class="ov-plot-legend">' + legend + '</div></div>';
+}
+
+// Thin stacked bar (proportion) — DESIGN.md §6.3: navy gradasi + status semantik.
+// Segmen bernilai 0 dilewati (tidak membentuk lebar maupun entri legenda).
+function _ovStackHtml(segs) {
+  if (!segs || !segs.length) return '';
+  var total = 0;
+  for (var i = 0; i < segs.length; i++) total += (Number(segs[i].val) || 0);
+  if (total <= 0) return '';
+  var bar = segs.map(function (s) {
+    var w = (Number(s.val) || 0) / total * 100;
+    return '<div class="stk-seg" style="width:' + w + '%;background:' + _ovTone(s.tone) + ';"></div>';
+  }).join('');
+  var legend = segs.filter(function (s) { return (Number(s.val) || 0) > 0; })
+    .map(function (s) {
+      return '<span class="stk-item"><i style="background:' + _ovTone(s.tone) + ';"></i>' +
+        _esc(s.label) + ' ' + _idNum(s.val) + '</span>';
+    }).join('');
+  return '<div class="stk-wrap"><div class="stk-bar">' + bar + '</div>' +
+    '<div class="stk-legend">' + legend + '</div></div>';
+}
+
+// Pemetaan tone → token CSS tema (DESIGN.md §3; tanpa hue baru).
+function _ovTone(t) {
+  switch (t) {
+    case 'ok':      return 'var(--n-ok)';
+    case 'warn':    return 'var(--n-warn)';
+    case 'crit':    return 'var(--n-crit)';
+    case 'soft':    return 'rgba(43,54,116,0.62)';
+    case 'light':   return 'rgba(43,54,116,0.35)';
+    case 'lighter': return 'rgba(43,54,116,0.20)';
+    default:        return 'var(--n-primary)';
+  }
+}
+
+// '2026-07' → 'Juli 2026' (MONTHS didefinisikan di bawah literal global).
+function _ovMonthLabel(key) {
+  if (!key) return '\u2014';
+  var p = String(key).split('-');
+  var mi = parseInt(p[1], 10);
+  if (!mi || mi < 1 || mi > 12) return String(key);
+  return MONTHS[mi - 1] + (p[0] ? ' ' + p[0] : '');
+}
+
 // Division summary card
-// metrics: [{lbl, val, unit, prog}] — prog=true adds a placeholder progress bar
-function _divCard(title, metrics) {
-  var rows = metrics.map(function(m) {
-    var valHtml = '<span class="div-metric-val ' + (m.val === '\u2014' ? 'muted' : '') + '">' +
+// metrics: [{lbl, val, unit, prog, progMax, stack}] — prog=true adds a placeholder
+// progress bar; stack=[{label,val,tone}] adds a thin stacked bar under the row.
+// stack (card-level) = {caption, segments:[...]} renders a thin stacked bar
+// setelah seluruh baris metrik (mis. komposisi AKN).
+function _divCard(title, metrics, stack, dots, opts) {
+  opts = opts || {};
+  var rows = metrics.map(function(m, idx) {
+    var valHtml = '<span class="div-metric-val' +
+      (m.val === '\u2014' ? ' muted' : (idx === 0 && opts.hero !== false ? ' hero' : '')) + '">' +
       m.val + (m.unit ? ' <span style="font-size:.75rem;font-weight:400;color:var(--n-text-muted);">' + m.unit + '</span>' : '') +
     '</span>';
-    var progHtml = (m.prog && m.val !== '\u2014') ? (
+    var hasRaw = m.raw !== null && m.raw !== undefined && m.raw !== '';
+    var progHtml = (m.prog && m.val !== '\u2014' && hasRaw) ? (
       '<div class="prog-wrap">' +
-        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' + parseFloat(m.val) + '%;"></div></div>' +
+        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' +
+          Math.max(0, Math.min(100, Number(m.raw) || 0)) + '%;"></div></div>' +
         '<div class="prog-labels"><span>0%</span><span>100%</span></div>' +
       '</div>'
     ) : '';
-    return '<div class="div-metric"><span class="div-metric-lbl">' + m.lbl + '</span>' + valHtml + '</div>' + progHtml;
+    var progTargetHtml = (m.progMax && m.val !== '\u2014' && hasRaw) ? (
+      '<div class="prog-wrap">' +
+        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' +
+          Math.max(0, Math.min(100, (Number(m.raw) || 0) / m.progMax * 100)) + '%;"></div></div>' +
+        '<div class="prog-labels"><span>0</span><span>' + m.progMax + '</span></div>' +
+      '</div>'
+    ) : '';
+    var stackHtml = (m.stack && m.val !== '\u2014') ? _ovStackHtml(m.stack) : '';
+    return '<div class="div-metric"><span class="div-metric-lbl">' + m.lbl + '</span>' + valHtml + '</div>' +
+      progHtml + progTargetHtml + stackHtml;
   }).join('');
-
+  var foot = (opts.foot === false) ? '' : _ovCardFoot(metrics, stack, dots);
   return '<div class="div-card">' +
     '<div class="div-card-title">' + title + '</div>' +
-    rows +
+    '<div class="div-card-metrics">' + rows + '</div>' +
+    foot +
   '</div>';
+}
+
+// Nilai numerik yang layak dibandingkan dalam kartu (bukan rupiah/koordinat).
+function _ovMetricNum(m) {
+  if (m.raw === null || m.raw === undefined || m.raw === '') return null;
+  if (m.unit === 'Rp' || m.unit === 'NM\u00B2') return null;
+  var n = Number(m.raw);
+  return isNaN(n) ? null : n;
+}
+
+// Footer visual kartu — mengisi sisa tinggi kartu agar tidak ada area kosong.
+// Prioritas: dots → stack kartu → bars metrik → gabungan stack per baris → komparasi numerik → catatan.
+function _ovCardFoot(metrics, stack, dots) {
+  if (dots && dots.length) {
+    var dOn = dots.filter(function (d) { return d.melapor; }).length;
+    return '<div class="div-card-foot">' +
+      '<div class="div-card-foot-cap">Status laporan mingguan \u2014 ' + dOn + '/' + dots.length + '</div>' +
+      '<div class="div-card-foot-dots">' + _ovDots(dots) + '</div>' +
+    '</div>';
+  }
+  if (stack && stack.segments && stack.segments.length) {
+    var s2 = _ovStackHtml(stack.segments);
+    if (s2) return '<div class="div-card-foot">' +
+      '<div class="div-card-foot-cap">' + (stack.caption || 'Proporsi') + '</div>' + s2 + '</div>';
+  }
+  for (var i = 0; i < metrics.length; i++) {
+    var m = metrics[i];
+    if (m.bars && m.bars.length && m.val !== '\u2014') {
+      return '<div class="div-card-foot">' +
+        '<div class="div-card-foot-cap">' + m.lbl + '</div>' + _ovBars(m.bars) + '</div>';
+    }
+  }
+  // Gabungkan beberapa stack per-baris (Operasi: Ditangkap + Dipantau) jadi komparasi.
+  var groups = 0, st = [];
+  metrics.forEach(function (m) {
+    if (m.stack && m.stack.length && m.val !== '\u2014' && _ovSegTotal(m.stack) > 0) {
+      groups++;
+      m.stack.slice(0, 2).forEach(function (seg) {
+        st.push({ label: m.lbl.replace(/\s*\(KII\/KIA\)\s*$/, '') + ' \u00B7 ' + seg.label, val: seg.val, tone: seg.tone });
+      });
+    }
+  });
+  if (groups >= 2) {
+    return '<div class="div-card-foot">' +
+      '<div class="div-card-foot-cap">Komposisi penindakan</div>' + _ovBars(st.slice(0, 6)) + '</div>';
+  }
+  var nums = metrics.map(function (m) { return { label: m.lbl, val: _ovMetricNum(m) }; })
+    .filter(function (x) { return x.val !== null; });
+  if (nums.length >= 2) {
+    var footTones = ['deep', 'soft', 'light'];
+    var items = nums.map(function (x, i) {
+      return { label: x.label, val: x.val, tone: footTones[i % footTones.length] };
+    });
+    return '<div class="div-card-foot">' +
+      '<div class="div-card-foot-cap">Proporsi periode</div>' + _ovBars(items) + '</div>';
+  }
+  if (metrics.length) {
+    return '<div class="div-card-foot">' +
+      '<div class="div-card-foot-note">Data periode terpilih belum lengkap \u2014 isi laporan untuk menampilkan perbandingan.</div>' +
+    '</div>';
+  }
+  return '';
 }
 
 // ── APPROVAL MANAGEMENT ───────────────────────────────────
@@ -2288,7 +2616,8 @@ function _attachCarry(refSheet, fromRowId, toRowId) {
 var _TU = {
   pendingRowId:   null,   // untuk revisi/anulir
   kpi:            null,
-  history:        []
+  history:        [],
+  _paguBase:      null    // Pagu terkunci saat form dibuka ("Ubah Pagu" → "Batalkan")
 };
 
 // ── RENDER ────────────────────────────────────────────────
@@ -2405,11 +2734,84 @@ function tuOpenForm() {
     if (el) el.value = '';
   });
 
+  // Pagu: kunci & isi otomatis dari laporan ACTIVE terakhir (KPI punya pagu periode berjalan).
+  // Hanya berubah bila user menekan "Ubah Pagu". Bila belum ada laporan sebelumnya, Pagu bebas diisi.
+  _TU._paguBase = { r: null, a: null };
+  var k = _TU.kpi;
+  var kp = (k && (Number(k.paguReguler) > 0 || Number(k.paguABT) > 0)) ? k : null;
+  if (kp) {
+    _TU._paguBase = { r: Number(kp.paguReguler), a: Number(kp.paguABT) };
+    var pr = document.getElementById('tu-pagu-reguler');
+    var pa = document.getElementById('tu-pagu-abt');
+    if (pr) pr.value = kp.paguReguler;
+    if (pa) pa.value = kp.paguABT;
+  }
+  _tuSetPaguBar(kp ? 'lock' : 'none');
+  _tuShowCatatan(false);
+
   _tuFillFormContext();
   _msg('tu-form-msg', '', '');
   _attachInit('tu', { refSheet: 'TX_TataUsaha' });
   var mEl = document.getElementById('modal-tu-form');
   if (mEl) mEl.classList.remove('n-hidden');
+}
+
+// Status bar kunci Pagu: 'lock' (terkunci, ikut laporan sebelumnya), 'unlock' (bisa diubah), 'none' (belum ada laporan sebelumnya).
+function _tuSetPaguBar(state) {
+  var bar   = document.getElementById('tu-pagu-bar');
+  var txt   = document.getElementById('tu-pagu-bar-txt');
+  var btnU  = document.getElementById('tu-btn-unlock-pagu');
+  var btnL  = document.getElementById('tu-btn-lock-pagu');
+  var pr    = document.getElementById('tu-pagu-reguler');
+  var pa    = document.getElementById('tu-pagu-abt');
+  if (pr) pr.readOnly = (state === 'lock');
+  if (pa) pa.readOnly = (state === 'lock');
+  if (state === 'none') {
+    if (bar) bar.classList.add('n-hidden');
+    if (btnU) btnU.classList.add('n-hidden');
+    if (btnL) btnL.classList.add('n-hidden');
+    return;
+  }
+  if (bar) {
+    bar.classList.remove('n-hidden');
+    bar.classList.toggle('unlocked', state === 'unlock');
+  }
+  if (txt) {
+    txt.textContent = (state === 'lock')
+      ? 'Pagu terkunci \u2014 mengikuti laporan sebelumnya (Reguler Rp ' + _rupiah(_TU._paguBase.r) + ' \u00B7 ABT Rp ' + _rupiah(_TU._paguBase.a) + '). Klik "Ubah Pagu" hanya bila pagu berubah.'
+      : 'Pagu dibuka untuk diubah \u2014 wajib isi Catatan Revisi Pagu saat menyimpan.';
+  }
+  if (btnU) btnU.classList.toggle('n-hidden', state !== 'lock');
+  if (btnL) btnL.classList.toggle('n-hidden', state !== 'unlock');
+}
+
+function _tuShowCatatan(show) {
+  var wrap = document.getElementById('tu-catatan-wrap');
+  if (wrap) wrap.classList.toggle('n-hidden', !show);
+}
+
+function tuUnlockPagu(enable) {
+  if (enable) {
+    // Kunci dulu nilai lama agar "Batalkan" bisa mengembalikannya.
+    if (!_TU._paguBase || _TU._paguBase.r === null) {
+      _TU._paguBase = {
+        r: (document.getElementById('tu-pagu-reguler') || {}).value || 0,
+        a: (document.getElementById('tu-pagu-abt')     || {}).value || 0
+      };
+    }
+    _tuSetPaguBar('unlock');
+    _tuShowCatatan(true);
+  } else {
+    var pr = document.getElementById('tu-pagu-reguler');
+    var pa = document.getElementById('tu-pagu-abt');
+    if (pr && _TU._paguBase.r !== null) pr.value = _TU._paguBase.r;
+    if (pa && _TU._paguBase.a !== null) pa.value = _TU._paguBase.a;
+    var cl = document.getElementById('tu-catatan');
+    if (cl) cl.value = '';
+    _tuSetPaguBar('lock');
+    _tuShowCatatan(false);
+  }
+  _msg('tu-form-msg', null);
 }
 
 function _tuFillFormContext() {

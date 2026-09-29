@@ -190,6 +190,36 @@ a { text-decoration: none; color: inherit; }
   text-overflow: ellipsis;
 }
 
+/* Input terkunci — Pagu mengikuti laporan sebelumnya (form Tata Usaha) */
+.form-grp input[readonly] {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+.form-grp input[readonly]:focus {
+  border-color: var(--n-border-subtle);
+  background: var(--n-surface-2);
+}
+
+/* Bar kontrol & kunci Pagu — muncul di atas Catatan Revisi Pagu */
+.tu-pagu-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  margin: -6px 0 18px;
+  background: var(--n-surface-2);
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-size: 0.78rem;
+  color: var(--n-text-muted);
+}
+.tu-pagu-bar.unlocked {
+  border-color: var(--n-warn);
+  background: rgba(245, 158, 11, 0.07);
+}
+.tu-pagu-bar .btn-mini { margin-top: 0; flex: 0 0 auto; }
+
 /* ── ITEM LIST "rincian per-item" (revisi Fase 13) ─────────
    Baris input berulang di modal form (kapal, rumpon, objek udara,
    kejadian intelijen). Jumlah = hitungan item, dihitung sistem. */
@@ -712,6 +742,16 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-lg);
   box-shadow: var(--n-shadow-card);
   padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.kpi-main { min-width: 0; }
+.kpi-vis {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 .kpi-label {
   font-family: 'Poppins', sans-serif;
@@ -1026,6 +1066,7 @@ a { text-decoration: none; color: inherit; }
 .div-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
   gap: 16px;
 }
 .div-card {
@@ -1033,6 +1074,8 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-lg);
   box-shadow: var(--n-shadow-card);
   padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
 }
 .div-card-title {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1046,12 +1089,13 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
   justify-content: space-between;
 }
+.div-card-metrics { flex: 1 0 auto; }
 .div-metric {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 5px 0;
-  font-size: 0.845rem;
+  padding: 6px 0;
+  font-size: 0.88rem;
 }
 .div-metric + .div-metric {
   border-top: 1px solid var(--n-border-subtle);
@@ -1060,13 +1104,44 @@ a { text-decoration: none; color: inherit; }
 .div-metric-val {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 600;
+  font-size: 1.02rem;
   color: var(--n-text-primary);
 }
 .div-metric-val.muted {
   font-weight: 400;
   color: var(--n-text-muted);
   font-family: 'Poppins', sans-serif;
+  font-size: 0.88rem;
 }
+.div-metric:first-child .div-metric-val.hero {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+/* Footer visual kartu — mengisi ruang kosong di sisa tinggi kartu */
+.div-card-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--n-border-subtle);
+}
+.div-card-foot-cap {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--n-text-muted);
+  margin-bottom: 8px;
+}
+.div-card-foot-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.div-card-foot-note {
+  font-size: 0.75rem;
+  color: var(--n-text-muted);
+  line-height: 1.5;
+}
+.div-card-foot .ov-bars { margin-top: 2px; }
+.div-card-foot .stk-wrap { margin-top: 8px; }
 
 /* ============================================================
    HORIZONTAL PROGRESS BAR — pengganti gauge (DESIGN.md §6)
@@ -1178,6 +1253,179 @@ a { text-decoration: none; color: inherit; }
 }
 @media (max-width: 900px) {
   .chart-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   OVERVIEW — visual pendukung tipis (DESIGN.md §6)
+   Thin progress bar target (divisi), stacked bar proporsi,
+   indikator tren, mini-chart KPI, plot donut & bar kapal teraktif.
+   Warna hanya dari token tema §3.
+   ============================================================ */
+.ov-trend {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--n-text-secondary);
+  letter-spacing: -0.01em;
+}
+.ov-trend-cmp {
+  font-weight: 400;
+  font-size: 0.73rem;
+  color: var(--n-text-muted);
+}
+.stk-wrap { margin-top: 8px; }
+.stk-bar {
+  display: flex;
+  height: 6px;
+  border-radius: var(--n-r-pill);
+  overflow: hidden;
+  background: var(--n-surface-2);
+}
+.stk-seg { height: 100%; }
+.stk-legend {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 3px;
+  margin-top: 5px;
+}
+.stk-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--n-text-muted);
+  white-space: nowrap;
+}
+.stk-item i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.stk-caption {
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--n-border-subtle);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--n-text-muted);
+  margin-bottom: 4px;
+}
+
+/* ── Visual mini KPI & sel chart (DESIGN §6.3, §10.2) ── */
+
+/* Titik status (7 divisi melapor) */
+.ov-dots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ov-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--n-surface-2);
+  border: 1.5px solid var(--n-border-subtle);
+  display: inline-block;
+}
+.ov-dot.on {
+  background: var(--n-primary);
+  border-color: var(--n-primary);
+}
+
+/* Baris batang horizontal (label + track + nilai) */
+.ov-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.bar-line {
+  display: grid;
+  grid-template-columns: 1.4fr 2fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.bar-line-lbl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--n-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-line-track {
+  height: 9px;
+  border-radius: 99px;
+  background: var(--n-surface-2);
+  overflow: hidden;
+}
+.bar-line-fill {
+  height: 100%;
+  border-radius: 99px;
+}
+.bar-line-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--n-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Plot donut + legenda (sel chart) */
+.ov-plot {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+.ov-plot-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+.legend-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.78rem;
+}
+.legend-row i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.legend-lbl {
+  font-weight: 600;
+  color: var(--n-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.legend-val {
+  font-weight: 700;
+  color: var(--n-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.legend-pct {
+  font-size: 0.72rem;
+  color: var(--n-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+}
+.ov-plot-bars {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 </style>

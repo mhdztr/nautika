@@ -17,6 +17,22 @@
  * semantik mingguan (Operasi Laut/Udara) dipakai pencocokan Periode utk
  * konsistensi dengan KPI modul terkait.
  */
+
+/**
+ * Versi data transaksi saat ini — dimasukkan ke cache key agregat ikhtisar
+ * supaya hasil tidak kedaluwarsa (stale) setelah submit/revisi/anulir.
+ * Penanda dinaikkan otomatis oleh `bumpTxVersion()` (data/SheetAccess.js)
+ * di setiap `appendRowData`/`updateRowCells`. Cache key berubah → agregat
+ * dihitung ulang (cache 300s lama dengan key lama otomatis tak terpakai).
+ */
+function _dashVersion() {
+  try {
+    return String(CacheService.getScriptCache().get('DASH_TX_VERSION') || '0');
+  } catch (e) {
+    return '0';
+  }
+}
+
 function dashboard_getOverview(token, filter) {
   var CACHE_TTL = 300; // detik
   try {
@@ -26,7 +42,7 @@ function dashboard_getOverview(token, filter) {
 
     ensureKapalColumns(); // self-heal: kolom KapalID di 4 sheet (Fase 12)
 
-    var cacheKey = 'DASH_OV_' + session.userId + '_' + _dashFilterKey(f);
+    var cacheKey = 'DASH_OV_' + session.userId + '_' + _dashVersion() + '_' + _dashFilterKey(f);
     var cache = CacheService.getScriptCache();
     var cached = cache.get(cacheKey);
     if (cached) {
@@ -61,8 +77,12 @@ function dashboard_getOverview(token, filter) {
 
     var hariKapal   = _dashSumRows(lautInRange,  'HariOperasi_Jumlah');
     var hariPesawat = _dashSumRows(udaraInRange, 'HariOperasi_Jumlah');
-    var kapalDitangkap = _dashSumRows(lautYtd, 'KII_Ditangkap') + _dashSumRows(lautYtd, 'KIA_Ditangkap');
-    var kapalDipantau  = _dashSumRows(udaraYtd, 'KII') + _dashSumRows(udaraYtd, 'KIA');
+    var kiiDitangkap   = _dashSumRows(lautYtd, 'KII_Ditangkap');
+    var kiaDitangkap   = _dashSumRows(lautYtd, 'KIA_Ditangkap');
+    var kapalDitangkap = kiiDitangkap + kiaDitangkap;
+    var kiiDipantau    = _dashSumRows(udaraYtd, 'KII');
+    var kiaDipantau    = _dashSumRows(udaraYtd, 'KIA');
+    var kapalDipantau  = kiiDipantau + kiaDipantau;
     var cakupanWilayah = _dashSumRows(udaraYtd, 'CakupanWilayah_NM2');
 
     // ── INTELIJEN ────────────────────────────────────────────────
@@ -113,10 +133,15 @@ function dashboard_getOverview(token, filter) {
       }
     });
     var stokTotal = 0;
+    var amStok = [];
     Object.keys(amBasePerJenis).forEach(function (j) {
       var base = amBasePerJenis[j];
-      stokTotal += Math.max(0, _num(base['StokAwal']) - _dashJenisUsage(amYtd, j));
+      var stok = Math.max(0, _num(base['StokAwal']) - _dashJenisUsage(amYtd, j));
+      stokTotal += stok;
+      if (stok > 0) amStok.push({ label: j, val: stok });
     });
+    amStok.sort(function (a, b) { return b.val - a.val; });
+    var amStok5 = amStok.slice(0, 5);
 
     // ── PENGAWAKAN ───────────────────────────────────────────────
     var awakRows = _dashActiveRows(SHEET_TX.PENGAWAKAN_AKN);
@@ -127,6 +152,16 @@ function dashboard_getOverview(token, filter) {
     getOpsiList(OPSI_KODE.AWAK_SCOPE).forEach(function (sc) {
       aknTotalPerScope[sc] = _dashLatestScopeSum(awakRows, sc, range);
       aknLabelPerScope[sc] = aknScopeMap[sc] || sc;
+    });
+    // Segmen flat untuk stacked bar komposisi AKN (urutan mengikuti sheet Opsi).
+    var aknScopeOrder = getOpsiList(OPSI_KODE.AWAK_SCOPE);
+    var aknStack = [];
+    aknScopeOrder.forEach(function (sc, i) {
+      aknStack.push({
+        label: aknScopeMap[sc] || sc,
+        val: aknTotalPerScope[sc],
+        tone: (['deep', 'soft', 'light', 'lighter'])[i] || 'lighter'
+      });
     });
     var awakKeg = _dashActiveRows(SHEET_TX.PENGAWAKAN_KEGIATAN);
     var awakKegYtd = _dashRowsIn(awakKeg, ytdRange);
@@ -143,12 +178,43 @@ function dashboard_getOverview(token, filter) {
     var akru     = _dashMonthly(tuRows, f, 'RealisasiAkrual_Minggu');
     var hbKapal  = _dashMonthlyByPeriode(lautRows, f, 'HariOperasi_Jumlah');
     var hbPesawat= _dashMonthlyByPeriode(udaraRows, f, 'HariOperasi_Jumlah');
+    var hbTot    = months.map(function (m, i) { return (hbKapal[i] || 0) + (hbPesawat[i] || 0); });
+
+    // Indikator tren KPI "Hari Operasi Kapal & Pesawat" — delta vs bulan
+    // sebelumnya, hanya untuk mode bulanan (mode rentang tidak punya titik
+    // pembanding yang sepadan).
+    var trendHariOp = null;
+    if (f.mode !== 'range' && months.length >= 2) {
+      var curHOp  = hbTot[months.length - 1] || 0;
+      var prevHOp = hbTot[months.length - 2] || 0;
+      trendHariOp = { delta: curHOp - prevHOp, prev: months[months.length - 2] };
+    }
+
+    // Daftar 7 divisi yang sudah melapor minggu berjalan (dots di KPI).
+    var melaporDetail = _dashMelaporDetail();
+    var nMelapor = melaporDetail.filter(function (d) { return d.melapor; }).length;
+
+    // Top 5 kapal pengawas teraktif (kapal + satuan udara digabung per KapalID).
+    var kapalHari = {};
+    lautInRange.concat(udaraInRange).forEach(function (r) {
+      var id = String(r['KapalID'] || '').trim();
+      if (!id) return;
+      kapalHari[id] = (kapalHari[id] || 0) + _num(r['HariOperasi_Jumlah']);
+    });
+    var kapalTeraktif = Object.keys(kapalHari).map(function (id) {
+      var info = _dashKapalInfo(id);
+      return { label: info ? info.nama : id, val: kapalHari[id] };
+    }).filter(function (k) { return k.val > 0; })
+      .sort(function (a, b) { return b.val - a.val; })
+      .slice(0, 5);
 
     var headline = [
-      { label: 'Realisasi Anggaran (SP2D)',       value: sp2dPct,  unit: '%',   sub: 'YTD kumulatif' },
-      { label: 'Hari Operasi Kapal & Pesawat',    value: hariKapal + hariPesawat, unit: 'hari', sub: 'Realisasi periode ini' },
-      { label: 'Armada Siap Operasi',             value: siap,     unit: 'kapal', sub: (siap + tidakSiap) + ' / ' + totalArmada + ' armada aktif' },
-      { label: 'Divisi Melapor Minggu Ini',       value: _dashDivisiMelapor(), unit: '/ 7', sub: 'Berdasarkan laporan masuk' }
+      { label: 'Realisasi Anggaran (SP2D)',    value: sp2dPct,  unit: '%',   sub: 'YTD kumulatif', ring: { pct: sp2dPct } },
+      { label: 'Hari Operasi Kapal & Pesawat', value: hariKapal + hariPesawat, unit: 'hari', sub: 'Realisasi periode ini', trend: trendHariOp, minibars: hbTot },
+      { label: 'Armada Siap Operasi',          value: siap, unit: 'kapal', sub: (siap + tidakSiap) + ' / ' + totalArmada + ' armada aktif',
+        donut: { segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ], center: totalArmada } },
+      { label: 'Divisi Melapor Minggu Ini',    value: nMelapor, unit: '/ 7',
+        sub: 'Berdasarkan laporan masuk', dots: melaporDetail }
     ];
 
     var divisi = [
@@ -161,12 +227,14 @@ function dashboard_getOverview(token, filter) {
         ]
       },
       {
-        title: 'Operasi Kapal Pengawas dan Pesawat',
+title: 'Operasi Kapal Pengawas dan Pesawat',
         metrics: [
           { lbl: 'Hari Operasi Kapal (realisasi)', val: hariKapal,       unit: 'hari',  prog: false },
-          { lbl: 'Hari Operasi Pesawat (/ 180)',   val: hariPesawat,     unit: 'hari',  prog: false },
-          { lbl: 'Kapal Ditangkap (YTD)',          val: kapalDitangkap,  unit: 'unit',  prog: false },
-          { lbl: 'Kapal Dipantau (KII/KIA)',       val: kapalDipantau,   unit: 'unit',  prog: false },
+          { lbl: 'Hari Operasi Pesawat (/ 180)',   val: hariPesawat,     unit: 'hari',  prog: false, progMax: 180 },
+          { lbl: 'Kapal Ditangkap (KII/KIA)',      val: kapalDitangkap,  unit: 'unit',  prog: false,
+            stack: [ { label: 'KII', val: kiiDitangkap, tone: 'deep' }, { label: 'KIA', val: kiaDitangkap, tone: 'soft' } ] },
+          { lbl: 'Kapal Dipantau (KII/KIA)',       val: kapalDipantau,   unit: 'unit',  prog: false,
+            stack: [ { label: 'KII', val: kiiDipantau, tone: 'deep' }, { label: 'KIA', val: kiaDipantau, tone: 'soft' } ] },
           { lbl: 'Cakupan Wilayah',                val: cakupanWilayah,  unit: 'NM\u00B2', prog: false }
         ]
       },
@@ -189,7 +257,8 @@ function dashboard_getOverview(token, filter) {
       {
         title: 'Perawatan',
         metrics: [
-          { lbl: 'Kapal Siap Operasi',   val: siap,       unit: 'unit', prog: false },
+          { lbl: 'Kapal Siap Operasi',   val: siap,       unit: 'unit', prog: false,
+            stack: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ] },
           { lbl: 'Kapal Tidak Siap',     val: tidakSiap,  unit: 'unit', prog: false },
           { lbl: 'Docking Aktif',        val: dockingAktif, unit: 'unit', prog: false }
         ]
@@ -199,7 +268,7 @@ function dashboard_getOverview(token, filter) {
         metrics: [
           { lbl: 'Realisasi BBM (YTD)',  val: bbmPct,  unit: '%',    prog: true  },
           { lbl: 'Tunggakan BBM',        val: tunggak, unit: 'item', prog: false },
-          { lbl: 'Stok Amunisi (total)', val: stokTotal, unit: 'butir', prog: false }
+          { lbl: 'Stok Amunisi (total)', val: stokTotal, unit: 'butir', prog: false, bars: amStok5 }
         ]
       },
       {
@@ -209,7 +278,8 @@ function dashboard_getOverview(token, filter) {
             return { lbl: 'AKN ' + aknLabelPerScope[sc], val: aknTotalPerScope[sc], unit: 'orang', prog: false };
           }),
           { lbl: 'Kegiatan Personel (YTD)', val: awakKegYtd.length, unit: 'kegiatan', prog: false }
-        ]
+        ],
+        stack: { caption: 'Komposisi AKN', segments: aknStack }
       },
       {
         title: 'Kegiatan Pendukung',
@@ -218,6 +288,15 @@ function dashboard_getOverview(token, filter) {
           { lbl: 'Kegiatan Periode Ini',    val: kegRange.length, unit: 'kegiatan', prog: false },
           { lbl: 'Terakhir Dicatat',        val: kegLast ? _dashFmtDate(kegLast['Timestamp']) : '\u2014', unit: '', prog: false }
         ]
+      },
+      {
+        title: 'Cakupan Laporan',
+        metrics: [
+          { lbl: 'Divisi Melapor Minggu Ini', val: nMelapor,            unit: '/ 7', prog: true  },
+          { lbl: 'Divisi Belum Melapor',      val: 7 - nMelapor,        unit: 'divisi', prog: false },
+          { lbl: 'Periode Aktif',             val: getCurrentPeriode(), unit: '',     prog: false }
+        ],
+        dots: melaporDetail
       }
     ];
 
@@ -230,7 +309,14 @@ function dashboard_getOverview(token, filter) {
         trendMonths: months,
         realisasi: { sp2d: realis, akrual: akru },
         hariOperasi: { kapal: hbKapal, pesawat: hbPesawat },
-        kesiapan: { siap: siap, tidakSiap: tidakSiap }
+        kesiapan: { siap: siap, tidakSiap: tidakSiap, totalArmada: totalArmada },
+        penindakan: [
+          { label: 'Ditangkap \u2013 KII',  val: kiiDitangkap, tone: 'deep' },
+          { label: 'Ditangkap \u2013 KIA',  val: kiaDitangkap, tone: 'soft' },
+          { label: 'Dipantau \u2013 KII',   val: kiiDipantau,  tone: 'light' },
+          { label: 'Dipantau \u2013 KIA',   val: kiaDipantau,  tone: 'lighter' }
+        ],
+        kapalTeraktif: kapalTeraktif
       }
     };
 
@@ -261,7 +347,7 @@ function dashboard_profilKapal(token, params) {
 
     ensureKapalColumns();
 
-    var cacheKey = 'DASH_PK_' + session.userId + '_' + kapalId;
+    var cacheKey = 'DASH_PK_' + session.userId + '_' + kapalId + '_' + _dashVersion();
     var cache = CacheService.getScriptCache();
     var cached = cache.get(cacheKey);
     if (cached) {
@@ -524,23 +610,46 @@ function _dashTotalArmadaAktif() {
   } catch (e) { return 0; }
 }
 
-function _dashDivisiMelapor() {
+// 7 divisi yang wajib melapor tiap minggu — dasar KPI "Divisi Melapor".
+// Muat lazy (bukan konstanta top-level) karena SHEET_TX baru tersedia
+// saat runtime, bukan saat file ini dievaluasi.
+function _ovMelaporDivisiList() {
+  return [
+    { label: 'Tata Usaha',     sheet: SHEET_TX.TATA_USAHA },
+    { label: 'Operasi Laut',   sheet: SHEET_TX.OPERASI_LAUT },
+    { label: 'Operasi Udara',  sheet: SHEET_TX.OPERASI_UDARA },
+    { label: 'Intelijen',      sheet: SHEET_TX.INTELIJEN },
+    { label: 'Pemantauan',     sheet: SHEET_TX.PEMANTAUAN },
+    { label: 'Perawatan',      sheet: SHEET_TX.PERAWATAN_KESIAPAN },
+    { label: 'Logistik',       sheet: SHEET_TX.LOGISTIK_BBM }
+  ];
+}
+
+/** Detail per-divisi: apakah sudah ada laporan pada minggu berjalan. */
+function _dashMelaporDetail() {
   var weekRange = periodeToDateRange(getCurrentPeriode());
-  if (!weekRange) return 0;
-  var diasumsikan = [SHEET_TX.TATA_USAHA, SHEET_TX.OPERASI_LAUT, SHEET_TX.OPERASI_UDARA,
-    SHEET_TX.INTELIJEN, SHEET_TX.PEMANTAUAN, SHEET_TX.PERAWATAN_KESIAPAN, SHEET_TX.LOGISTIK_BBM];
-  var seen = {};
-  diasumsikan.forEach(function (sheetName) {
-    try {
-      _dashActiveRows(sheetName, true).forEach(function (r) {
-        var pr = periodeToDateRange(String(r['Periode'] || ''));
-        var inWeek = pr ? (pr.startDate <= weekRange.endDate && pr.endDate >= weekRange.startDate)
-                        : isInRange(new Date(r['Timestamp']), weekRange);
-        if (inWeek && r['DivisiID']) seen[String(r['DivisiID'])] = true;
-      });
-    } catch (e) {}
+  return _ovMelaporDivisiList().map(function (d) {
+    var melapor = false;
+    if (weekRange) {
+      try {
+        _dashActiveRows(d.sheet, true).forEach(function (r) {
+          if (melapor) return;
+          if (!r['DivisiID']) return;
+          var pr = periodeToDateRange(String(r['Periode'] || ''));
+          var inWeek = pr ? (pr.startDate <= weekRange.endDate && pr.endDate >= weekRange.startDate)
+                          : isInRange(new Date(r['Timestamp']), weekRange);
+          if (inWeek) melapor = true;
+        });
+      } catch (e) {}
+    }
+    return { label: d.label, melapor: melapor };
   });
-  return Object.keys(seen).length;
+}
+
+function _dashDivisiMelapor() {
+  return _dashMelaporDetail().reduce(function (acc, d) {
+    return acc + (d.melapor ? 1 : 0);
+  }, 0);
 }
 
 // ── Tren bulanan (Jan → bulan terpilih) ─────────────────────

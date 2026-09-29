@@ -310,6 +310,28 @@ function readDetailByParent(sheetName) {
 // ===========================================================================
 
 /**
+ * Naikkan penanda versi data transaksi — kunci invalidasi cache agregat
+ * DashboardService. `appendRowData()` dan `updateRowCells()` di bawah
+ * memanggilnya otomatis setiap ada tulis baris transaksi.
+ *
+ * Latar belakang: `dashboard_getOverview` & `dashboard_profilKapal` memakai
+ * CacheService (TTL 300 detik) per user. Tanpa penanda ini, agregat Ikhtisar
+ * kedaluwarsa hingga 5 menit setelah submit/revisi/anulir — contoh kasus:
+ * anulir laporan mingguan Tata Usaha tidak mengubah kartu "Realisasi
+ * SP2D/Akrual (YTD)". Penanda ikut masuk ke cache key, sehingga setelah ada
+ * tulis, cache lama tidak terpakai lagi dan agregat dihitung ulang.
+ */
+function bumpTxVersion() {
+  try {
+    var cache = CacheService.getScriptCache();
+    var n = Number(cache.get('DASH_TX_VERSION')) || 0;
+    // TTL 6 jam — jauh melebihi TTL cache agregat (300s) agar penanda tidak
+    // lebih dulu kedaluwarsa daripada entri yang dijaganya.
+    cache.put('DASH_TX_VERSION', String(n + 1), 21600);
+  } catch (ignore) { /* tidak pernah mengganggu alur tulis */ }
+}
+
+/**
  * Append satu baris baru ke sheet, mengikuti urutan kolom di header row.
  * Kolom yang tidak ada di dataObj diisi string kosong.
  *
@@ -323,6 +345,7 @@ function appendRowData(sheet, dataObj) {
     return (val === undefined || val === null) ? '' : val;
   });
   sheet.appendRow(row);
+  bumpTxVersion();
 }
 
 /**
@@ -340,6 +363,7 @@ function updateRowCells(sheet, rowIndex, updates) {
       sheet.getRange(rowIndex, colIndex).setValue(updates[colName]);
     }
   });
+  bumpTxVersion();
 }
 
 // ===========================================================================

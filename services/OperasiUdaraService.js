@@ -46,6 +46,19 @@ function _opsUdaraAssertAnulir(session) {
   throw new Error('FORBIDDEN: Hanya pimpinan yang dapat melakukan anulir data.');
 }
 
+// Validasi rincian Operasi Udara (hasil pemantauan udara: KII/KIA/objek SDK).
+// Asal negara opsional untuk pemantauan udara (tidak seperti penangkapan laut).
+var _OPS_UDARA_RINCIAN_RULES = {
+  typeField: 'ItemType',
+  types: ['KII', 'KIA', 'OBJEK_SDK'],
+  required: ['NamaItem'],
+  requiredIf: {}
+};
+
+function _opsUdaraValidateRincian(items) {
+  return _detailValidateItemized(items, _OPS_UDARA_RINCIAN_RULES);
+}
+
 // ===========================================================================
 // READ ENDPOINTS
 // ===========================================================================
@@ -162,6 +175,9 @@ function operasiUdara_getHistory(token, filter) {
       return new Date(b.Timestamp).getTime() - new Date(a.Timestamp).getTime();
     });
 
+    // Lampirkan rincian per-item pemantauan udara untuk modal detail & prefill revisi.
+    _detailAttach(history, SHEET_TX.OPERASI_UDARA);
+
     return { success: true, data: history };
   } catch (e) {
     return { success: false, error: e.message };
@@ -226,7 +242,24 @@ function operasiUdara_submit(token, params) {
         HariOperasi_Target: p.HariOperasi_Target || 180
       };
 
+      // Rincian per-item (opsional): jumlah pemantauan dihitung sistem dari daftar.
+      if (p.rincian !== undefined) {
+        var detailItems = _opsUdaraValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'OBJEK_SDK']);
+        newRow.KII = counts.KII;
+        newRow.KIA = counts.KIA;
+        newRow.ObjekSDK = counts.OBJEK_SDK;
+      }
+
       appendRowData(sheet, newRow);
+
+      if (p.rincian !== undefined) {
+        _detailWriteChildren('OPERASI_UDARA', rowId, detailItems.items, {
+          DivisiID: session.divisiId, Periode: p.Periode, SubmittedBy: session.userId, Timestamp: newRow.Timestamp
+        });
+      }
+
       return { success: true, data: { rowId: rowId, message: 'Laporan Operasi (Pesawat) berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
@@ -291,7 +324,31 @@ function operasiUdara_revisi(token, params) {
         HariOperasi_Target: p.HariOperasi_Target !== undefined ? p.HariOperasi_Target : oldObj.HariOperasi_Target
       };
 
+      // Rincian opsional: superkan rincian lama, derive hitungan dari rincian baru.
+      if (p.rincian !== undefined) {
+        var detailItems = _opsUdaraValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'OBJEK_SDK']);
+        newRow.KII = counts.KII;
+        newRow.KIA = counts.KIA;
+        newRow.ObjekSDK = counts.OBJEK_SDK;
+      }
+
       appendRowData(sheet, newRow);
+
+      if (p.rincian !== undefined) {
+        var oldChildren = _detailActiveChildren(SHEET_TX.OPERASI_UDARA, targetRowId);
+        _detailSetChildrenStatus(SHEET_TX.OPERASI_UDARA, targetRowId, ROW_STATUS.SUPERSEDED,
+          alasanRevisi, session.userId, newRow.Timestamp);
+        _detailWriteChildren('OPERASI_UDARA', newRowId, detailItems.items, {
+          DivisiID: session.divisiId,
+          Periode: oldObj.Periode,
+          SubmittedBy: session.userId,
+          Timestamp: newRow.Timestamp,
+          supersedes: oldChildren.map(function (c) { return String(c.RowID); })
+        });
+      }
+
       return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
@@ -325,6 +382,10 @@ function operasiUdara_anulir(token, params) {
         VoidedBy: session.userId,
         VoidedAt: new Date().toISOString()
       });
+
+      // Rincian per-item ikut batal (subordinat header).
+      _detailSetChildrenStatus(SHEET_TX.OPERASI_UDARA, targetRowId, ROW_STATUS.VOID,
+        String(alasan).trim(), session.userId, new Date().toISOString());
 
       // Notifikasi ke publisher jika anulator beda
       var publisherId = String(target.obj['SubmittedBy']);

@@ -73,34 +73,34 @@
         </div>
 
         <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
-        <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:14px;">Angka Intelijen Mingguan</h3>
+        <h3 style="font-size:1rem;color:var(--n-text-primary);margin-bottom:4px;">Angka Intelijen Mingguan</h3>
+        <div style="font-size:.78rem;color:var(--n-text-muted);margin-bottom:14px;">Jumlah temuan dihitung otomatis dari daftar kejadian di bawah (jenis &amp; deskripsi tiap temuan).</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:10px;">
           <div class="form-grp">
-            <label for="int-dredging">Kapal Dredging / Underwater Ops</label>
-            <input type="number" id="int-dredging" min="0" step="1" placeholder="0">
+            <label for="int-cap-dredging">Dredging <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="int-cap-dredging">0</div>
           </div>
           <div class="form-grp">
-            <label for="int-perizinan">Pelanggaran Perizinan Berusaha</label>
-            <input type="number" id="int-perizinan" min="0" step="1" placeholder="0">
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp">
-            <label for="int-transmitter">Pelanggaran Mematikan Transmitter</label>
-            <input type="number" id="int-transmitter" min="0" step="1" placeholder="0">
+            <label for="int-cap-perizinan">Perizinan <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="int-cap-perizinan">0</div>
           </div>
           <div class="form-grp">
-            <label for="int-nota-dinas">Nota Dinas Data Intelijen</label>
-            <input type="number" id="int-nota-dinas" min="0" step="1" placeholder="0">
+            <label for="int-cap-transmitter">Transmitter <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="int-cap-transmitter">0</div>
           </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
-            <label for="int-pengangkut">Kapal Pengangkut Ikan Hidup</label>
-            <input type="number" id="int-pengangkut" min="0" step="1" placeholder="0">
+            <label for="int-cap-nota">Nota Dinas <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="int-cap-nota">0</div>
+          </div>
+          <div class="form-grp">
+            <label for="int-cap-pengangkut">Pengangkut Ikan Hidup <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="int-cap-pengangkut">0</div>
           </div>
         </div>
+
+        <div id="int-kejadian-list"></div>
+        <button type="button" class="n-list-add" onclick="_intelAddKejadian()">＋ Tambah Kejadian</button>
 
         <div style="border-top:1px solid var(--n-border-subtle);margin:24px 0;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -135,13 +135,20 @@
       <div id="int-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
       <div id="int-revisi-msg" class="n-msg"></div>
 
-      <div class="form-grp">
-        <label for="rv-int-jumlah">Jumlah</label>
-        <input type="number" id="rv-int-jumlah" min="0" step="1">
+      <div id="rv-int-kawasan-block">
+        <div class="form-grp">
+          <label for="rv-int-jumlah">Jumlah</label>
+          <input type="number" id="rv-int-jumlah" min="0" step="1">
+        </div>
+        <div class="form-grp">
+          <label for="rv-int-keterangan">Keterangan</label>
+          <input type="text" id="rv-int-keterangan" placeholder="Opsional">
+        </div>
       </div>
-      <div class="form-grp">
-        <label for="rv-int-keterangan">Keterangan</label>
-        <input type="text" id="rv-int-keterangan" placeholder="Opsional">
+      <div id="rv-int-kejadian-block" style="display:none;">
+        <div style="font-size:.78rem;color:var(--n-text-muted);margin-bottom:12px;">Jumlah dihitung sistem dari daftar kejadian (satu baris per deskripsi).</div>
+        <div id="rv-int-kejadian-list"></div>
+        <button type="button" class="n-list-add" onclick="_intelAddRvKejadian()">＋ Tambah Kejadian</button>
       </div>
       <div class="form-grp">
         <label for="rv-int-alasan">Alasan Revisi <span style="color:var(--n-status-critical);">*</span></label>

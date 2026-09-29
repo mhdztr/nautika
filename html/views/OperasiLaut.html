@@ -91,23 +91,17 @@
         </div>
 
         <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
-        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Penangkapan Kapal & Valuasi</h3>
+        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 4px;">Penangkapan Kapal &amp; Valuasi</h3>
+        <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:14px;">Jumlah ditertibkan dihitung otomatis dari daftar di bawah.</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
           <div class="form-grp">
-            <label for="ops-kii">KII Ditangkap</label>
-            <input type="number" id="ops-kii" min="0" step="1" placeholder="0">
+            <label for="ops-kii-cap">KII Ditangkap <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="ops-kii-cap">0</div>
           </div>
           <div class="form-grp">
-            <label for="ops-kia">KIA Ditangkap</label>
-            <input type="number" id="ops-kia" min="0" step="1" placeholder="0">
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp">
-            <label for="ops-asal-negara">Asal Negara Asing (Jika KIA > 0)</label>
-            <input type="text" id="ops-asal-negara" placeholder="Cth: Vietnam, Filipina">
+            <label for="ops-kia-cap">KIA Ditangkap <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="ops-kia-cap">0</div>
           </div>
           <div class="form-grp">
             <label for="ops-valuasi-ikan">Valuasi Illegal Fishing (Rp)</label>
@@ -115,16 +109,22 @@
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div id="ops-kapal-list"></div>
+        <button type="button" class="n-list-add" onclick="_opsLautAddKapal()">＋ Tambah Kapal</button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 24px;">
           <div class="form-grp">
-            <label for="ops-rumpon">Rumpon Ditertibkan</label>
-            <input type="number" id="ops-rumpon" min="0" step="1" placeholder="0">
+            <label for="ops-rumpon-cap">Rumpon Ditertibkan <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="ops-rumpon-cap">0</div>
           </div>
           <div class="form-grp">
             <label for="ops-valuasi-rumpon">Valuasi Rumpon (Rp)</label>
             <input type="number" id="ops-valuasi-rumpon" min="0" step="1" placeholder="0">
           </div>
         </div>
+
+        <div id="ops-rumpon-list"></div>
+        <button type="button" class="n-list-add" onclick="_opsLautAddRumpon()">＋ Tambah Rumpon</button>
 
         <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
         <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Hasil Pemeriksaan & Hari Operasi</h3>
@@ -196,16 +196,13 @@
 
       <!-- Revisi input dipadatkan karena banyak field -->
       <div style="max-height: 400px; overflow-y: auto; padding-right: 10px; margin-bottom: 20px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp"><label>KII Ditangkap</label><input type="number" id="rv-ops-kii" min="0"></div>
-          <div class="form-grp"><label>KIA Ditangkap</label><input type="number" id="rv-ops-kia" min="0"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp"><label>Asal Negara</label><input type="text" id="rv-ops-asal-negara"></div>
+        <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:12px;">Jumlah kapal &amp; rumpon mengikuti daftar di bawah (dihitung sistem).</div>
+        <div id="rv-ops-kapal-list"></div>
+        <button type="button" class="n-list-add" onclick="_opsLautAddRvKapal()">＋ Tambah Kapal</button>
+        <div id="rv-ops-rumpon-list"></div>
+        <button type="button" class="n-list-add" onclick="_opsLautAddRvRumpon()">＋ Tambah Rumpon</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 20px;">
           <div class="form-grp"><label>Valuasi Illegal Fishing</label><input type="number" id="rv-ops-valuasi-ikan" min="0"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp"><label>Rumpon Ditertibkan</label><input type="number" id="rv-ops-rumpon" min="0"></div>
           <div class="form-grp"><label>Valuasi Rumpon</label><input type="number" id="rv-ops-valuasi-rumpon" min="0"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">

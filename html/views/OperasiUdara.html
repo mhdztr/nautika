@@ -91,35 +91,39 @@
         </div>
 
         <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
-        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 14px;">Pemantauan Udara</h3>
+        <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 4px;">Pemantauan Udara</h3>
+        <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:14px;">Jumlah objek teridentifikasi dihitung otomatis dari daftar di bawah.</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
           <div class="form-grp">
-            <label for="oud-kii">KII Teridentifikasi</label>
-            <input type="number" id="oud-kii" min="0" step="1" placeholder="0">
+            <label for="oud-kii-cap">KII Teridentifikasi <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="oud-kii-cap">0</div>
           </div>
           <div class="form-grp">
-            <label for="oud-kia">KIA Teridentifikasi</label>
-            <input type="number" id="oud-kia" min="0" step="1" placeholder="0">
+            <label for="oud-kia-cap">KIA Teridentifikasi <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="oud-kia-cap">0</div>
+          </div>
+          <div class="form-grp">
+            <label for="oud-sdk-cap">Objek SDK <span class="derived-note">(dari daftar)</span></label>
+            <div class="n-derive-val" id="oud-sdk-cap">0</div>
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-          <div class="form-grp">
-            <label for="oud-sdk">Objek SDK</label>
-            <input type="number" id="oud-sdk" min="0" step="1" placeholder="0">
-          </div>
+        <div id="oud-objek-list"></div>
+        <button type="button" class="n-list-add" onclick="_opsUdaraAddObjek()">＋ Tambah Objek</button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 24px;">
           <div class="form-grp">
             <label for="oud-rumpon">Rumpon Lokal Teridentifikasi</label>
             <input type="number" id="oud-rumpon" min="0" step="1" placeholder="0">
           </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="oud-cakupan">Cakupan Wilayah Teramati (NM²)</label>
             <input type="number" id="oud-cakupan" min="0" step="1" placeholder="0">
           </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div style="display:flex; gap:10px;">
             <div class="form-grp" style="flex:1;">
               <label for="oud-hari-jumlah">Jumlah Hari Operasi</label>
@@ -158,16 +162,14 @@
       <div id="oud-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
       <div id="oud-revisi-msg" class="n-msg"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp"><label>KII Teridentifikasi</label><input type="number" id="rv-oud-kii" min="0"></div>
-        <div class="form-grp"><label>KIA Teridentifikasi</label><input type="number" id="rv-oud-kia" min="0"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp"><label>Objek SDK</label><input type="number" id="rv-oud-sdk" min="0"></div>
+      <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:12px;">Jumlah KII/KIA/Objek SDK mengikuti daftar di bawah (dihitung sistem).</div>
+      <div id="rv-oud-objek-list"></div>
+      <button type="button" class="n-list-add" onclick="_opsUdaraAddRvObjek()">＋ Tambah Objek</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 20px;">
         <div class="form-grp"><label>Rumpon Lokal</label><input type="number" id="rv-oud-rumpon" min="0"></div>
+        <div class="form-grp"><label>Cakupan (NM²)</label><input type="number" id="rv-oud-cakupan" min="0"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp"><label>Cakupan (NM²)</label><input type="number" id="rv-oud-cakupan" min="0"></div>
         <div style="display:flex; gap:10px;">
           <div class="form-grp" style="flex:1;"><label>Hari Jml</label><input type="number" id="rv-oud-hari-jumlah"></div>
           <div class="form-grp" style="flex:1;"><label>Hari Target</label><input type="number" id="rv-oud-hari-target"></div>

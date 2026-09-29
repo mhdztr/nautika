@@ -131,6 +131,30 @@ function ensureKapalColumns() {
 }
 
 /**
+ * Ambil sheet detail transaksi, buat otomatis bila belum ada (self-heal,
+ * idempoten). Dipakai untuk sheet rincian per-item (TX_*_Detail — revisi
+ * rincian audit) supaya DB lama ter-heal tanpa `setupForce`.
+ * Header dibuat sesuai definisi Setup.js (urutan kolom wajib sama).
+ *
+ * @param {string} sheetName - nama sheet transaksi
+ * @param {Array<string>} headers - header kolom (STD_COLS + kolom rinci)
+ * @returns {Sheet}
+ */
+function ensureDetailTxSheet(sheetName, headers) {
+  var sheet = openTransaksiSheet(sheetName);
+  if (sheet) return sheet;
+  var ss = SpreadsheetApp.openById(getSpreadsheetIds().transaksiId);
+  var created = ss.insertSheet(sheetName);
+  created.getRange(1, 1, 1, headers.length)
+    .setValues([headers])
+    .setFontWeight('bold')
+    .setBackground('#E8EAF6');
+  created.setFrozenRows(1);
+  Logger.log('[ensureDetailTxSheet] Sheet ' + sheetName + ' dibuat otomatis.');
+  return created;
+}
+
+/**
  * Pastikan sheet master `Opsi` ada (self-heal). Jika belum ada (mis. Master
  * dibuat sebelum revisi Opsi Fase 9/10), buat dengan header sesuai
  * DATA_SCHEMA.md `Opsi`. Aman dipanggil berulang (idempoten).
@@ -248,6 +272,27 @@ function findRowByField(sheet, colName, value) {
  */
 function findRowById(sheet, rowId) {
   return findRowByField(sheet, 'RowID', rowId);
+}
+
+/**
+ * Baca seluruh baris detail (sheet rincian, mis. TX_OperasiLaut_Detail) dan
+ * kelompokkan berdasarkan ParentRowID. Baris dengan ParentRowID kosong/tidak
+ * diinput diabaikan.
+ *
+ * @param {string} sheetName - nama sheet detail
+ * @returns {Object} peta { ParentRowID_String: [rowObj, ...] } tanpa kolom
+ *                   dinamis pandas; nilai string dikembalikan apa adanya.
+ */
+function readDetailByParent(sheetName) {
+  var map = {};
+  var rows = sheetToObjects(openTransaksiSheet(sheetName));
+  rows.forEach(function (r) {
+    var parent = (r.ParentRowID === undefined || r.ParentRowID === null) ? '' : String(r.ParentRowID);
+    if (!parent) return;
+    if (!map[parent]) map[parent] = [];
+    map[parent].push(r);
+  });
+  return map;
 }
 
 // ===========================================================================

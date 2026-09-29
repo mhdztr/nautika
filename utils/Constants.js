@@ -33,8 +33,11 @@ var SHEET_MASTER = {
 var SHEET_TX = {
   TATA_USAHA:          'TX_TataUsaha',
   OPERASI_LAUT:        'TX_OperasiLaut',
+  OPERASI_LAUT_DETAIL: 'TX_OperasiLaut_Detail',
   OPERASI_UDARA:       'TX_OperasiUdara',
+  OPERASI_UDARA_DETAIL:'TX_OperasiUdara_Detail',
   INTELIJEN:           'TX_Intelijen',
+  INTELIJEN_DETAIL:    'TX_Intelijen_Detail',
   PEMANTAUAN:          'TX_Pemantauan',
   PERAWATAN_KESIAPAN:  'TX_Perawatan_Kesiapan',
   PERAWATAN_DOCKING:   'TX_Perawatan_Docking',
@@ -73,6 +76,24 @@ var STD_COLS = [
   'VoidedBy',
   'VoidedAt'
 ];
+
+// ===========================================================================
+// HEADER SHEET DETAIL — rincian per-item (TX_*_Detail), pasangan Setup.js
+// dan ensureDetailTxSheet() di SheetAccess.js. Satu sumber kebenaran agar
+// self-heal sheet otomatis selalu sesuai Setup.
+// ===========================================================================
+var DETAIL_HEADERS = {
+  OPERASI_LAUT:  STD_COLS.concat(['ParentRowID', 'ItemType', 'NamaItem', 'AsalNegara', 'WPPCode', 'Lokasi']),
+  OPERASI_UDARA: STD_COLS.concat(['ParentRowID', 'ItemType', 'NamaItem', 'AsalNegara']),
+  INTELIJEN:     STD_COLS.concat(['ParentRowID', 'Deskripsi'])
+};
+
+// Peta key DetailService → nama sheet TX_*_Detail.
+var SHEET_TX_DETAIL = {
+  OPERASI_LAUT:  SHEET_TX.OPERASI_LAUT_DETAIL,
+  OPERASI_UDARA: SHEET_TX.OPERASI_UDARA_DETAIL,
+  INTELIJEN:     SHEET_TX.INTELIJEN_DETAIL
+};
 
 // ===========================================================================
 // ENUM — Role

@@ -2747,8 +2747,14 @@ function _loadLeaflet(cb) {
 var _OPSLAUT = {
   pendingRowId: null,
   wppData: null,       // cache WPP list
+  wppOptions: null,    // [{value,label}] utk select WPP pada daftar rumpon
   kpiData: null,       // simpan result kpi agar _renderWppLayer bisa pakai kpiData.wppIntensitas
-  wppGeoJsonData: null // cache geojson dari github (dialihkan ke _OPS_GEO)
+  wppGeoJsonData: null,// cache geojson dari github (dialihkan ke _OPS_GEO)
+  rows: [],            // riwayat periode terakhir (utk prefill rincian saat revisi)
+  listKapal: null,     // _nList kapal (form tambah)
+  listRumpon: null,    // _nList rumpon (form tambah)
+  rvKapal: null,       // _nList kapal (modal revisi)
+  rvRumpon: null       // _nList rumpon (modal revisi)
 };
 
 function _renderOperasiLaut(el) {
@@ -2953,6 +2959,15 @@ function _opsLautPopulateOpsi() {
     _fillOpsiSelect(cfg.id, cfg.items, cfg.kosong);
   });
 }
+function _opsLautBuildWppOptions() {
+  if (_OPSLAUT.wppOptions) return _OPSLAUT.wppOptions;
+  var arr = [{ value: '', label: '(Pilih WPP)' }];
+  (_OPSLAUT.wppData || []).forEach(function (opt) {
+    arr.push({ value: opt.value, label: opt.text });
+  });
+  _OPSLAUT.wppOptions = arr;
+  return arr;
+}
 function _opsLautPopulateWpp() {
   var sel = document.getElementById('ops-wpp');
   if (!sel) return;
@@ -2963,6 +2978,7 @@ function _opsLautPopulateWpp() {
     o.textContent = opt.text;
     sel.appendChild(o);
   });
+  _opsLautBuildWppOptions();
 }
 
 function _opsLautLoadKPI() {
@@ -3017,10 +3033,67 @@ function _opsLautRenderKPI(kpi) {
   strip.innerHTML = html;
 }
 
+function opsLautBindLists() {
+  if (!_OPSLAUT.listKapal) {
+    _OPSLAUT.listKapal = _nList('ops-kapal-list', {
+      grid: '0.9fr 1.6fr 1fr',
+      columns: [
+        { key: 'ItemType', label: 'Jenis Kapal', type: 'select',
+          options: [
+            { value: 'KII', label: 'KII — Indonesia' },
+            { value: 'KIA', label: 'KIA — Asing' }
+          ] },
+        { key: 'NamaItem', label: 'Nama / Tanda Kapal', type: 'text', placeholder: 'Cth: KM Sumber Laut 01, BL-268…' },
+        { key: 'AsalNegara', label: 'Asal Negara (KIA)', type: 'text', placeholder: 'Cth: Vietnam' }
+      ],
+      minEmptyRows: 1,
+      onInput: _opsLautRefreshCaptions
+    });
+    _OPSLAUT.listRumpon = _nList('ops-rumpon-list', {
+      grid: '1.7fr 1fr 1.4fr',
+      columns: [
+        { key: 'ItemType', label: '', type: 'hidden', value: 'RUMPON' },
+        { key: 'NamaItem', label: 'Nama Item', type: 'text', placeholder: 'Cth: Rumpon 01' },
+        { key: 'WPPCode', label: 'WPP Terkait', type: 'select', options: _opsLautBuildWppOptions() },
+        { key: 'Lokasi', label: 'Lokasi / Koordinat', type: 'text', placeholder: 'Cth: 01.5 LS, 118.6 BT' }
+      ],
+      minEmptyRows: 1,
+      onInput: _opsLautRefreshCaptions
+    });
+  }
+  _OPSLAUT.listKapal.clear();
+  _OPSLAUT.listRumpon.clear();
+  _opsLautRefreshCaptions();
+}
+
+function _opsLautAddKapal() { if (_OPSLAUT.listKapal) _OPSLAUT.listKapal.add(); }
+function _opsLautAddRumpon() { if (_OPSLAUT.listRumpon) _OPSLAUT.listRumpon.add(); }
+
+function _opsLautRefreshCaptions() {
+  var k = { KII: 0, KIA: 0 };
+  if (_OPSLAUT.listKapal) {
+    (_OPSLAUT.listKapal.get() || []).forEach(function (it) {
+      var tt = String(it.ItemType || '');
+      if (k[tt] !== undefined) k[tt]++;
+    });
+  }
+  var rn = _OPSLAUT.listRumpon ? _OPSLAUT.listRumpon.get().length : 0;
+  _nDeriveSet('ops-kii-cap', k.KII);
+  _nDeriveSet('ops-kia-cap', k.KIA);
+  _nDeriveSet('ops-rumpon-cap', rn);
+}
+
+function _opsLautRincian() {
+  var kapal = _OPSLAUT.listKapal ? _OPSLAUT.listKapal.get() : [];
+  var rumpon = _OPSLAUT.listRumpon ? _OPSLAUT.listRumpon.get() : [];
+  kapal = kapal.filter(function (it) { return String(it.ItemType || '') !== ''; });
+  return kapal.concat(rumpon);
+}
+
 function opsLautOpenForm() {
   _kapalInit('ops-kapal');
   _kdlReset('ops-kapal');
-  ['ops-kii','ops-kia','ops-asal-negara','ops-valuasi-ikan','ops-rumpon','ops-valuasi-rumpon',
+  ['ops-valuasi-ikan','ops-valuasi-rumpon',
    'ops-riksa-kii','ops-riksa-kia','ops-riksa-sdk','ops-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
@@ -3031,6 +3104,7 @@ function opsLautOpenForm() {
   if (kategoriHari) kategoriHari.value = '';
   var target = document.getElementById('ops-hari-target');
   if (target) target.value = '180';
+  opsLautBindLists();
 
   _msg('ops-laut-form-msg', '', '');
   _attachInit('opslaut', { refSheet: 'TX_OperasiLaut' });
@@ -3044,6 +3118,191 @@ function opsLautOpenForm() {
 function _v(id) {
   var el = document.getElementById(id);
   return el ? el.value : '';
+}
+
+function _nDeriveSet(id, n) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = String(n || 0);
+}
+
+// Label jenis item rincian (opsi <select> memakai label sama).
+var ITEM_TYPE_LABEL = {
+  KII:          'KII (Indonesia)',
+  KIA:          'KIA (Asing)',
+  RUMPON:       'Rumpon',
+  OBJEK_SDK:    'Objek SDK'
+};
+
+// Tampilan baris rincian di detail "Lihat" (history). Tidak ada
+// ikon/emoji (DESIGN.md §1); teks di-escape sebelum masuk innerHTML.
+function _rncItemizedHtml(item) {
+  var it = item || {};
+  var type = String(it.ItemType || '');
+  var lbl = ITEM_TYPE_LABEL[type] || type;
+  var name = _esc(String(it.NamaItem || it.Deskripsi || ''));
+  var extra = [];
+  if (type === 'RUMPON') {
+    if (it.WPPCode) extra.push('WPP ' + _esc(String(it.WPPCode)));
+    if (it.Lokasi) extra.push(_esc(String(it.Lokasi)));
+  } else if (!it.Deskripsi && it.AsalNegara) {
+    extra.push(_esc(String(it.AsalNegara)));
+  }
+  var html = '<strong>' + _esc(lbl) + '</strong> \u2014 ' + name +
+             (extra.length ? ' (' + extra.join(' &middot; ') + ')' : '');
+  return html;
+}
+
+// Baris [label, html] rincian utk dimasukkan ke fields detail modal.
+function _rncDetailFields(rincian) {
+  var out = [];
+  (rincian || []).forEach(function (it, i) {
+    var line = '';
+    if (it && String(it.Deskripsi || '').trim() !== '') line = _esc(String(it.Deskripsi));
+    else if (it && String(it.NamaItem || '').trim() !== '') line = _rncItemizedHtml(it);
+    if (line) out.push(['Rincian #' + (i + 1), line]);
+  });
+  return out;
+}
+
+// ── ITEM LIST "rincian per-item" (revisi Fase 13) ─────────
+// Komponen daftar baris input generik.
+//   spec.columns — [{key, label, type:'text'|'select'|'hidden',
+//                    placeholder, options:[{value,label}], value}]
+//   spec.grid    — grid-template-columns utk head + tiap baris
+//                  (default: kolom selebar 1fr + kolom hapus auto).
+//   spec.onInput(items) — dipanggil tiap kali isi daftar berubah.
+//   spec.minEmptyRows   — baris kosong cadangan (default 1).
+// return — { add(values), set(items), clear(), get(), count() }
+// `get()` membuang baris yang SEMUA kolom input (non-hidden) kosong,
+// sehingga empty-rows cadangan tidak ikut menjadi item.
+function _nList(wrapId, spec) {
+  spec = spec || {};
+  var columns = spec.columns || [];
+  var wrap = document.getElementById(wrapId);
+  if (!wrap) return { add: function(){}, set: function(){}, clear: function(){}, get: function(){ return []; }, count: function(){ return 0; } };
+  var rows = [];
+  var grid = spec.grid || (columns.map(function(){ return '1fr'; }).join(' ') + ' auto');
+
+  function colSel(col) {
+    var s = document.createElement('select');
+    var empty = { value: '', label: '(Pilih)' };
+    var opts = col.options || [];
+    if (col.empty !== false && (opts.length === 0 || String(opts[0].value || '') !== '')) {
+      opts = [empty].concat(opts);
+    }
+    opts.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value != null ? o.value : '';
+      opt.textContent = o.label != null ? o.label : String(o.value || '');
+      s.appendChild(opt);
+    });
+    return s;
+  }
+
+  function makeCell(col) {
+    var cell = document.createElement('div');
+    cell.className = 'n-list-cell';
+    var el;
+    if (col.type === 'hidden') {
+      el = document.createElement('input');
+      el.type = 'hidden';
+      el.value = col.value != null ? col.value : '';
+    } else if (col.type === 'select') {
+      el = colSel(col);
+    } else {
+      el = document.createElement('input');
+      el.type = 'text';
+      if (col.placeholder) el.placeholder = col.placeholder;
+    }
+    el.setAttribute('data-f', col.key);
+    if (col.type !== 'hidden') el.addEventListener('input', onChanged);
+    cell.appendChild(el);
+    return cell;
+  }
+
+  function isRowFilled(rowEl) {
+    for (var i = 0; i < columns.length; i++) {
+      var col = columns[i];
+      if (col.type === 'hidden') continue;
+      var el = rowEl.querySelector('[data-f="' + col.key + '"]');
+      if (el && String(el.value || '').trim() !== '') return true;
+    }
+    return false;
+  }
+
+  function makeRow(values) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'n-list-row';
+    rowEl.style.gridTemplateColumns = grid;
+    columns.forEach(function (col) { rowEl.appendChild(makeCell(col)); });
+    var delCell = document.createElement('div');
+    delCell.className = 'n-list-delcell';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'n-list-del';
+    del.textContent = 'Hapus';
+    del.addEventListener('click', function () { removeRow(rowEl); });
+    delCell.appendChild(del);
+    rowEl.appendChild(delCell);
+    if (values) {
+      columns.forEach(function (col) {
+        var el = rowEl.querySelector('[data-f="' + col.key + '"]');
+        if (el) {
+          var v = values[col.key];
+          if (v != null && String(v) !== '') el.value = String(v);
+        }
+      });
+    }
+    wrap.appendChild(rowEl);
+    rows.push(rowEl);
+    return rowEl;
+  }
+
+  function removeRow(rowEl) {
+    var i = rows.indexOf(rowEl);
+    if (i !== -1) rows.splice(i, 1);
+    if (rowEl.parentNode) rowEl.parentNode.removeChild(rowEl);
+    onChanged();
+  }
+
+  function onChanged() {
+    if (spec.onInput) spec.onInput(get());
+  }
+
+  function add(values) { makeRow(values); onChanged(); }
+
+  function set(items) {
+    for (var i = rows.length - 1; i >= 0; i--) removeRow(rows[i]);
+    (items || []).forEach(function (it) { makeRow(it); });
+    var min = Math.max(Number(spec.minEmptyRows) || 1, 1);
+    for (var j = 0; j < min; j++) makeRow(null);
+    onChanged();
+  }
+
+  function clear() { set([]); }
+
+  function get() {
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var rowEl = rows[i];
+      if (!isRowFilled(rowEl)) continue;
+      var o = {};
+      columns.forEach(function (col) {
+        var el = rowEl.querySelector('[data-f="' + col.key + '"]');
+        o[col.key] = el ? String(el.value || '') : '';
+      });
+      out.push(o);
+    }
+    return out;
+  }
+
+  function count() { return get().length; }
+
+  if (wrap) wrap.classList.add('n-list');
+  var initial = Math.max(Number(spec.minEmptyRows) || 1, 1);
+  for (var k = 0; k < initial; k++) makeRow(null);
+
+  return { add: add, set: set, clear: clear, get: get, count: count };
 }
 
 // ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12) ────────────
@@ -3302,11 +3561,7 @@ function opsLautSubmit() {
     Periode: _composePeriode(),
     WPPCode: _v('ops-wpp'),
     KapalID: _v('ops-kapal'),
-    KII_Ditangkap: parseInt(_v('ops-kii'), 10) || 0,
-    KIA_Ditangkap: parseInt(_v('ops-kia'), 10) || 0,
-    AsalNegaraAsing: _v('ops-asal-negara'),
     ValuasiIllegalFishing: parseInt(_v('ops-valuasi-ikan'), 10) || 0,
-    RumponDitertibkan: parseInt(_v('ops-rumpon'), 10) || 0,
     ValuasiRumpon: parseInt(_v('ops-valuasi-rumpon'), 10) || 0,
     HasilRiksa_Kategori: _v('ops-riksa-kategori'),
     HasilRiksa_KII: parseInt(_v('ops-riksa-kii'), 10) || 0,
@@ -3316,6 +3571,8 @@ function opsLautSubmit() {
     HariOperasi_Jumlah: parseInt(_v('ops-hari-jumlah'), 10) || 0,
     HariOperasi_Target: parseInt(_v('ops-hari-target'), 10) || 180
   };
+  var rincian = _opsLautRincian();
+  if (rincian.length) params.rincian = rincian;
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -3348,7 +3605,10 @@ function _opsLautLoadHistory() {
   
   google.script.run
     .withSuccessHandler(function(res){
-      if(res.success) _opsLautRenderHistory(res.data);
+      if(res.success) {
+        _OPSLAUT.rows = res.data || [];
+        _opsLautRenderHistory(res.data);
+      }
       else wrap.innerHTML = '<div class="n-msg error">' + res.error + '</div>';
     })
     .operasiLaut_getHistory(APP.token, APP.filter);
@@ -3403,7 +3663,7 @@ function _opsLautRenderHistory(data) {
       ['Hari Operasi — Target', _idNum(r.HariOperasi_Target)],
       ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
       ['Status', _esc(r.Status)]
-    ]) + ')">Lihat</button>';
+    ].concat(_rncDetailFields(r.rincian))) + ')">Lihat</button>';
     
     var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     
@@ -3431,10 +3691,62 @@ t += '<td>' + st + '</td>';
   wrap.innerHTML = t;
 }
 
+function _opsLautFindRow(rowId) {
+  for (var i = 0; i < _OPSLAUT.rows.length; i++) {
+    if (String(_OPSLAUT.rows[i].RowID) === String(rowId)) return _OPSLAUT.rows[i];
+  }
+  return null;
+}
+
+function opsLautBindRevisiLists() {
+  if (_OPSLAUT.rvKapal) return;
+  _OPSLAUT.rvKapal = _nList('rv-ops-kapal-list', {
+    grid: '0.9fr 1.6fr 1fr',
+    columns: [
+      { key: 'ItemType', label: 'Jenis Kapal', type: 'select',
+        options: [
+          { value: 'KII', label: 'KII — Indonesia' },
+          { value: 'KIA', label: 'KIA — Asing' }
+        ] },
+      { key: 'NamaItem', label: 'Nama / Tanda Kapal', type: 'text', placeholder: 'Cth: KM Sumber Laut 01' },
+      { key: 'AsalNegara', label: 'Asal Negara (KIA)', type: 'text', placeholder: 'Cth: Vietnam' }
+    ],
+    minEmptyRows: 1
+  });
+  _OPSLAUT.rvRumpon = _nList('rv-ops-rumpon-list', {
+    grid: '1.7fr 1fr 1.4fr',
+    columns: [
+      { key: 'ItemType', label: '', type: 'hidden', value: 'RUMPON' },
+      { key: 'NamaItem', label: 'Nama Item', type: 'text', placeholder: 'Cth: Rumpon 01' },
+      { key: 'WPPCode', label: 'WPP Terkait', type: 'select', options: _opsLautBuildWppOptions() },
+      { key: 'Lokasi', label: 'Lokasi / Koordinat', type: 'text', placeholder: 'Cth: 01.5 LS, 118.6 BT' }
+    ],
+    minEmptyRows: 1
+  });
+}
+
+function _opsLautAddRvKapal() { if (_OPSLAUT.rvKapal) _OPSLAUT.rvKapal.add(); }
+function _opsLautAddRvRumpon() { if (_OPSLAUT.rvRumpon) _OPSLAUT.rvRumpon.add(); }
+
 function opsLautOpenRevisiModal(rowId) {
   _OPSLAUT.pendingRowId = rowId;
   document.getElementById('rv-ops-alasan').value = '';
   document.getElementById('ops-revisi-msg').style.display = 'none';
+  opsLautBindRevisiLists();
+  var r = _opsLautFindRow(rowId);
+  var kapalItems = [], rumponItems = [];
+  if (r && r.rincian) {
+    (r.rincian || []).forEach(function (x) {
+      var tt = String(x.ItemType || '');
+      if (tt === 'KII' || tt === 'KIA') {
+        kapalItems.push({ ItemType: tt, NamaItem: String(x.NamaItem || ''), AsalNegara: String(x.AsalNegara || '') });
+      } else if (tt === 'RUMPON') {
+        rumponItems.push({ ItemType: 'RUMPON', NamaItem: String(x.NamaItem || ''), WPPCode: String(x.WPPCode || ''), Lokasi: String(x.Lokasi || '') });
+      }
+    });
+  }
+  _OPSLAUT.rvKapal.set(kapalItems);
+  _OPSLAUT.rvRumpon.set(rumponItems);
   document.getElementById('modal-ops-revisi').classList.remove('n-hidden');
 }
 
@@ -3451,11 +3763,10 @@ function opsLautRevisiConfirm() {
     alasanRevisi: alasan
   };
   
-  if(_v('rv-ops-kii')) params.KII_Ditangkap = parseInt(_v('rv-ops-kii'), 10);
-  if(_v('rv-ops-kia')) params.KIA_Ditangkap = parseInt(_v('rv-ops-kia'), 10);
-  if(_v('rv-ops-asal-negara')) params.AsalNegaraAsing = _v('rv-ops-asal-negara');
+  opsLautBindRevisiLists();
+  var rincian = _OPSLAUT.rvKapal.get().concat(_OPSLAUT.rvRumpon.get());
+  if (rincian.length) params.rincian = rincian;
   if(_v('rv-ops-valuasi-ikan')) params.ValuasiIllegalFishing = parseInt(_v('rv-ops-valuasi-ikan'), 10);
-  if(_v('rv-ops-rumpon')) params.RumponDitertibkan = parseInt(_v('rv-ops-rumpon'), 10);
   if(_v('rv-ops-valuasi-rumpon')) params.ValuasiRumpon = parseInt(_v('rv-ops-valuasi-rumpon'), 10);
   if(_v('rv-ops-riksa-kategori')) params.HasilRiksa_Kategori = _v('rv-ops-riksa-kategori');
   if(_v('rv-ops-riksa-kii')) params.HasilRiksa_KII = parseInt(_v('rv-ops-riksa-kii'), 10);
@@ -3521,7 +3832,10 @@ function opsLautAnulirConfirm() {
 var _OPSUDARA = {
   pendingRowId: null,
   wppData: null,
-  kpiData: null
+  kpiData: null,
+  rows: [],        // riwayat periode terakhir (utk prefill rincian saat revisi)
+  listObjek: null, // _nList objek teridentifikasi (form tambah)
+  rvObjek: null    // _nList objek teridentifikasi (modal revisi)
 };
 
 function _renderOperasiUdara(el) {
@@ -3709,15 +4023,52 @@ function _opsUdaraRenderKPI(kpi) {
   strip.innerHTML = html;
 }
 
+function opsUdaraBindObjekList() {
+  if (_OPSUDARA.listObjek) return;
+  _OPSUDARA.listObjek = _nList('oud-objek-list', {
+    grid: '1fr 1.6fr 1fr',
+    columns: [
+      { key: 'ItemType', label: 'Jenis', type: 'select',
+        options: [
+          { value: 'KII', label: 'KII (Indonesia)' },
+          { value: 'KIA', label: 'KIA (Asing)' },
+          { value: 'OBJEK_SDK', label: 'Objek SDK' }
+        ] },
+      { key: 'NamaItem', label: 'Nama / Tanda Objek', type: 'text', placeholder: 'Cth: KM Nusantara 07, speedboat…' },
+      { key: 'AsalNegara', label: 'Asal Negara', type: 'text', placeholder: 'Opsional' }
+    ],
+    minEmptyRows: 1,
+    onInput: _opsUdaraRefreshCaptions
+  });
+}
+
+function _opsUdaraAddObjek() { if (_OPSUDARA.listObjek) _OPSUDARA.listObjek.add(); }
+
+function _opsUdaraRefreshCaptions() {
+  var c = { KII: 0, KIA: 0, OBJEK_SDK: 0 };
+  if (_OPSUDARA.listObjek) {
+    (_OPSUDARA.listObjek.get() || []).forEach(function (it) {
+      var tt = String(it.ItemType || '');
+      if (c[tt] !== undefined) c[tt]++;
+    });
+  }
+  _nDeriveSet('oud-kii-cap', c.KII);
+  _nDeriveSet('oud-kia-cap', c.KIA);
+  _nDeriveSet('oud-sdk-cap', c.OBJEK_SDK);
+}
+
 function opsUdaraOpenForm() {
   _kapalInit('oud-kapal');
   _kdlReset('oud-kapal');
-  ['oud-kii','oud-kia','oud-sdk','oud-rumpon','oud-cakupan','oud-hari-jumlah'].forEach(function(id) {
+  ['oud-rumpon','oud-cakupan','oud-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
   var target = document.getElementById('oud-hari-target');
   if (target) target.value = '180';
+  opsUdaraBindObjekList();
+  _OPSUDARA.listObjek.clear();
+  _opsUdaraRefreshCaptions();
 
   _msg('ops-udara-form-msg', '', '');
   _attachInit('opsudara', { refSheet: 'TX_OperasiUdara' });
@@ -3740,14 +4091,14 @@ function opsUdaraSubmit() {
     Periode: _composePeriode('oud-'),
     WPPCode: _v('oud-wpp'),
     KapalID: _v('oud-kapal'),
-    KII: parseInt(_v('oud-kii'), 10) || 0,
-    KIA: parseInt(_v('oud-kia'), 10) || 0,
-    ObjekSDK: parseInt(_v('oud-sdk'), 10) || 0,
     RumponLokalTeridentifikasi: parseInt(_v('oud-rumpon'), 10) || 0,
     CakupanWilayah_NM2: parseInt(_v('oud-cakupan'), 10) || 0,
     HariOperasi_Jumlah: parseInt(_v('oud-hari-jumlah'), 10) || 0,
     HariOperasi_Target: parseInt(_v('oud-hari-target'), 10) || 180
   };
+  var objek = _OPSUDARA.listObjek ? _OPSUDARA.listObjek.get() : [];
+  objek = objek.filter(function (it) { return String(it.ItemType || '') !== ''; });
+  if (objek.length) params.rincian = objek;
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -3780,7 +4131,10 @@ function _opsUdaraLoadHistory() {
 
   google.script.run
     .withSuccessHandler(function(res){
-      if(res.success) _opsUdaraRenderHistory(res.data);
+      if(res.success) {
+        _OPSUDARA.rows = res.data || [];
+        _opsUdaraRenderHistory(res.data);
+      }
       else wrap.innerHTML = '<div class="n-msg error">' + res.error + '</div>';
     })
     .operasiUdara_getHistory(APP.token, APP.filter);
@@ -3829,7 +4183,7 @@ function _opsUdaraRenderHistory(data) {
       ['Hari Operasi — Target', _idNum(r.HariOperasi_Target)],
       ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
       ['Status', _esc(r.Status)]
-    ]) + ')">Lihat</button>';
+    ].concat(_rncDetailFields(r.rincian))) + ')">Lihat</button>';
 
     var rowCls = (r.Status==='VOID') ? 'style="background:#fef2f2;"' : (r.Status==='SUPERSEDED' ? 'style="opacity:0.6;"' : '');
 
@@ -3857,10 +4211,46 @@ function _opsUdaraRenderHistory(data) {
   wrap.innerHTML = t;
 }
 
+function _opsUdaraFindRow(rowId) {
+  for (var i = 0; i < _OPSUDARA.rows.length; i++) {
+    if (String(_OPSUDARA.rows[i].RowID) === String(rowId)) return _OPSUDARA.rows[i];
+  }
+  return null;
+}
+
+function opsUdaraBindRevisiList() {
+  if (_OPSUDARA.rvObjek) return;
+  _OPSUDARA.rvObjek = _nList('rv-oud-objek-list', {
+    grid: '1fr 1.6fr 1fr',
+    columns: [
+      { key: 'ItemType', label: 'Jenis', type: 'select',
+        options: [
+          { value: 'KII', label: 'KII (Indonesia)' },
+          { value: 'KIA', label: 'KIA (Asing)' },
+          { value: 'OBJEK_SDK', label: 'Objek SDK' }
+        ] },
+      { key: 'NamaItem', label: 'Nama / Tanda Objek', type: 'text', placeholder: 'Cth: KM Nusantara 07' },
+      { key: 'AsalNegara', label: 'Asal Negara', type: 'text', placeholder: 'Opsional' }
+    ],
+    minEmptyRows: 1
+  });
+}
+
+function _opsUdaraAddRvObjek() { if (_OPSUDARA.rvObjek) _OPSUDARA.rvObjek.add(); }
+
 function opsUdaraOpenRevisiModal(rowId) {
   _OPSUDARA.pendingRowId = rowId;
   document.getElementById('rv-oud-alasan').value = '';
   document.getElementById('oud-revisi-msg').style.display = 'none';
+  opsUdaraBindRevisiList();
+  var r = _opsUdaraFindRow(rowId);
+  var items = [];
+  if (r && r.rincian) {
+    (r.rincian || []).forEach(function (x) {
+      items.push({ ItemType: String(x.ItemType || ''), NamaItem: String(x.NamaItem || ''), AsalNegara: String(x.AsalNegara || '') });
+    });
+  }
+  _OPSUDARA.rvObjek.set(items);
   document.getElementById('modal-oud-revisi').classList.remove('n-hidden');
 }
 
@@ -3877,9 +4267,10 @@ function opsUdaraRevisiConfirm() {
     alasanRevisi: alasan
   };
 
-  if(_v('rv-oud-kii')) params.KII = parseInt(_v('rv-oud-kii'), 10);
-  if(_v('rv-oud-kia')) params.KIA = parseInt(_v('rv-oud-kia'), 10);
-  if(_v('rv-oud-sdk')) params.ObjekSDK = parseInt(_v('rv-oud-sdk'), 10);
+  opsUdaraBindRevisiList();
+  var objek = _OPSUDARA.rvObjek.get();
+  objek = objek.filter(function (it) { return String(it.ItemType || '') !== ''; });
+  if (objek.length) params.rincian = objek;
   if(_v('rv-oud-rumpon')) params.RumponLokalTeridentifikasi = parseInt(_v('rv-oud-rumpon'), 10);
   if(_v('rv-oud-cakupan')) params.CakupanWilayah_NM2 = parseInt(_v('rv-oud-cakupan'), 10);
   if(_v('rv-oud-hari-jumlah')) params.HariOperasi_Jumlah = parseInt(_v('rv-oud-hari-jumlah'), 10);
@@ -3953,7 +4344,9 @@ var _INTEL = {
   kpiData:       null,
   rows:          [],
   kawasanFilter: null,
-  kawasanFilterNama: ''
+  kawasanFilterNama: '',
+  kejadianList:  null, // _nList kejadian intelijen (form tambah)
+  revisiList:    null  // _nList kejadian intelijen (modal revisi)
 };
 
 function _renderIntelijen(el) {
@@ -4189,7 +4582,7 @@ function _intelRenderHistory(data) {
       ['Detail', _esc(r.Jenis === 'KAWASAN_KONSERVASI' ? (r.KawasanID || '—') : (r.Keterangan || '—'))],
       ['Dikirim', _esc(r.Timestamp ? new Date(r.Timestamp).toLocaleString('id-ID') : '—')],
       ['Status', _esc(r.Status)]
-    ]) + ')">Lihat</button>';
+    ].concat(_rncDetailFields(r.rincian))) + ')">Lihat</button>';
 
     var rowCls = (r.Status === 'VOID') ? 'style="background:#fef2f2;"' : (r.Status === 'SUPERSEDED' ? 'style="opacity:0.6;"' : '');
     var ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('id-ID') : '—';
@@ -4223,16 +4616,18 @@ function intelSubmit(e) {
   if (!periode) { _msg('int-form-msg', 'error', 'Periode wajib dipilih.'); return; }
 
   var items = [];
-  var numMap = [
-    ['int-dredging',  'DREDGING'],
-    ['int-perizinan', 'PELANGGARAN_PERIZINAN'],
-    ['int-transmitter','PELANGGARAN_TRANSMITTER'],
-    ['int-nota-dinas','NOTA_DINAS'],
-    ['int-pengangkut','KAPAL_PENGANGKUT_IKAN_HIDUP']
-  ];
-  numMap.forEach(function(pair) {
-    var v = _v(pair[0]);
-    if (v !== '' && v !== null) items.push({ jenis: pair[1], jumlah: parseInt(v, 10) || 0 });
+  // Kejadian intelijen (5 jenis non-kawasan): jumlah dihitung sistem
+  // dari daftar rincian per kejadian, dikelompokkan per jenis.
+  var kejadian = _intelBindKejadianList().get();
+  var byJenis = {};
+  kejadian.forEach(function (k) {
+    var j = String(k.Jenis || '');
+    if (!j) return;
+    if (!byJenis[j]) byJenis[j] = [];
+    byJenis[j].push({ Deskripsi: String(k.Deskripsi || '') });
+  });
+  Object.keys(byJenis).forEach(function (j) {
+    items.push({ jenis: j, rincian: byJenis[j] });
   });
 
   var kwRows = document.querySelectorAll('#int-kawasan-rows .int-kawasan-row');
@@ -4250,7 +4645,7 @@ function intelSubmit(e) {
     }
   }
 
-  if (items.length === 0) { _msg('int-form-msg', 'error', 'Minimal satu angka atau kawasan wajib diisi.'); return; }
+  if (items.length === 0) { _msg('int-form-msg', 'error', 'Minimal satu kejadian atau kawasan wajib diisi.'); return; }
 
   var btn = document.getElementById('int-btn-submit');
   _setLoading(btn, true);
@@ -4279,11 +4674,69 @@ function intelSubmit(e) {
     .intelijen_submitMingguan(APP.token, { periode: periode, items: items });
 }
 
-function _intelResetForm() {
-  ['int-dredging','int-perizinan','int-transmitter','int-nota-dinas','int-pengangkut'].forEach(function(id){
-    var el = document.getElementById(id);
-    if (el) el.value = '';
+function _intelKejadianColumn() {
+  return [
+    { key: 'Jenis', label: 'Jenis Temuan', type: 'select',
+      options: [
+        { value: 'DREDGING', label: INTEL_LABELS.DREDGING },
+        { value: 'PELANGGARAN_PERIZINAN', label: INTEL_LABELS.PELANGGARAN_PERIZINAN },
+        { value: 'PELANGGARAN_TRANSMITTER', label: INTEL_LABELS.PELANGGARAN_TRANSMITTER },
+        { value: 'NOTA_DINAS', label: INTEL_LABELS.NOTA_DINAS },
+        { value: 'KAPAL_PENGANGKUT_IKAN_HIDUP', label: INTEL_LABELS.KAPAL_PENGANGKUT_IKAN_HIDUP }
+      ] },
+    { key: 'Deskripsi', label: 'Deskripsi Kejadian', type: 'text', placeholder: 'Cth: Kapal KM X mematikan transmitter di WPP 716' }
+  ];
+}
+
+function _intelBindKejadianList() {
+  if (_INTEL.kejadianList) return _INTEL.kejadianList;
+  _INTEL.kejadianList = _nList('int-kejadian-list', {
+    grid: '1.4fr 2fr',
+    columns: _intelKejadianColumn(),
+    minEmptyRows: 1,
+    onInput: _intelRefreshKejadianCaptions
   });
+  return _INTEL.kejadianList;
+}
+
+function _intelBindRevisiList() {
+  if (_INTEL.revisiList) return _INTEL.revisiList;
+  _INTEL.revisiList = _nList('rv-int-kejadian-list', {
+    grid: '1fr',
+    columns: [
+      { key: 'Deskripsi', label: 'Deskripsi Kejadian', type: 'text', placeholder: 'Cth: Kapal KM X mematikan transmitter di WPP 716' }
+    ],
+    minEmptyRows: 1
+  });
+  return _INTEL.revisiList;
+}
+
+function _intelAddRvKejadian() { _intelBindRevisiList().add(); }
+
+function _intelAddKejadian() { _intelBindKejadianList().add(); }
+
+function _intelRefreshKejadianCaptions() {
+  var c = {
+    DREDGING: 0,
+    PELANGGARAN_PERIZINAN: 0,
+    PELANGGARAN_TRANSMITTER: 0,
+    NOTA_DINAS: 0,
+    KAPAL_PENGANGKUT_IKAN_HIDUP: 0
+  };
+  (_INTEL.kejadianList ? _INTEL.kejadianList.get() : []).forEach(function (it) {
+    var j = String(it.Jenis || '');
+    if (c[j] !== undefined) c[j]++;
+  });
+  _nDeriveSet('int-cap-dredging', c.DREDGING);
+  _nDeriveSet('int-cap-perizinan', c.PELANGGARAN_PERIZINAN);
+  _nDeriveSet('int-cap-transmitter', c.PELANGGARAN_TRANSMITTER);
+  _nDeriveSet('int-cap-nota', c.NOTA_DINAS);
+  _nDeriveSet('int-cap-pengangkut', c.KAPAL_PENGANGKUT_IKAN_HIDUP);
+}
+
+function _intelResetForm() {
+  _intelBindKejadianList().clear();
+  _intelRefreshKejadianCaptions();
   var wrap = document.getElementById('int-kawasan-rows');
   if (wrap) wrap.innerHTML = '';
   intelAddKawasanRow();
@@ -4305,8 +4758,23 @@ function intelOpenRevisiModal(rowId) {
   document.getElementById('int-revisi-info').textContent =
     (INTEL_LABELS[r.Jenis] || r.Jenis) + ' — Periode ' + r.Periode +
     (r.Jenis === 'KAWASAN_KONSERVASI' ? ' (' + (r.kawasanNama || r.KawasanID) + ')' : '');
-  document.getElementById('rv-int-jumlah').value = (Number(r.Jumlah) || 0);
-  document.getElementById('rv-int-keterangan').value = r.Keterangan || '';
+
+  var isKw = (r.Jenis === 'KAWASAN_KONSERVASI');
+  var kwBlock = document.getElementById('rv-int-kawasan-block');
+  var kjBlock = document.getElementById('rv-int-kejadian-block');
+  if (kwBlock) kwBlock.style.display = isKw ? '' : 'none';
+  if (kjBlock) kjBlock.style.display = isKw ? 'none' : '';
+
+  if (isKw) {
+    document.getElementById('rv-int-jumlah').value = (Number(r.Jumlah) || 0);
+    document.getElementById('rv-int-keterangan').value = r.Keterangan || '';
+  } else {
+    var items = [];
+    (r.rincian || []).forEach(function (x) {
+      if (String(x.Deskripsi || '').trim() !== '') items.push({ Deskripsi: String(x.Deskripsi) });
+    });
+    _intelBindRevisiList().set(items);
+  }
   document.getElementById('rv-int-alasan').value = '';
   _msg('int-revisi-msg', '', '');
   document.getElementById('modal-int-revisi').classList.remove('n-hidden');
@@ -4317,12 +4785,21 @@ function intelRevisiConfirm() {
   var alasan = _v('rv-int-alasan');
   if (!alasan) { _msg('int-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
 
+  var r = _intelFindRow(_INTEL.pendingRowId);
+  var isKw = r && r.Jenis === 'KAWASAN_KONSERVASI';
   var params = {
     targetRowId: _INTEL.pendingRowId,
-    alasanRevisi: alasan,
-    jumlah: _v('rv-int-jumlah'),
-    keterangan: _v('rv-int-keterangan')
+    alasanRevisi: alasan
   };
+  if (isKw) {
+    params.jumlah = _v('rv-int-jumlah') || 0;
+    params.keterangan = _v('rv-int-keterangan') || '';
+  } else {
+    var items = _intelBindRevisiList().get();
+    params.rincian = items.map(function (k) {
+      return { Deskripsi: String(k.Deskripsi || '') };
+    });
+  }
 
   var btn = document.getElementById('int-btn-revisi-save');
   _setLoading(btn, true);

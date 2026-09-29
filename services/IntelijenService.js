@@ -61,6 +61,24 @@ function _intelValidJenis(j) {
   return Object.prototype.hasOwnProperty.call(INTEL_JENIS_LABEL, j);
 }
 
+// Jenis yang diisi lewat daftar rincian per-kejadian (bukan manual angka
+// maupun kawasan). Jumlah artikel dihitung sistem = jumlah rincian.
+function _intelNonKawasan(j) {
+  return j !== 'KAWASAN_KONSERVASI';
+}
+
+// Validasi rincian kejadian intelijen ({Deskripsi}) — buang baris kosong,
+// sisanya wajib deskripsi terisi.
+function _intelValidateRincian(rincian) {
+  var cleaned = _detailCleanItems(rincian);
+  for (var i = 0; i < cleaned.length; i++) {
+    if (_detailBlank(cleaned[i].Deskripsi)) {
+      return { error: 'Kejadian ke-' + (i + 1) + ': deskripsi wajib diisi.' };
+    }
+  }
+  return { items: cleaned };
+}
+
 function _intelAuditLog(userId, aksi, rowIdTarget, alasan) {
   try {
     appendRowData(openLogSheet(SHEET_LOG.AUDIT_LOG), {
@@ -274,6 +292,9 @@ function intelijen_getHistory(token, filter) {
       return new Date(b.Timestamp).getTime() - new Date(a.Timestamp).getTime();
     });
 
+    // Lampirkan rincian kejadian (non-kawasan) per artikel untuk modal detail & prefill revisi.
+    _detailAttach(history, SHEET_TX.INTELIJEN);
+
     return { success: true, data: history };
   } catch (e) {
     return { success: false, error: e.message };
@@ -315,6 +336,15 @@ function intelijen_submitMingguan(token, params) {
         var jumlah = Number(it.jumlah) || 0;
         if (jumlah < 0) return { success: false, error: 'Jumlah tidak boleh negatif.' };
 
+        // Rincian kejadian (non-kawasan): Jumlah dihitung sistem dari daftar.
+        var rincian = null;
+        if (_intelNonKawasan(it.jenis) && it.rincian !== undefined) {
+          var vres = _intelValidateRincian(it.rincian);
+          if (vres.error) return { success: false, error: vres.error };
+          rincian = vres.items;
+          jumlah = rincian.length;
+        }
+
         var kawasanId = '';
         if (it.jenis === 'KAWASAN_KONSERVASI') {
           kawasanId = String(it.kawasanId || '').trim();
@@ -326,7 +356,8 @@ function intelijen_submitMingguan(token, params) {
           jenis: String(it.jenis),
           jumlah: jumlah,
           kawasanId: kawasanId,
-          keterangan: String(it.keterangan || '').trim()
+          keterangan: String(it.keterangan || '').trim(),
+          rincian: rincian
         });
       }
 
@@ -371,6 +402,11 @@ function intelijen_submitMingguan(token, params) {
           KawasanID: rowsOut[w].kawasanId,
           Keterangan: rowsOut[w].keterangan
         });
+        if (rowsOut[w].rincian) {
+          _detailWriteChildren('INTELIJEN', rowId, rowsOut[w].rincian, {
+            DivisiID: session.divisiId, Periode: periode, SubmittedBy: session.userId, Timestamp: ts
+          });
+        }
         _intelAuditLog(session.userId, 'CREATE', rowId, 'Submit Intelijen periode ' + periode + ' (' + rowsOut[w].jenis + ')');
       }
 
@@ -405,7 +441,18 @@ function intelijen_revisi(token, params) {
       var oldObj = oldRowData.obj;
       var newRowId = 'INT-' + Utilities.getUuid().replace(/-/g, '').substring(0, 10).toUpperCase();
 
-      var newJumlah = (p.jumlah !== undefined && p.jumlah !== null && p.jumlah !== '') ? Number(p.jumlah) : (Number(oldObj.Jumlah) || 0);
+      var isNonKawasan = _intelNonKawasan(String(oldObj.Jenis || ''));
+
+      // Rincian kejadian (non-kawasan): Jumlah dihitung sistem dari daftar baru.
+      var rincian = null;
+      if (isNonKawasan && p.rincian !== undefined) {
+        var vres = _intelValidateRincian(p.rincian);
+        if (vres.error) return { success: false, error: vres.error };
+        rincian = vres.items;
+      }
+
+      var newJumlah = rincian ? rincian.length :
+        ((p.jumlah !== undefined && p.jumlah !== null && p.jumlah !== '') ? Number(p.jumlah) : (Number(oldObj.Jumlah) || 0));
       if (newJumlah < 0) return { success: false, error: 'Jumlah tidak boleh negatif.' };
 
       // Tandai baris lama SUPERSEDED HANYA setelah seluruh validasi lolos —
@@ -434,6 +481,20 @@ function intelijen_revisi(token, params) {
         KawasanID: oldObj.KawasanID || '',
         Keterangan: p.keterangan !== undefined ? String(p.keterangan).trim() : String(oldObj.Keterangan || '')
       });
+
+      if (rincian) {
+        // SupersedesRowID rincian baru = RowID rincian lama pada urutan yang sama.
+        var oldChildren = _detailActiveChildren(SHEET_TX.INTELIJEN, targetRowId);
+        _detailSetChildrenStatus(SHEET_TX.INTELIJEN, targetRowId, ROW_STATUS.SUPERSEDED,
+          alasanRevisi, session.userId, new Date().toISOString());
+        _detailWriteChildren('INTELIJEN', newRowId, rincian, {
+          DivisiID: session.divisiId,
+          Periode: oldObj.Periode,
+          SubmittedBy: session.userId,
+          Timestamp: new Date().toISOString(),
+          supersedes: oldChildren.map(function (c) { return String(c.RowID); })
+        });
+      }
 
       _intelAuditLog(session.userId, 'UPDATE', newRowId, 'Revisi baris ' + targetRowId + ': ' + alasanRevisi);
       return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
@@ -471,6 +532,10 @@ function intelijen_anulir(token, params) {
         VoidedBy: session.userId,
         VoidedAt: new Date().toISOString()
       });
+
+      // Rincian kejadian ikut batal (subordinat artikel).
+      _detailSetChildrenStatus(SHEET_TX.INTELIJEN, targetRowId, ROW_STATUS.VOID,
+        String(alasan).trim(), session.userId, new Date().toISOString());
 
       _intelAuditLog(session.userId, 'VOID', targetRowId, String(alasan).trim());
 

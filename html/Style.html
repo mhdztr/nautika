@@ -167,6 +167,76 @@ a { text-decoration: none; color: inherit; }
   padding-right: 36px;
 }
 
+/* ── ITEM LIST "rincian per-item" (revisi Fase 13) ─────────
+   Baris input berulang di modal form (kapal, rumpon, objek udara,
+   kejadian intelijen). Jumlah = hitungan item, dihitung sistem. */
+.n-list { margin-top: 2px; }
+.n-list-head, .n-list-row { display: grid; gap: 10px; align-items: center; }
+.n-list-head { margin-bottom: 6px; }
+.n-list-head > div {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.n-list-head > div:last-child, .n-list-delcell { text-align: right; }
+.n-list-row { margin-bottom: 10px; }
+.n-list-row input,
+.n-list-row select {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-size: 0.9375rem;
+  color: var(--n-text-primary);
+  background: var(--n-surface-2);
+  outline: none;
+  transition: border-color 0.14s, background 0.14s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.n-list-row input:focus,
+.n-list-row select:focus { border-color: var(--n-primary); background: var(--n-surface-1); }
+.n-list-row select { cursor: pointer; }
+.n-list-add {
+  margin: 2px 0 14px;
+  padding: 6px 12px;
+  border: 1px dashed var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: none;
+  color: var(--n-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.n-list-add:hover { border-color: var(--n-primary); background: rgba(43,54,116,0.06); }
+.n-list-del {
+  padding: 6px 10px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: none;
+  color: var(--n-text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.n-list-del:hover { color: var(--n-crit); border-color: var(--n-crit); }
+.n-derive-val {
+  padding: 10px 13px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--n-primary);
+  background: var(--n-surface-2);
+}
+.derived-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--n-text-muted);
+}
+
 /* ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12) ──────────
    Menggantikan typeahead Backlog B. Tampil sebagai dropdown (readonly +
    chevron), panel berisi kotak cari + daftar, tombol hapus me-reset filter. */

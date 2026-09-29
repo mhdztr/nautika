@@ -41,6 +41,19 @@ function _opsLautAssertAnulir(session) {
   throw new Error('FORBIDDEN: Hanya pimpinan yang dapat melakukan anulir data.');
 }
 
+// Validasi rincian Operasi Laut (kapal KII/KIA + rumpon). KII = Indonesia,
+// KIA = Asing (asal negara wajib), RUMPON = wajib pilih WPP terkait (PRD §5.3).
+var _OPS_LAUT_RINCIAN_RULES = {
+  typeField: 'ItemType',
+  types: ['KII', 'KIA', 'RUMPON'],
+  required: ['NamaItem'],
+  requiredIf: { AsalNegara: ['KIA'], WPPCode: ['RUMPON'] }
+};
+
+function _opsLautValidateRincian(items) {
+  return _detailValidateItemized(items, _OPS_LAUT_RINCIAN_RULES);
+}
+
 // ===========================================================================
 // READ ENDPOINTS
 // ===========================================================================
@@ -178,6 +191,9 @@ function operasiLaut_getHistory(token, filter) {
       return new Date(b.Timestamp).getTime() - new Date(a.Timestamp).getTime();
     });
 
+    // Lampirkan rincian per-item (kapal/rumpon) untuk modal detail & prefill revisi.
+    _detailAttach(history, SHEET_TX.OPERASI_LAUT);
+
     return { success: true, data: history };
   } catch (e) {
     return { success: false, error: e.message };
@@ -257,7 +273,26 @@ function operasiLaut_submit(token, params) {
         HariOperasi_Target: p.HariOperasi_Target || 180
       };
 
+      // Rincian per-item (opsional): jumlah kapal/rumpon dihitung sistem dari
+      // rincian, bukan diinput manual — lihat DATA_SCHEMA.md (kolom dihitung).
+      if (p.rincian !== undefined) {
+        var detailItems = _opsLautValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'RUMPON']);
+        newRow.KII_Ditangkap = counts.KII;
+        newRow.KIA_Ditangkap = counts.KIA;
+        newRow.RumponDitertibkan = counts.RUMPON;
+        newRow.AsalNegaraAsing = _detailUniqueJoin(detailItems.items, 'ItemType', 'KIA', 'AsalNegara');
+      }
+
       appendRowData(sheet, newRow);
+
+      if (p.rincian !== undefined) {
+        _detailWriteChildren('OPERASI_LAUT', rowId, detailItems.items, {
+          DivisiID: session.divisiId, Periode: p.Periode, SubmittedBy: session.userId, Timestamp: newRow.Timestamp
+        });
+      }
+
       return { success: true, data: { rowId: rowId, message: 'Laporan Operasi Laut berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
@@ -338,7 +373,34 @@ function operasiLaut_revisi(token, params) {
         HariOperasi_Target: p.HariOperasi_Target !== undefined ? p.HariOperasi_Target : oldObj.HariOperasi_Target
       };
 
+      // Rincian opsional: superkan rincian lama, derive hitungan dari rincian baru.
+      // Bila `rincian` tidak dikirim → nilai header lama dipertahankan (tanpa rebase).
+      if (p.rincian !== undefined) {
+        var detailItems = _opsLautValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'RUMPON']);
+        newRow.KII_Ditangkap = counts.KII;
+        newRow.KIA_Ditangkap = counts.KIA;
+        newRow.RumponDitertibkan = counts.RUMPON;
+        newRow.AsalNegaraAsing = _detailUniqueJoin(detailItems.items, 'ItemType', 'KIA', 'AsalNegara');
+      }
+
       appendRowData(sheet, newRow);
+
+      if (p.rincian !== undefined) {
+        // SupersedesRowID rincian baru = RowID rincian lama pada urutan yang sama.
+        var oldChildren = _detailActiveChildren(SHEET_TX.OPERASI_LAUT, targetRowId);
+        _detailSetChildrenStatus(SHEET_TX.OPERASI_LAUT, targetRowId, ROW_STATUS.SUPERSEDED,
+          alasanRevisi, session.userId, newRow.Timestamp);
+        _detailWriteChildren('OPERASI_LAUT', newRowId, detailItems.items, {
+          DivisiID: session.divisiId,
+          Periode: oldObj.Periode,
+          SubmittedBy: session.userId,
+          Timestamp: newRow.Timestamp,
+          supersedes: oldChildren.map(function (c) { return String(c.RowID); })
+        });
+      }
+
       return { success: true, data: { rowId: newRowId, message: 'Revisi berhasil disimpan.' } };
     } catch (e) {
       return { success: false, error: e.message };
@@ -372,6 +434,10 @@ function operasiLaut_anulir(token, params) {
         VoidedBy: session.userId,
         VoidedAt: new Date().toISOString()
       });
+
+      // Rincian per-item ikut batal (subordinat header).
+      _detailSetChildrenStatus(SHEET_TX.OPERASI_LAUT, targetRowId, ROW_STATUS.VOID,
+        String(alasan).trim(), session.userId, new Date().toISOString());
 
       // Notifikasi ke publisher jika anulator beda
       var publisherId = String(target.obj['SubmittedBy']);

@@ -150,6 +150,14 @@ function _setupTransaksi(props) {
     ])
   );
 
+  // TX_OperasiLaut_Detail — rincian per-item (kapal ditangkap & rumpon ditertibkan).
+  // ParentRowID merujuk TX_OperasiLaut.RowID; ItemType enum(KII|KIA|RUMPON).
+  _createSheetWithHeaders(ss, SHEET_TX.OPERASI_LAUT_DETAIL,
+    STD_COLS.concat([
+      'ParentRowID', 'ItemType', 'NamaItem', 'AsalNegara', 'WPPCode', 'Lokasi'
+    ])
+  );
+
   // TX_OperasiUdara
   _createSheetWithHeaders(ss, SHEET_TX.OPERASI_UDARA,
     STD_COLS.concat([
@@ -161,10 +169,26 @@ function _setupTransaksi(props) {
     ])
   );
 
+  // TX_OperasiUdara_Detail — rincian per-item pemantauan udara.
+  // ParentRowID merujuk TX_OperasiUdara.RowID; ItemType enum(KII|KIA|OBJEK_SDK).
+  _createSheetWithHeaders(ss, SHEET_TX.OPERASI_UDARA_DETAIL,
+    STD_COLS.concat([
+      'ParentRowID', 'ItemType', 'NamaItem', 'AsalNegara'
+    ])
+  );
+
   // TX_Intelijen
   _createSheetWithHeaders(ss, SHEET_TX.INTELIJEN,
     STD_COLS.concat([
       'Jenis', 'Jumlah', 'KawasanID', 'Keterangan'
+    ])
+  );
+
+  // TX_Intelijen_Detail — rincian per-kejadian untuk kategori non-kawasan.
+  // ParentRowID merujuk TX_Intelijen.RowID (1 baris Intelijen = 1 kategori).
+  _createSheetWithHeaders(ss, SHEET_TX.INTELIJEN_DETAIL,
+    STD_COLS.concat([
+      'ParentRowID', 'Deskripsi'
     ])
   );
 

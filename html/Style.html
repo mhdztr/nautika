@@ -130,8 +130,16 @@ a { text-decoration: none; color: inherit; }
 /* ============================================================
    FORM ELEMENTS
    ============================================================ */
-.form-grp { margin-bottom: 16px; }
+.form-grp {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 26px; /* band .n-form-hint — jaga kontrol rata antar sel (sejajar horizontal) */
+  margin-bottom: 16px;
+}
 .form-grp label {
+  flex: 0 0 auto;
   display: block;
   font-size: 0.78rem;
   font-weight: 500;
@@ -165,6 +173,21 @@ a { text-decoration: none; color: inherit; }
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 36px;
+}
+
+/* Hint di bawah kontrol (mis. "Periode: …") — diposisikan absolut di dalam band
+   .form-grp (padding-bottom) sehingga label panjang yang membungkus atau ada/tidaknya
+   hint TIDAK menggeser posisi kotak input antar kolom (alignment horizontal). */
+.n-form-hint {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 5px;
+  font-size: 0.76rem;
+  color: var(--n-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── ITEM LIST "rincian per-item" (revisi Fase 13) ─────────

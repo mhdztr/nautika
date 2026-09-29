@@ -27,6 +27,16 @@ var PANTAU_JENIS_LABEL = {
   MARABAHAYA:           'Kapal Kondisi Marabahaya'
 };
 
+// Kapal marabahaya adalah kapal EKSTERNAL (bukan kapal KKP), mis. kapal
+// perikanan yang kehabisan BBM di tengah laut. Deklarasi user 29 Sep 2026.
+var PANTAU_JENIS_KAPAL_LABEL = {
+  KAPAL_PERIKANAN: 'Kapal Perikanan',
+  KAPAL_NIAGA:     'Kapal Niaga',
+  KAPAL_PENUMPANG: 'Kapal Penumpang',
+  KAPAL_WISATA:    'Kapal Wisata',
+  LAINNYA:         'Lainnya'
+};
+
 function _pantaRequireSession(token) {
   var session = _getSession(token);
   if (!session || session.status !== USER_STATUS.APPROVED) {
@@ -159,10 +169,12 @@ function pemantauan_getKPI(token, filter) {
           });
         } else if (jenis === 'MARABAHAYA') {
           var kid = String(row.KapalID || '');
+          var nmExt = String(row.NamaKapal || '').trim();
           res.marabahaya.push({
             rowId:  String(row.RowID || ''),
             kapalId: kid,
-            namaKapal: kapalMap[kid] ? kapalMap[kid].nama : (kid || '(tanpa kapal)'),
+            namaKapal: nmExt || (kapalMap[kid] ? kapalMap[kid].nama : (kid || '(tanpa kapal)')),
+            jenisKapal: String(row.JenisKapal || 'LAINNYA'),
             kondisiDarurat: String(row.KondisiDarurat || ''),
             statusPenanganan: String(row.StatusPenanganan || ''),
             periode: String(row.Periode || ''),
@@ -210,7 +222,8 @@ function pemantauan_getHistory(token, filter) {
       var row = rows[i];
       var t = new Date(row.Timestamp);
       if (t >= range.startDate && t <= range.endDate) {
-        row.kapalNama = kapalMap[String(row.KapalID || '')] ? kapalMap[String(row.KapalID || '')].nama : '';
+        row.namaKapal = String(row.NamaKapal || '').trim() ||
+          (kapalMap[String(row.KapalID || '')] ? kapalMap[String(row.KapalID || '')].nama : '');
         history.push(row);
       }
     }
@@ -263,6 +276,8 @@ function pemantauan_submitMingguan(token, params) {
 
         var namaPenyedia = '';
         var kapalId = '';
+        var namaKapal = '';
+        var jenisKapal = '';
         var kondisi = '';
         var status = '';
 
@@ -277,10 +292,14 @@ function pemantauan_submitMingguan(token, params) {
             return { success: false, error: 'Nama penyedia SPKP wajib diisi.' };
           }
         } else if (it.jenis === 'MARABAHAYA') {
-          kapalId = String(it.kapalId || '').trim();
+          namaKapal = String(it.namaKapal || '').trim();
+          jenisKapal = String(it.jenisKapal || '').trim() || 'LAINNYA';
           kondisi = String(it.kondisiDarurat || '').trim();
           status = String(it.statusPenanganan || '');
-          if (!kapalId) return { success: false, error: 'Untuk kapal marabahaya, pilih kapal dari Master Data.' };
+          if (!namaKapal) return { success: false, error: 'Nama kapal marabahaya wajib diisi.' };
+          if (PANTAU_JENIS_KAPAL_LABEL[jenisKapal] === undefined) {
+            return { success: false, error: 'Jenis kapal tidak dikenal. Gunakan daftar jenis kapal yang tersedia.' };
+          }
           if (!kondisi) return { success: false, error: 'Jenis kondisi darurat wajib diisi.' };
           if (status !== 'DALAM_PENANGANAN' && status !== 'SELESAI') {
             return { success: false, error: 'Status penanganan harus DALAM_PENANGANAN atau SELESAI.' };
@@ -292,6 +311,8 @@ function pemantauan_submitMingguan(token, params) {
           jumlah: it.jenis === 'MARABAHAYA' ? (jumlah || 1) : jumlah,
           namaPenyedia: namaPenyedia,
           kapalId: kapalId,
+          namaKapal: namaKapal,
+          jenisKapal: jenisKapal,
           kondisiDarurat: kondisi,
           statusPenanganan: status
         });
@@ -317,7 +338,10 @@ function pemantauan_submitMingguan(token, params) {
               return { success: false, error: 'Penyedia "' + ro.namaPenyedia + '" pada periode ' + periode + ' sudah ada.' };
             }
           } else if (ro.jenis === 'MARABAHAYA') {
-            if (String(ex.Jenis) === 'MARABAHAYA' && String(ex.KapalID) === ro.kapalId) {
+            if (String(ex.Jenis) === 'MARABAHAYA' && ro.namaKapal && String(ex.NamaKapal || '').toLowerCase() === ro.namaKapal.toLowerCase()) {
+              return { success: false, error: 'Kapal ' + ro.namaKapal + ' sudah dilaporkan marabahaya pada periode ' + periode + '.' };
+            }
+            if (String(ex.Jenis) === 'MARABAHAYA' && ex.KapalID && ro.kapalId && String(ex.KapalID) === ro.kapalId) {
               return { success: false, error: 'Kapal ' + ro.kapalId + ' sudah dilaporkan marabahaya pada periode ' + periode + '.' };
             }
           }
@@ -344,6 +368,8 @@ function pemantauan_submitMingguan(token, params) {
           Jumlah: rowsOut[w].jumlah,
           NamaPenyedia: rowsOut[w].namaPenyedia,
           KapalID: rowsOut[w].kapalId,
+          NamaKapal: rowsOut[w].namaKapal,
+          JenisKapal: rowsOut[w].jenisKapal,
           KondisiDarurat: rowsOut[w].kondisiDarurat,
           StatusPenanganan: rowsOut[w].statusPenanganan
         });
@@ -365,6 +391,7 @@ function pemantauan_revisi(token, params) {
     try {
       var session = _pantaRequireSession(token);
       _pantaAssertWrite(session);
+      ensurePemantauanKapalKolom();
 
       var p = params || {};
       var targetRowId = p.targetRowId;
@@ -384,9 +411,16 @@ function pemantauan_revisi(token, params) {
       var newJumlah = (p.jumlah !== undefined && p.jumlah !== null && p.jumlah !== '') ? Number(p.jumlah) : (Number(oldObj.Jumlah) || 0);
       if (newJumlah < 0) return { success: false, error: 'Jumlah tidak boleh negatif.' };
 
+      var newNama = p.namaKapal !== undefined ? String(p.namaKapal).trim() : String(oldObj.NamaKapal || '').trim();
+      var newJenis = p.jenisKapal !== undefined ? String(p.jenisKapal).trim() : String(oldObj.JenisKapal || '').trim();
+      if (!newJenis) newJenis = 'LAINNYA';
       var newKondisi = p.kondisiDarurat !== undefined ? String(p.kondisiDarurat).trim() : String(oldObj.KondisiDarurat || '');
       var newStatus  = p.statusPenanganan !== undefined ? String(p.statusPenanganan) : String(oldObj.StatusPenanganan || '');
       if (String(oldObj.Jenis) === 'MARABAHAYA') {
+        if (!newNama) return { success: false, error: 'Nama kapal marabahaya wajib diisi.' };
+        if (PANTAU_JENIS_KAPAL_LABEL[newJenis] === undefined) {
+          return { success: false, error: 'Jenis kapal tidak dikenal. Gunakan daftar jenis kapal yang tersedia.' };
+        }
         if (!newKondisi) return { success: false, error: 'Kondisi darurat wajib diisi.' };
         if (newStatus !== 'DALAM_PENANGANAN' && newStatus !== 'SELESAI') {
           return { success: false, error: 'Status penanganan harus DALAM_PENANGANAN atau SELESAI.' };
@@ -418,6 +452,8 @@ function pemantauan_revisi(token, params) {
         Jumlah: newJumlah,
         NamaPenyedia: oldObj.NamaPenyedia || '',
         KapalID: oldObj.KapalID || '',
+        NamaKapal: newNama,
+        JenisKapal: newJenis,
         KondisiDarurat: newKondisi,
         StatusPenanganan: newStatus
       });
@@ -435,9 +471,10 @@ function pemantauan_revisi(token, params) {
  */
 function pemantauan_anulir(token, params) {
   return withLock(function () {
-    try {
+try {
       var session = _pantaRequireSession(token);
-      _pantaAssertAnulir(session);
+      _pantaAssertWrite(session);
+      ensurePemantauanKapalKolom();
 
       var p = params || {};
       var targetRowId = p.targetRowId;

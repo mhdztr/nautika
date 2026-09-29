@@ -131,6 +131,16 @@ function ensureKapalColumns() {
 }
 
 /**
+ * Pastikan kolom NamaKapal & JenisKapal ada di TX_Pemantauan (kapal
+ * marabahaya = kapal eksternal, bukan ref Master Data). Dipanggil di titik
+ * tulis service supaya DB lama ter-heal otomatis tanpa setupForce.
+ */
+function ensurePemantauanKapalKolom() {
+  ensureTxColumn(SHEET_TX.PEMANTAUAN, 'NamaKapal');
+  ensureTxColumn(SHEET_TX.PEMANTAUAN, 'JenisKapal');
+}
+
+/**
  * Ambil sheet detail transaksi, buat otomatis bila belum ada (self-heal,
  * idempoten). Dipakai untuk sheet rincian per-item (TX_*_Detail — revisi
  * rincian audit) supaya DB lama ter-heal tanpa `setupForce`.

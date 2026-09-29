@@ -197,7 +197,7 @@ function _setupTransaksi(props) {
     STD_COLS.concat([
       'Jenis', 'Jumlah',
       'NamaPenyedia',
-      'KapalID', 'KondisiDarurat', 'StatusPenanganan'
+      'KapalID', 'NamaKapal', 'JenisKapal', 'KondisiDarurat', 'StatusPenanganan'
     ])
   );
 

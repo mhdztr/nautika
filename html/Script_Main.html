@@ -5208,9 +5208,18 @@ var PEM_LABELS = {
   MARABAHAYA:           'Kapal Kondisi Marabahaya'
 };
 
+// Kapal marabahaya = kapal EKSTERNAL (bukan kapal KKP), mis. kapal perikanan
+// yang kehabisan BBM di tengah laut / kecelakaan di laut. Deklarasi user 29 Sep 2026.
+var PEM_JENIS_KAPAL = [
+  { kode: 'KAPAL_PERIKANAN', label: 'Kapal Perikanan' },
+  { kode: 'KAPAL_NIAGA',     label: 'Kapal Niaga' },
+  { kode: 'KAPAL_PENUMPANG', label: 'Kapal Penumpang' },
+  { kode: 'KAPAL_WISATA',    label: 'Kapal Wisata' },
+  { kode: 'LAINNYA',         label: 'Lainnya' }
+];
+
 var _PEM = {
   pendingRowId: null,
-  kapalData:    null,
   kpiData:      null,
   rows:         []
 };
@@ -5223,7 +5232,7 @@ function _renderPemantauan(el) {
 
   _opsInitPeriodeUi('pem-');
   pemAddPenyediaRow();
-  _pemLoadKapalOptions();
+  pemAddMarabahayaRow();
   _pemLoadKPI();
   _pemLoadHistory();
 
@@ -5241,22 +5250,6 @@ function pemOpenForm() {
   _attachInit('pem', { refSheet: 'TX_Pemantauan' });
   var m = document.getElementById('modal-pem-form');
   if (m) m.classList.remove('n-hidden');
-}
-
-function _pemLoadKapalOptions() {
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.success) {
-        _PEM.kapalData = res.data || [];
-        pemAddMarabahayaRow();
-      } else {
-        _msg('pem-form-msg', 'error', 'Gagal memuat daftar kapal: ' + res.error);
-      }
-    })
-    .withFailureHandler(function() {
-      _msg('pem-form-msg', 'error', 'Koneksi terputus saat memuat kapal.');
-    })
-    .master_getKapalList(APP.token);
 }
 
 function pemAddPenyediaRow() {
@@ -5277,18 +5270,20 @@ function pemAddPenyediaRow() {
 function pemAddMarabahayaRow() {
   var wrap = document.getElementById('pem-marabahaya-rows');
   if (!wrap) return;
-  var opts = '<option value="">(Pilih Kapal)</option>';
-  (_PEM.kapalData || []).forEach(function(k) {
-    opts += '<option value="' + _esc(k.kapalId) + '">' + _esc(k.nama) + (k.kelas ? ' — ' + _esc(k.kelas) : '') + '</option>';
+  var jenisOpts = '<option value="">(Jenis)</option>';
+  PEM_JENIS_KAPAL.forEach(function (jk) {
+    jenisOpts += '<option value="' + jk.kode + '">' + _esc(jk.label) + '</option>';
   });
   var div = document.createElement('div');
   div.className = 'pem-marabahaya-row';
-  div.style.cssText = 'display:grid;grid-template-columns:2fr 1.6fr 1fr auto;gap:10px;margin-bottom:10px;align-items:end;';
+  div.style.cssText = 'display:grid;grid-template-columns:1.7fr 1.2fr 1.4fr 1.1fr auto;gap:10px;margin-bottom:10px;align-items:end;';
   div.innerHTML =
-    '<div class="form-grp" style="margin:0;"><label>Kapal</label>' +
-      '<select class="pem-mb-kapal">' + opts + '</select></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Nama Kapal</label>' +
+      '<input type="text" class="pem-mb-nama" placeholder="Contoh: KM Sumber Rejeki 01"></div>' +
+    '<div class="form-grp" style="margin:0;"><label>Jenis</label>' +
+      '<select class="pem-mb-jenis">' + jenisOpts + '</select></div>' +
     '<div class="form-grp" style="margin:0;"><label>Kondisi Darurat</label>' +
-      '<input type="text" class="pem-mb-kondisi" placeholder="Jenis kondisi darurat"></div>' +
+      '<input type="text" class="pem-mb-kondisi" placeholder="Mis. kehabisan BBM di tengah laut"></div>' +
     '<div class="form-grp" style="margin:0;"><label>Status</label>' +
       '<select class="pem-mb-status"><option value="">Pilih</option>' +
       '<option value="DALAM_PENANGANAN">Dalam Penanganan</option><option value="SELESAI">Selesai</option></select></div>' +
@@ -5423,7 +5418,7 @@ function _pemRenderHistory(data) {
     var label = PEM_LABELS[r.Jenis] || r.Jenis;
     var detail = '—';
     if (r.Jenis === 'PERSETUJUAN_PENYEDIA') detail = r.NamaPenyedia || '—';
-    else if (r.Jenis === 'MARABAHAYA') detail = (r.kapalNama || r.KapalID || '—') + (r.KondisiDarurat ? ' · ' + r.KondisiDarurat : '');
+    else if (r.Jenis === 'MARABAHAYA') detail = (r.namaKapal || r.KapalID || '—') + (r.KondisiDarurat ? ' · ' + r.KondisiDarurat : '');
 
     var bRev = (r.Status === 'ACTIVE' && canWrite) ? '<button class="btn-mini" onclick="pemOpenRevisiModal(\'' + r.RowID + '\')">Revisi</button>' : '';
     var bAn  = (r.Status === 'ACTIVE' && isPimpinan) ? '<button class="btn-mini" style="color:var(--n-status-critical);border-color:var(--n-status-critical);" onclick="pemOpenAnulirModal(\'' + r.RowID + '\')">Anulir</button>' : '';
@@ -5433,7 +5428,7 @@ function _pemRenderHistory(data) {
       ['Kategori', _esc(label)],
       ['Jumlah', _idNum(r.Jumlah)],
       ['Nama Penyedia', r.Jenis !== 'PERSETUJUAN_PENYEDIA' ? '—' : _esc(r.NamaPenyedia || '—')],
-      ['Kapal', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.kapalNama || r.KapalID || '—')],
+      ['Kapal', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.namaKapal || r.KapalID || '—')],
       ['Kondisi Darurat', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.KondisiDarurat || '—')],
       ['Status Penanganan', r.Jenis !== 'MARABAHAYA' ? '—' : _esc(r.StatusPenanganan || '—')],
       ['Keterangan', _esc(r.Keterangan || '—')],
@@ -5489,11 +5484,12 @@ function pemSubmit(e) {
 
   var mRows = document.querySelectorAll('#pem-marabahaya-rows .pem-marabahaya-row');
   for (var j = 0; j < mRows.length; j++) {
-    var kapal = mRows[j].querySelector('.pem-mb-kapal');
+    var nama  = mRows[j].querySelector('.pem-mb-nama');
+    var jenis = mRows[j].querySelector('.pem-mb-jenis');
     var kond  = mRows[j].querySelector('.pem-mb-kondisi');
     var stat  = mRows[j].querySelector('.pem-mb-status');
-    if (kapal && kapal.value) {
-      items.push({ jenis: 'MARABAHAYA', kapalId: kapal.value, kondisiDarurat: kond ? kond.value : '', statusPenanganan: stat ? stat.value : '' });
+    if (nama && nama.value.trim()) {
+      items.push({ jenis: 'MARABAHAYA', namaKapal: nama.value.trim(), jenisKapal: jenis ? jenis.value : '', kondisiDarurat: kond ? kond.value : '', statusPenanganan: stat ? stat.value : '' });
     }
   }
 
@@ -5560,6 +5556,8 @@ function pemOpenRevisiModal(rowId) {
   document.getElementById('rv-pem-jumlah-wrap').hidden = isMarabahaya;
 
   if (isMarabahaya) {
+    document.getElementById('rv-pem-nama').value = r.NamaKapal || '';
+    document.getElementById('rv-pem-jenis').value = r.JenisKapal || '';
     document.getElementById('rv-pem-kondisi').value = r.KondisiDarurat || '';
     document.getElementById('rv-pem-status').value = r.StatusPenanganan || '';
   } else {
@@ -5578,6 +5576,8 @@ function pemRevisiConfirm() {
   var params = { targetRowId: _PEM.pendingRowId, alasanRevisi: alasan };
   var r = _pemFindRow(_PEM.pendingRowId);
   if (r && r.Jenis === 'MARABAHAYA') {
+    params.namaKapal = _v('rv-pem-nama');
+    params.jenisKapal = _v('rv-pem-jenis');
     params.kondisiDarurat = _v('rv-pem-kondisi');
     params.statusPenanganan = _v('rv-pem-status');
   } else {

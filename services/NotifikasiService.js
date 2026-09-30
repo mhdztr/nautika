@@ -41,13 +41,19 @@ function notifikasi_getList(token) {
       .filter(function (r) { return String(r['UserID']) === session.userId; })
       .sort(function (a, b) { return _ntfTS(b['CreatedAt']) - _ntfTS(a['CreatedAt']); });
 
+    function _cellStr(v) {
+      if (v === null || v === undefined || v === '') return '';
+      if (v instanceof Date) return v.toISOString();
+      return String(v);
+    }
+
     var items = rows.map(function (r) {
       return {
-        notifId:   r['NotifID'],
-        jenis:     r['Jenis'],
-        pesan:     r['Pesan'],
+        notifId:   _cellStr(r['NotifID']),
+        jenis:     _cellStr(r['Jenis']),
+        pesan:     _cellStr(r['Pesan']),
         isRead:    _ntfIsRead(r['IsRead']),
-        createdAt: r['CreatedAt']
+        createdAt: _cellStr(r['CreatedAt'])
       };
     });
 

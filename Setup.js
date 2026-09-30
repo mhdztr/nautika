@@ -15,6 +15,16 @@
  * Tidak ada UI yang dibangun di fase ini — fokus database saja (Fase 1 PRD).
  */
 
+/**
+ * FUNGSI BANTUAN UNTUK MEMANCING POP-UP IZIN (AUTHORIZATION)
+ * Jalankan fungsi ini dari Google Apps Script Editor untuk mengizinkan pembuatan trigger.
+ */
+function debug_forceAuthTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  Logger.log("Jumlah trigger saat ini: " + triggers.length);
+  Logger.log("Izin trigger berhasil diberikan!");
+}
+
 // ===========================================================================
 // ENTRY POINT UTAMA
 // ===========================================================================

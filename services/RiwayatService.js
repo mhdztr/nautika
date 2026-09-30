@@ -406,7 +406,7 @@ function riwayat_getAll(token, filter) {
           voidReason: String(r['VoidReason'] || ''),
           voidedBy: String(r['VoidedBy'] || ''),
           voidedByName: L.user[String(r['VoidedBy'] || '')] || String(r['VoidedBy'] || ''),
-          voidedAt: r['VoidedAt'] || '',
+          voidedAt: (r['VoidedAt'] instanceof Date) ? r['VoidedAt'].toISOString() : String(r['VoidedAt'] || ''),
           ringkasan: mod.ringkas(r, L),
           detail: mod.detail(r, L)
         });

@@ -261,6 +261,12 @@ function admin_getAuditLog(token, params) {
       roleMap[String(u['UserID'])] = u['Role'] || '';
     });
 
+    function _cellStr(v) {
+      if (v === null || v === undefined || v === '') return '';
+      if (v instanceof Date) return v.toISOString();
+      return String(v);
+    }
+
     var rows = sheetToObjects(openLogSheet(SHEET_LOG.AUDIT_LOG))
       .sort(function (a, b) {
         return (new Date(b['Timestamp']) - new Date(a['Timestamp']));
@@ -268,15 +274,15 @@ function admin_getAuditLog(token, params) {
       .slice(0, limit)
       .map(function (r) {
         return {
-          logId:      r['LogID'],
-          aksi:       r['Aksi'],
-          sheetTarget:r['SheetTarget'],
-          rowIdTarget:r['RowIDTarget'],
-          alasan:     r['Alasan'] || '',
-          timestamp:  r['Timestamp'],
-          userId:     r['UserID'],
-          userName:   namaMap[String(r['UserID'])] || '—',
-          userRole:   roleMap[String(r['UserID'])] || ''
+          logId:      _cellStr(r['LogID']),
+          aksi:       _cellStr(r['Aksi']),
+          sheetTarget:_cellStr(r['SheetTarget']),
+          rowIdTarget:_cellStr(r['RowIDTarget']),
+          alasan:     _cellStr(r['Alasan']),
+          timestamp:  _cellStr(r['Timestamp']),
+          userId:     _cellStr(r['UserID']),
+          userName:   _cellStr(namaMap[String(r['UserID'])] || '—'),
+          userRole:   _cellStr(roleMap[String(r['UserID'])] || '')
         };
       });
 

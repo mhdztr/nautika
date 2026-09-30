@@ -5,8 +5,10 @@
  * CARA PAKAI:
  *   1. Push kode ke GAS via clasp: `clasp push`
  *   2. Di GAS editor, jalankan fungsi `setup()` SATU KALI.
- *   3. Lihat log eksekusi — akan tercetak ID ketiga spreadsheet yang dibuat.
- *   4. Spreadsheet IDs disimpan otomatis ke Script Properties.
+ *   3. Jalankan `debug_forceAuthEmail()` SATU KALI untuk mengizinkan MailApp
+ *      (scope script.send_mail) — wajib sebelum OTP/reminder bisa terkirim.
+ *   4. Lihat log eksekusi — akan tercetak ID ketiga spreadsheet yang dibuat.
+ *   5. Spreadsheet IDs disimpan otomatis ke Script Properties.
  *      Skrip-skrip lain membacanya via getSpreadsheetIds() di Constants.js.
  *
  * RESET: Jalankan setupForce() untuk hapus flag dan jalankan ulang dari nol.
@@ -24,6 +26,76 @@ function debug_forceAuthTrigger() {
   Logger.log("Jumlah trigger saat ini: " + triggers.length);
   Logger.log("Izin trigger berhasil diberikan!");
 }
+
+/**
+ * FUNGSI BANTUAN UNTUK MEMANCING POP-UP IZIN (AUTHORIZATION)
+ *
+ * Jalankan SATU KALI dari Google Apps Script Editor (dropdown → Run).
+ * Fungsi ini meminta seluruh scope yang ada di manifest appsscript.json —
+ * termasuk script.send_mail yang dipakai OTP registrasi dan reminder mingguan.
+ * Setelah diotorisasi, grant berlaku untuk seluruh project dan tidak perlu
+ * diulang per pengguna.
+ *
+ * Mengapa harus manual:
+ *   - Web app di-deploy `ANYONE_ANONYMOUS` (lihat appsscript.json), jadi
+ *     pemanggilnya anonim dan tidak punya akun Google yang bisa ditanya —
+ *     consent screen tidak akan pernah muncul dari sisi web app.
+ *   - Otorisasi hanya bisa dipancing dari IDE, yang mendukung granular consent.
+ *   - Fungsi berparameter (mis. auth_requestOtp) tidak bisa dijalankan lewat
+ *     tombol Run, sehingga fungsi noll-argument inilah satu-satunya jalurnya.
+ *
+ * SYARAT: `clasp push` sudah dijalankan lebih dulu (scope harus ada di manifest).
+ *
+ * CATATAN: `ScriptApp.requireAllScopes` akan MENGHENTIKAN eksekusi ini saat
+ * consent belum diberikan — itu normal, itu memang cara Google menampilkan
+ * halaman persetujuan. Setelah Anda menyetujuinya, Run sekali lagi: eksekusi
+ * lanjut ke pengiriman email uji sebagai bukti mail benar-benar berfungsi.
+ */
+function debug_forceAuthEmail() {
+  var to = Session.getActiveUser().getEmail();
+  if (!to) to = Session.getEffectiveUser().getEmail();
+  Logger.log('[debug_forceAuthEmail] Akun pengirim: ' + to);
+
+  try {
+    if (typeof ScriptApp.requireAllScopes === 'function') {
+      // Berhenti di sini + tampilkan halaman izin bila ada scope yang belum
+      // diotorisasi. Bila semua sudah di-grant, baris ini langsung lolos.
+      ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
+      Logger.log('[debug_forceAuthEmail] Semua scope manifest sudah diotorisasi.');
+    } else {
+      Logger.log('[debug_forceAuthEmail] requireAllScopes tidak tersedia di runtime ini — mengandalkan MailApp.');
+    }
+  } catch (e) {
+    Logger.log('[debug_forceAuthEmail] requireAllScopes gagal: ' + e.message);
+    return;
+  }
+
+  try {
+    MailApp.sendEmail({
+      to: to,
+      subject: 'Nautika — uji otorisasi email',
+      body: 'Email ini bukti bahwa script.send_mail sudah diotorisasi.\n' +
+        'Waktu: ' + new Date().toISOString()
+    });
+    Logger.log('[debug_forceAuthEmail] Otorisasi OK — email uji terkirim ke ' + to);
+  } catch (e) {
+    Logger.log('[debug_forceAuthEmail] Gagal: ' + e.message);
+  }
+}
+
+function debug_forceAuthSemua() {
+  // 1. Memancing pop-up izin Trigger
+  var triggers = ScriptApp.getProjectTriggers();
+
+  // 2. Memancing pop-up izin Email (send_mail)
+  // Kita cukup memanggil getRemainingDailyQuota() agar tidak perlu mengirim email sungguhan
+  var sisaQuota = MailApp.getRemainingDailyQuota();
+
+  Logger.log("Jumlah trigger: " + triggers.length);
+  Logger.log("Sisa kuota email harian: " + sisaQuota);
+  Logger.log("SEMUA IZIN BERHASIL DIBERIKAN!");
+}
+
 
 // ===========================================================================
 // ENTRY POINT UTAMA
@@ -49,9 +121,9 @@ function setup() {
 
   Logger.log('=== NAUTIKA SETUP MULAI ===');
 
-  var masterSS    = _setupMaster(props);
+  var masterSS = _setupMaster(props);
   var transaksiSS = _setupTransaksi(props);
-  var logSS       = _setupLog(props);
+  var logSS = _setupLog(props);
 
   _seedDivisi(masterSS);
   _seedSuperadmin(masterSS);
@@ -112,7 +184,7 @@ function _setupMaster(props) {
   ]);
 
   _createSheetWithHeaders(ss, SHEET_MASTER.USERS, [
-    'UserID', 'Nama', 'Email', 'PasswordHash',
+    'UserID', 'Nama', 'Email', 'NIP', 'PasswordHash',
     'DivisiID', 'Role', 'Status',
     'ApprovedBy', 'RegisteredAt', 'ApprovedAt'
   ]);
@@ -387,10 +459,10 @@ function _seedSuperadmin(masterSS) {
   Logger.log('[Setup] Seeding akun Superadmin...');
   var sheet = masterSS.getSheetByName(SHEET_MASTER.USERS);
 
-  var now          = new Date();
-  var props        = PropertiesService.getScriptProperties();
+  var now = new Date();
+  var props = PropertiesService.getScriptProperties();
   var seedPassword = props.getProperty(PROP_KEY.SEED_SUPERADMIN_PASSWORD);
-  var generated    = false;
+  var generated = false;
 
   if (!seedPassword) {
     seedPassword = _generateSeedPassword();
@@ -398,8 +470,8 @@ function _seedSuperadmin(masterSS) {
     generated = true;
   }
 
-  var passwordHash  = hashPassword(seedPassword);
-  var userId        = 'USER-SUPERADMIN-001';
+  var passwordHash = hashPassword(seedPassword);
+  var userId = 'USER-SUPERADMIN-001';
 
   // [UserID, Nama, Email, PasswordHash, DivisiID, Role, Status,
   //  ApprovedBy, RegisteredAt, ApprovedAt]
@@ -449,58 +521,58 @@ function _seedSuperadmin(masterSS) {
 // ===========================================================================
 var OPSI_SEED = {
   AMUNISI: [
-    { label: 'PISTOL_P3A',        tampil: 'PISTOL_P3A' },
-    { label: 'PM1_A2',            tampil: 'PM1_A2' },
-    { label: 'SS1V5_SS2',         tampil: 'SS1V5_SS2' },
-    { label: 'SM5',               tampil: 'SM5' },
-    { label: 'SS1V5_SS2_HAMPA',   tampil: 'SS1V5_SS2_HAMPA' }
+    { label: 'PISTOL_P3A', tampil: 'PISTOL_P3A' },
+    { label: 'PM1_A2', tampil: 'PM1_A2' },
+    { label: 'SS1V5_SS2', tampil: 'SS1V5_SS2' },
+    { label: 'SM5', tampil: 'SM5' },
+    { label: 'SS1V5_SS2_HAMPA', tampil: 'SS1V5_SS2_HAMPA' }
   ],
   BBM: [
     { label: 'REGULER', tampil: 'Reguler' },
-    { label: 'ABT',     tampil: 'ABT' }
+    { label: 'ABT', tampil: 'ABT' }
   ],
   KOM_PERSONIL: [
-    { label: 'NATURA',       tampil: 'Natura' },
-    { label: 'BPDT',         tampil: 'BPDT' },
-    { label: 'AIR_BERSIH',   tampil: 'Air Bersih' },
-    { label: 'DELEGASI',     tampil: 'Delegasi' },
-    { label: 'JAGA_SANDAR',  tampil: 'Jaga Sandar' }
+    { label: 'NATURA', tampil: 'Natura' },
+    { label: 'BPDT', tampil: 'BPDT' },
+    { label: 'AIR_BERSIH', tampil: 'Air Bersih' },
+    { label: 'DELEGASI', tampil: 'Delegasi' },
+    { label: 'JAGA_SANDAR', tampil: 'Jaga Sandar' }
   ],
   AWAK_KATEGORI: [
-    { label: 'PNS',                 tampil: 'PNS' },
-    { label: 'PPPK_FUNGSIONAL',     tampil: 'PPPK Fungsional' },
-    { label: 'PPPK_PELAKSANA',      tampil: 'PPPK Pelaksana' },
-    { label: 'PPPK_PARUH_WAKTU',    tampil: 'PPPK Paruh Waktu' },
-    { label: 'PJLP',                tampil: 'PJLP' }
+    { label: 'PNS', tampil: 'PNS' },
+    { label: 'PPPK_FUNGSIONAL', tampil: 'PPPK Fungsional' },
+    { label: 'PPPK_PELAKSANA', tampil: 'PPPK Pelaksana' },
+    { label: 'PPPK_PARUH_WAKTU', tampil: 'PPPK Paruh Waktu' },
+    { label: 'PJLP', tampil: 'PJLP' }
   ],
   AWAK_SCOPE: [
     { label: 'KESELURUHAN', tampil: 'Keseluruhan' },
-    { label: 'POA',         tampil: 'POA' }
+    { label: 'POA', tampil: 'POA' }
   ],
   RAWAT_LOKASI: [
     { label: 'PUSAT', tampil: 'Pusat' },
-    { label: 'UPT',   tampil: 'UPT' }
+    { label: 'UPT', tampil: 'UPT' }
   ],
   RAWAT_TAHAP: [
-    { label: 'PROSES_PENGADAAN',    tampil: 'Proses Pengadaan' },
+    { label: 'PROSES_PENGADAAN', tampil: 'Proses Pengadaan' },
     { label: 'TANDATANGAN_KONTRAK', tampil: 'Tanda Tangan Kontrak' },
-    { label: 'PROSES_DOCKING',      tampil: 'Proses Docking' },
-    { label: 'SELESAI',             tampil: 'Selesai' }
+    { label: 'PROSES_DOCKING', tampil: 'Proses Docking' },
+    { label: 'SELESAI', tampil: 'Selesai' }
   ],
   RAWAT_KATEGORI: [
-    { label: 'PERENCANAAN',      tampil: 'Perencanaan' },
+    { label: 'PERENCANAAN', tampil: 'Perencanaan' },
     { label: 'PROSES_PEMBAYARAN', tampil: 'Proses Pembayaran' },
-    { label: 'SELESAI',           tampil: 'Selesai' }
+    { label: 'SELESAI', tampil: 'Selesai' }
   ],
   OPS_RIKSA_KATEGORI: [
-    { label: 'PUSAT',     tampil: 'Pusat' },
-    { label: 'UPT',       tampil: 'UPT' },
+    { label: 'PUSAT', tampil: 'Pusat' },
+    { label: 'UPT', tampil: 'UPT' },
     { label: 'SPEEDBOAT', tampil: 'Speedboat' }
   ],
   OPS_HARI_KATEGORI: [
-    { label: 'KAPAL_PUSAT',  tampil: 'Kapal Pusat' },
-    { label: 'SEMUA_KAPAL',  tampil: 'Semua Kapal' },
-    { label: 'SPEEDBOAT',    tampil: 'Speedboat' }
+    { label: 'KAPAL_PUSAT', tampil: 'Kapal Pusat' },
+    { label: 'SEMUA_KAPAL', tampil: 'Semua Kapal' },
+    { label: 'SPEEDBOAT', tampil: 'Speedboat' }
   ]
 };
 
@@ -628,8 +700,8 @@ function setupSetCartoKey(key) {
  */
 function _generateSeedPassword() {
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  var rand  = Utilities.getUuid().replace(/-/g, '');
-  var out   = '';
+  var rand = Utilities.getUuid().replace(/-/g, '');
+  var out = '';
   for (var i = 0; i < 12; i++) {
     var idx = parseInt(rand.charAt(i % rand.length), 16) % chars.length;
     out += chars.charAt(idx);
@@ -686,9 +758,9 @@ function verifySetup() {
 
   Logger.log('=== VERIFIKASI DATABASE NAUTIKA ===');
 
-  var masterSS    = SpreadsheetApp.openById(ids.masterId);
+  var masterSS = SpreadsheetApp.openById(ids.masterId);
   var transaksiSS = SpreadsheetApp.openById(ids.transaksiId);
-  var logSS       = SpreadsheetApp.openById(ids.logId);
+  var logSS = SpreadsheetApp.openById(ids.logId);
 
   Logger.log('');
   Logger.log('--- Nautika_Master (' + ids.masterId + ') ---');
@@ -721,7 +793,7 @@ function verifySetup() {
  */
 function _printSheetSummary(ss) {
   var sheets = ss.getSheets();
-  sheets.forEach(function(sheet) {
+  sheets.forEach(function (sheet) {
     var lastCol = sheet.getLastColumn();
     var headers = lastCol > 0
       ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].join(', ')

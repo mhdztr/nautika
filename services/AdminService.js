@@ -56,6 +56,7 @@ function admin_getUsers(token) {
         userId:      _cellStr(u['UserID']),
         nama:        _cellStr(u['Nama']),
         email:       _cellStr(u['Email']),
+        nip:         _cellStr(u['NIP']),
         role:        _cellStr(u['Role']),
         divisiId:    _cellStr(u['DivisiID']),
         namaDivisi:  u['DivisiID'] ? (namaDivisi[_cellStr(u['DivisiID'])] || _cellStr(u['DivisiID'])) : '\u2014',

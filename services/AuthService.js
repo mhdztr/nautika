@@ -4,12 +4,18 @@
  *
  * Fungsi publik (dipanggil via google.script.run dari frontend):
  *   auth_getDivisiList()
- *   auth_register(params)
+ *   auth_requestOtp(params)   -> tahap 1: validasi penuh + kirim kode OTP
+ *   auth_verifyOtp(params)    -> tahap 2: kode benar -> pendingToken sekali pakai
+ *   auth_register(params)     -> tahap 3: WAJIB pendingToken, baru tulis akun
  *   auth_login(params)
  *   auth_logout(token)
  *   auth_getSessionInfo(token)
  *   auth_getPendingApprovals(token)
  *   auth_decideApproval(params)
+ *
+ * Registrasi sengaja dipecah tiga tahap: tidak ada baris `Users` maupun
+ * `Approval_Queue` yang tercipta sebelum kepemilikan email terbukti. Rincian
+ * di `PRD.md` §3.1 dan `ARCHITECTURE.md` §11.
  *
  * Semua fungsi publik mengembalikan {success: true, data: ...} atau {success: false, error: "..."}.
  *
@@ -59,37 +65,35 @@ function auth_getDivisiList() {
 }
 
 /**
- * Registrasi akun baru.
+ * Registrasi akun baru. HANYA dipanggil setelah OTP terverifikasi lewat
+ * auth_verifyOtp — token OTP (pendingToken) wajib menyertai params dan masih
+ * valid, jadi tidak bisa melewati tahap verifikasi email.
  *
  * @param {Object} params
  * @param {string} params.nama
  * @param {string} params.email
+ * @param {string} params.nip
  * @param {string} params.password     - plaintext, di-hash server-side
  * @param {string} params.divisiId     - ref(Divisi)
  * @param {string} params.roleDilamar  - enum('KADIV', 'STAF')
+ * @param {string} params.pendingToken - token dari auth_verifyOtp
  */
 function auth_register(params) {
   try {
     return withLock(function () {
-      var nama       = (params.nama  || '').trim();
-      var email      = (params.email || '').trim().toLowerCase();
-      var password   = params.password   || '';
-      var divisiId   = params.divisiId   || '';
-      var roleDilamar = params.roleDilamar || '';
+      var email = (params && params.email || '').trim().toLowerCase();
+      var pendingToken = (params && params.pendingToken) || '';
 
-      // Validasi field wajib
-      if (!nama || !email || !password || !divisiId || !roleDilamar) {
-        return { success: false, error: 'Semua field wajib diisi.' };
-      }
-      if ([ROLE.KADIV, ROLE.STAF].indexOf(roleDilamar) === -1) {
-        return { success: false, error: 'Role tidak valid. Pilih Kepala Divisi/Ketua Tim Kerja atau Staf.' };
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return { success: false, error: 'Format email tidak valid.' };
-      }
-      if (password.length < 8) {
-        return { success: false, error: 'Password minimal 8 karakter.' };
-      }
+      // Gerbang verifikasi: tanpa OTP valid, tidak boleh ada akun tercipta.
+      var gate = _otpConsumePending(pendingToken, email);
+      if (!gate.ok) return { success: false, error: gate.error };
+
+      var v = _otpValidasiPendaftaran(params);
+      if (v.error) return { success: false, error: v.error };
+      var nama = v.nama, nip = v.nip, password = v.password;
+      var divisiId = v.divisiId, roleDilamar = v.roleDilamar;
+
+      ensureUsersNipColumn();
 
       // Cek email unik (PENDING atau APPROVED tidak bisa daftar ulang — REJECTED bisa)
       var usersSheet = openMasterSheet(SHEET_MASTER.USERS);
@@ -108,6 +112,20 @@ function auth_register(params) {
         // REJECTED: izinkan mendaftar ulang → lanjut
       }
 
+      // Cek NIP unik. NIP adalah identitas pegawai terpisah dari email, jadi
+      // dua akun tidak boleh memakai NIP yang sama walau email berbeda.
+      // Pengecualian: NIP milik akun REJECTED dengan email yang sama — itu orang
+      // yang sama yang sedang mencoba mendaftar ulang, sesuai aturan PRD.
+      var existingNip = findRowByField(usersSheet, 'NIP', nip);
+      if (existingNip) {
+        var nipOwnerEmail = String(existingNip.obj['Email'] || '').trim().toLowerCase();
+        var nipOwnerStatus = existingNip.obj['Status'];
+        var sameRejected = (nipOwnerEmail === email && nipOwnerStatus === USER_STATUS.REJECTED);
+        if (!sameRejected) {
+          return { success: false, error: 'NIP ini sudah terdaftar pada akun lain. Gunakan NIP Anda sendiri.' };
+        }
+      }
+
       // Validasi divisiId ada di master
       var divisiSheet = openMasterSheet(SHEET_MASTER.DIVISI);
       var divisiRow = findRowByField(divisiSheet, 'DivisiID', divisiId);
@@ -123,6 +141,7 @@ function auth_register(params) {
         'UserID':       userId,
         'Nama':         nama,
         'Email':        email,
+        'NIP':          nip,
         'PasswordHash': hashPassword(password),
         'DivisiID':     divisiId,
         'Role':         roleDilamar,
@@ -160,6 +179,9 @@ function auth_register(params) {
           ' (' + divisiRow.obj['NamaDashboard'] + ' — ' + roleDilamar + ').');
       });
 
+      // Token OTP sudah dipakai → jangan bisa dipakai ulang untuk daftar kedua.
+      _otpDropPending(gate.token);
+
       return {
         success: true,
         data: {
@@ -172,6 +194,275 @@ function auth_register(params) {
     Logger.log('[auth_register] ' + e.message);
     return { success: false, error: 'Terjadi kesalahan saat registrasi: ' + e.message };
   }
+}
+
+// ===========================================================================
+// VERIFIKASI OTP (EMAIL WAJIB)
+// ===========================================================================
+//
+// Alur: auth_requestOtp (kirim kode) → auth_verifyOtp (cek kode, terima
+// pendingToken) → auth_register (butuh pendingToken).
+//
+// Keputusan desain: OTP diverifikasi SEBELUM akun dibuat, jadi tidak ada baris
+// PENDING maupun entri Approval_Queue untuk email yang belum dibuktikan benar.
+// Konsekuensinya, pendaftaran yang gagal di tahap OTP tidak meninggalkan jejak
+// di sheet — hanya di Logger. Ini disengaja: sheet Users tidak boleh jadi
+// tempat menampung akun yang belum terverifikasi.
+//
+// Kode OTP & pendingToken disimpan di CacheService dengan TTL, bukan sheet
+// baru: inherently sementara, tidak perlu persist, dan tidak menambah skema.
+
+var _OTP_PREFIX        = 'otp_';
+var _OTP_PENDING_PREFIX = 'otppend_';
+var _OTP_SEND_PREFIX    = 'otpsent_';
+
+var _OTP_TTL_SEC        = 600;  // 10 menit untuk mengetik kode
+var _OTP_PENDING_TTL_SEC = 900; // 15 menit untuk menyelesaikan registrasi
+var _OTP_RESEND_TTL_SEC = 60;   // jeda minimal antar permintaan kode
+var _OTP_MAX_ATTEMPTS   = 5;    // batas tebakan kode sebelum dihapus
+
+/**
+ * Validasi format NIP. Digit dengan tanda hubung/spasi diperbolehkan, dan
+ * panjang tidak dikunci ke satu angka tertentu supaya NIP legacy 9/10 digit
+ * yang sah tetap diterima.
+ *
+ * @param {string} nip
+ * @return {string} pesan error, atau '' bila valid
+ */
+function _otpValidateNip(nip) {
+  var v = String(nip || '').trim();
+  if (!v) return 'NIP wajib diisi.';
+  if (!/^[0-9][0-9\s.\-]{7,25}$/.test(v)) {
+    return 'NIP tidak valid. Isi dengan angka (tanda hubung/spasi diperbolehkan).';
+  }
+  return '';
+}
+
+/**
+ * Normalisasi NIP untuk disimpan & dibandingkan: hanya digit. Jadi
+ * "1234 5678 9012 3456 78" dan "123456789012345678" dianggap NIP sama.
+ */
+function _otpNormalizeNip(nip) {
+  return String(nip || '').replace(/[^0-9]/g, '');
+}
+
+/**
+ * Validasi SELURUH field formulir registrasi. Dipakai dua tempat:
+ * auth_requestOtp (sebelum kode dikirim, supaya user tidak menunggu email
+ * hanya untuk ditolak) dan auth_register (jaring pengaman kedua).
+ * Satu sumber aturan = pesan error konsisten dan tidak bisa berbeda antar tahap.
+ *
+ * @param {Object} params
+ * @return {{error: string}|{error: '', nama, email, nip, password, divisiId, roleDilamar}}
+ */
+function _otpValidasiPendaftaran(params) {
+  var nama        = (params && params.nama  || '').trim();
+  var email       = (params && params.email || '').trim().toLowerCase();
+  var nipRaw      = (params && params.nip   || '').trim();
+  var password    = (params && params.password) || '';
+  var divisiId    = (params && params.divisiId) || '';
+  var roleDilamar = (params && params.roleDilamar) || '';
+
+  if (!nama || !email || !nipRaw || !password || !divisiId || !roleDilamar) {
+    return { error: 'Semua field wajib diisi.' };
+  }
+  if ([ROLE.KADIV, ROLE.STAF].indexOf(roleDilamar) === -1) {
+    return { error: 'Role tidak valid. Pilih Kepala Divisi/Ketua Tim Kerja atau Staf.' };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Format email tidak valid.' };
+  }
+  var nipErr = _otpValidateNip(nipRaw);
+  if (nipErr) return { error: nipErr };
+
+  // Simpan & bandingkan dalam bentuk digit saja, supaya "1985 1212 ..." dan
+  // "19851212..." tidak lolos sebagai dua NIP berbeda.
+  var nip = _otpNormalizeNip(nipRaw);
+  if (nip.length < 8) {
+    return { error: 'NIP tidak valid. Isi dengan angka (tanda hubung/spasi diperbolehkan).' };
+  }
+  if (password.length < 8) {
+    return { error: 'Password minimal 8 karakter.' };
+  }
+
+  return {
+    error: '', nama: nama, email: email, nip: nip,
+    password: password, divisiId: divisiId, roleDilamar: roleDilamar
+  };
+}
+
+/**
+ * Generate kode OTP 6 digit (cryptographically-ish: pakai UUID sebagai sumber
+ * lalu modulo, bukan Math.random). Menghindari kode yang mudah ditebak.
+ */
+function _otpGenerateCode() {
+  // Ambil digit heksadesimal dari UUID (UUID GAS berisi '-' yang dibuang),
+  // lalu pakai 48 bit terakhir agar tetap 6 digit tanpa bias_modulo berarti.
+  var hex = (Utilities.getUuid() || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+  while (hex.length < 12) hex += '0';
+  var n = parseInt(hex.substring(0, 12), 16);
+  if (isNaN(n)) n = 0;
+  var code = String(n % 1000000);
+  while (code.length < 6) code = '0' + code;
+  return code;
+}
+
+/**
+ * Tahap 1 — kirim kode OTP ke email. Tidak membuat akun apa pun, tidak
+ * menyentuh sheet. Rate-limited per email agar tidak bisa dipakai membanjiri
+ * inbox. Semua field formulir divalidasi lebih dulu: tidak ada gunanya
+ * mengirim kode ke email orang yang datanya memang akan ditolak.
+ *
+ * @param {Object} params
+ * @param {string} params.email
+ * @param {string} params.nama
+ * @param {string} params.nip
+ * @param {string} params.password
+ * @param {string} params.divisiId
+ * @param {string} params.roleDilamar
+ */
+function auth_requestOtp(params) {
+  try {
+    var v = _otpValidasiPendaftaran(params);
+    if (v.error) return { success: false, error: v.error };
+
+    var email = v.email;
+    var nama  = v.nama;
+
+    var sendKey = _OTP_SEND_PREFIX + email;
+    var lastSent = Number(CacheService.getScriptCache().get(sendKey) || 0);
+    var waitSec = Math.ceil((_OTP_RESEND_TTL_SEC - (Date.now() - lastSent)) / 1000);
+    if (lastSent && waitSec > 0) {
+      return { success: false, error: 'Tunggu ' + waitSec + ' detik sebelum meminta kode lagi.' };
+    }
+
+    var code = _otpGenerateCode();
+    var payload = { code: code, email: email, attempts: 0 };
+
+    CacheService.getScriptCache().put(_OTP_PREFIX + email, JSON.stringify(payload), _OTP_TTL_SEC);
+    CacheService.getScriptCache().put(sendKey, String(Date.now()), _OTP_RESEND_TTL_SEC + _OTP_TTL_SEC);
+
+    var res = _ntfKirimEmail(email, 'Kode Verifikasi Registrasi Nautika',
+      'Halo ' + (nama || 'Calon Pengguna') + ',\n\n' +
+      'Kode verifikasi untuk pendaftaran akun Nautika:\n\n' +
+      '    ' + code + '\n\n' +
+      'Kode berlaku ' + Math.round(_OTP_TTL_SEC / 60) + ' menit dan hanya dapat dipakai sekali.\n' +
+      'Jika Anda tidak meminta kode ini, abaikan email ini.\n\n' +
+      '— Sistem Nautika, Direktorat Pengendalian Operasi Armada');
+
+    if (!res.ok) {
+      // Jangan simpan kode kalau email gagal terkirim — user tidak akan pernah
+      // menerima kodenya, dan sisa TTL hanya membingungkan.
+      CacheService.getScriptCache().remove(_OTP_PREFIX + email);
+      CacheService.getScriptCache().remove(sendKey);
+      Logger.log('[auth_requestOtp] Gagal kirim OTP ke ' + email + ': ' + res.reason);
+      return { success: false, error: 'Gagal mengirim email verifikasi. ' + res.reason };
+    }
+
+    return {
+      success: true,
+      data: { email: email, expiresInSec: _OTP_TTL_SEC, resendAfterSec: _OTP_RESEND_TTL_SEC }
+    };
+  } catch (e) {
+    Logger.log('[auth_requestOtp] ' + e.message);
+    return { success: false, error: 'Gagal mengirim email verifikasi: ' + e.message };
+  }
+}
+
+/**
+ * Tahap 2 — cek kode OTP. Bila benar, terbitkan `pendingToken` yang
+ * auth_register mewajibkan sebagai bukti verifikasi.
+ *
+ * @param {Object} params
+ * @param {string} params.email
+ * @param {string} params.code
+ */
+function auth_verifyOtp(params) {
+  try {
+    var email = (params && params.email || '').trim().toLowerCase();
+    var code  = String(params && params.code || '').trim();
+
+    if (!email || !code) {
+      return { success: false, error: 'Email dan kode verifikasi wajib diisi.' };
+    }
+
+    var cache = CacheService.getScriptCache();
+    var key = _OTP_PREFIX + email;
+    var raw = cache.get(key);
+    if (!raw) {
+      return { success: false, error: 'Kode verifikasi sudah kedaluwarsa atau belum diminta. Silakan minta kode baru.' };
+    }
+
+    var rec = JSON.parse(raw);
+    if (String(rec.code) !== code) {
+      rec.attempts = (rec.attempts || 0) + 1;
+      if (rec.attempts >= _OTP_MAX_ATTEMPTS) {
+        cache.remove(key);
+        cache.remove(_OTP_SEND_PREFIX + email);
+        Logger.log('[auth_verifyOtp] ' + email + ' kehabisan percobaan (' +
+          _OTP_MAX_ATTEMPTS + '). Kode dihapus.');
+        return { success: false, error: 'Terlalu banyak percobaan salah. Silakan minta kode baru.' };
+      }
+      cache.put(key, JSON.stringify(rec), _OTP_TTL_SEC);
+      return {
+        success: false,
+        error: 'Kode verifikasi salah. Sisa percobaan: ' + (_OTP_MAX_ATTEMPTS - rec.attempts) + '.',
+        attemptsLeft: _OTP_MAX_ATTEMPTS - rec.attempts
+      };
+    }
+
+    // Kode benar → tukar menjadi pendingToken sekali pakai.
+    var pendingToken = 'PND-' + Utilities.getUuid().replace(/-/g, '');
+    cache.put(_OTP_PENDING_PREFIX + pendingToken,
+      JSON.stringify({ email: email, verifiedAt: Date.now() }), _OTP_PENDING_TTL_SEC);
+    cache.remove(key);
+
+    return {
+      success: true,
+      data: { pendingToken: pendingToken, email: email, expiresInSec: _OTP_PENDING_TTL_SEC }
+    };
+  } catch (e) {
+    Logger.log('[auth_verifyOtp] ' + e.message);
+    return { success: false, error: 'Gagal memverifikasi kode: ' + e.message };
+  }
+}
+
+/**
+ * Cek & ambil pendingToken milik auth_verifyOtp. Dipanggil auth_register.
+ * Token TIDAK dihapus di sini (auth_register baru memakainya di akhir, agar
+ * registrasi yang gagal di tengah tidak memaksa user mengulang OTP);
+ * penghapusan dilakukan terpisah lewat _otpDropPending.
+ *
+ * `params.email` diverifikasi agar token milik satu email tidak bisa dipakai
+ * untuk mendaftar email lain.
+ *
+ * @param {string} pendingToken
+ * @param {string} email - email yang sedang didaftarkan
+ * @return {{ok: boolean, error?: string, token?: string}}
+ */
+function _otpConsumePending(pendingToken, email) {
+  if (!pendingToken) {
+    return { ok: false, error: 'Verifikasi email belum dilakukan. Silakan masukkan kode OTP terlebih dahulu.' };
+  }
+  var raw = CacheService.getScriptCache().get(_OTP_PENDING_PREFIX + pendingToken);
+  if (!raw) {
+    return { ok: false, error: 'Sesi verifikasi email sudah kedaluwarsa. Silakan minta kode OTP baru.' };
+  }
+  var rec;
+  try {
+    rec = JSON.parse(raw);
+  } catch (e) {
+    CacheService.getScriptCache().remove(_OTP_PENDING_PREFIX + pendingToken);
+    return { ok: false, error: 'Sesi verifikasi email rusak. Silakan minta kode OTP baru.' };
+  }
+  if (String(rec.email || '').toLowerCase() !== String(email || '').toLowerCase()) {
+    return { ok: false, error: 'Kode OTP tidak cocok dengan email yang sedang didaftarkan. Verifikasi ulang email tersebut.' };
+  }
+  return { ok: true, token: pendingToken };
+}
+
+function _otpDropPending(pendingToken) {
+  if (pendingToken) CacheService.getScriptCache().remove(_OTP_PENDING_PREFIX + pendingToken);
 }
 
 /**

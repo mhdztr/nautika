@@ -118,6 +118,38 @@ function ensureTxColumn(sheetName, colName) {
 }
 
 /**
+ * Pastikan kolom ada pada sheet master (self-heal), setara ensureTxColumn
+ * tapi untuk sheet di Nautika_Master. Dipakai untuk kolom `Users.NIP` yang
+ * ditambahkan setelah DB terlanjur dibuat.
+ *
+ * @param {string} sheetName  - nama sheet master
+ * @param {string} colName    - nama kolom yang dipastikan ada
+ */
+function ensureMasterColumn(sheetName, colName) {
+  var sheet = openMasterSheet(sheetName);
+  if (!sheet) return;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf(colName) !== -1) return;
+  var newCol = lastCol + 1;
+  var cell = sheet.getRange(1, newCol);
+  cell.setValue(colName);
+  cell.setFontWeight('bold');
+  cell.setBackground('#E8EAF6');
+  Logger.log('[ensureMasterColumn] Kolom ' + colName + ' ditambahkan ke ' +
+    sheetName + ' (kolom ' + newCol + ').');
+}
+
+/**
+ * Pastikan kolom NIP ada di sheet Users. Self-heal supaya akun yang dibuat
+ * sebelum kolom ini ada tetap terbaca (NIP kosong, bukan error).
+ */
+function ensureUsersNipColumn() {
+  ensureMasterColumn(SHEET_MASTER.USERS, 'NIP');
+}
+
+/**
  * Pastikan kolom KapalID ada di keempat sheet transaksi yang dihubungkan ke
  * Profil Kapal (Fase 12): OperasiLaut, OperasiUdara, Logistik_Amunisi,
  * Logistik_BBM. Dipanggil di titik tulis service terkait supaya DB lama

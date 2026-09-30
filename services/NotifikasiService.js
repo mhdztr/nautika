@@ -294,6 +294,7 @@ function _kirimReminderMingguan() {
 
     var sentEmails = 0;
     var notified = 0;
+    var emailErrors = [];
     var divisions = belum.map(function (dv) {
       var label = namaDivisi[String(dv.divisiId)] || dv.label;
       var targets = users.filter(function (u) {
@@ -308,11 +309,14 @@ function _kirimReminderMingguan() {
       targets.forEach(function (u) {
         _notify(u['UserID'], 'REMINDER_MINGGUAN', pesan);
         notified++;
-        try {
-          MailApp.sendEmail(u['Email'], 'Pengingat Laporan Mingguan — ' + periode, pesan);
+        var res = _ntfKirimEmail(u['Email'], 'Pengingat Laporan Mingguan — ' + periode, pesan);
+        if (res.ok) {
           sentEmails++;
-        } catch (e) {
-          Logger.log('[reminder] Gagal kirim email ke ' + u['Email'] + ': ' + e.message);
+        } else {
+          // Jangan ditelan diam-diam: user harus tahu email tidak terkirim
+          // (mis. scope script.send_mail belum diotorisasi / kuota habis).
+          emailErrors.push({ email: u['Email'], reason: res.reason });
+          Logger.log('[reminder] Gagal kirim email ke ' + u['Email'] + ': ' + res.reason);
         }
       });
 
@@ -323,9 +327,41 @@ function _kirimReminderMingguan() {
       periode: periode,
       sentEmails: sentEmails,
       notified: notified,
+      emailErrors: emailErrors,
       divisions: divisions
     };
   });
+}
+
+/**
+ * Kirim email lewat MailApp dengan pelaporan error yang bisa ditindaklanjuti.
+ * MailApp butuh scope `script.send_mail`; tanpa itu SELURUH pemanggilan gagal
+ * dengan AuthorizationError. Kode lama menangkap error ke Logger.log saja,
+ * sehingga UI menampilkan "Email terkirim: 0" seolah-olah normal.
+ *
+ * @param {string} to
+ * @param {string} subject
+ * @param {string} body
+ * @return {{ok: boolean, reason: string}}
+ */
+function _ntfKirimEmail(to, subject, body) {
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(to))) {
+    return { ok: false, reason: 'Alamat email kosong atau tidak valid.' };
+  }
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: body });
+    return { ok: true, reason: '' };
+  } catch (e) {
+    var msg = String(e && e.message ? e.message : e);
+    if (/not authorized|AuthorizationError|authorization/i.test(msg)) {
+      msg = 'Scope script.send_mail belum diotorisasi. Deploy ulang lalu buka ulang ' +
+        'aplikasi dan setujui permintaan izin agar email bisa dikirim.';
+    } else if (/quota|limit exceeded|too many/i.test(msg)) {
+      msg = 'Kuota email harian MailApp habis (batas 100/hari untuk akun Consumer ' +
+        'dan 1.500/hari untuk Workspace).';
+    }
+    return { ok: false, reason: msg };
+  }
 }
 
 // ===========================================================================

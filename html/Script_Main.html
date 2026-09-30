@@ -32,6 +32,10 @@ var APP = {
   }
 };
 
+// State pendaftaran 2 tahap (verifikasi OTP). pendingTokenissued server
+// setelah kode OTP benar; auth_register mewajibkannya sebagai bukti.
+var REG = { otpEmail: null, pendingToken: null };
+
 // ── BUSY GLOBAL — indikator loading di samping filter periode ──
 // Setiap google.script.run otomatis memunculkan spinner selama call in-flight,
 // apa pun sheet/server function-nya. Strategi (stabil, tanpa bergantung this):
@@ -286,28 +290,177 @@ function handleLogin(e) {
     });
 }
 
+// Tahap 1: kirim kode OTP ke email. Akun BELUM dibuat di tahap ini.
 function handleRegister(e) {
   e.preventDefault();
+  // Email sudah terbukti pada percobaan sebelumnya dan pendingToken-nya masih
+  // hidup (server tidak mencabut token saat registrasi ditolak) — lewati tahap
+  // OTP dan kirim ulang pendaftaran dengan token tersebut.
+  var email = String(document.getElementById('reg-email').value || '').trim().toLowerCase();
+  if (REG.pendingToken && REG.otpEmail === email) {
+    _regSubmitRegister();
+    return;
+  }
   var btn = document.getElementById('btn-register');
   _setLoading(btn, true);
   _msg('register-msg', null);
   google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      if (!res || !res.success) { _msg('register-msg', 'error', (res && res.error) || 'Terjadi kesalahan. Coba lagi.'); return; }
-      _msg('register-msg', 'success', 'Pendaftaran berhasil. Akun menunggu persetujuan administrator.');
+      if (!res || !res.success) {
+        _msg('register-msg', 'error', (res && res.error) || 'Terjadi kesalahan. Coba lagi.');
+        return;
+      }
+      _regShowOtpStep(res.data.email);
+      _msg('register-msg', 'success',
+        'Kode verifikasi dikirim ke ' + res.data.email + '. Periksa kotak masuk (dan spam).');
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .auth_requestOtp(_regPayload(document.getElementById('reg-email').value));
+}
+
+// Kumpulkan seluruh field registrasi. Server memvalidasi SEMUA field sebelum
+// mengirim kode OTP — jadi kalau ada yang tidak valid, user tidak perlu
+// menunggu email hanya untuk ditolak di akhir.
+function _regPayload(email) {
+  return {
+    nama:        document.getElementById('reg-nama').value,
+    email:       email,
+    nip:         document.getElementById('reg-nip').value,
+    password:    document.getElementById('reg-password').value,
+    divisiId:    document.getElementById('reg-divisi').value,
+    roleDilamar: document.getElementById('reg-role').value
+  };
+}
+
+function _regShowOtpStep(email) {
+  var step = document.getElementById('reg-otp-step');
+  var form = document.getElementById('form-register');
+  var hint = document.getElementById('reg-otp-hint');
+  if (step) step.classList.remove('n-hidden');
+  if (form) form.classList.add('n-hidden');
+  if (hint) hint.textContent = 'Kode dikirim ke ' + email;
+  var code = document.getElementById('reg-otp');
+  if (code) { code.value = ''; code.focus(); }
+  REG.otpEmail = email;
+  REG.pendingToken = null;
+}
+
+// Kembali ke tahap 1.
+//
+// keepVerified = true dipakai setelah auth_register ditolak di tahap akhir
+// (mis. NIP sudah dipakai). Server TIDAK membatalkan pendingToken saat
+// registrasi gagal, jadi user cukup memperbaiki fieldnya lalu menekan
+// "Verifikasi" lagi dengan kode yang sama — tanpa perlu email baru.
+function _regResetOtp(keepVerified) {
+  if (!keepVerified) {
+    REG.otpEmail = null;
+    REG.pendingToken = null;
+  }
+  var step = document.getElementById('reg-otp-step');
+  var form = document.getElementById('form-register');
+  if (step) step.classList.add('n-hidden');
+  if (form) form.classList.remove('n-hidden');
+  var code = document.getElementById('reg-otp');
+  if (code) code.value = '';
+  if (!keepVerified) _msg('register-msg', null);
+  var btn = document.getElementById('btn-register');
+  if (btn) btn.disabled = false;
+}
+
+function _regResendOtp() {
+  if (!REG.otpEmail) { _regResetOtp(); return; }
+  var btn = document.getElementById('btn-otp-resend');
+  _setLoading(btn, true);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res || !res.success) {
+        _msg('register-msg', 'error', (res && res.error) || 'Gagal mengirim ulang kode.');
+        return;
+      }
+      _msg('register-msg', 'success', 'Kode baru dikirim ke ' + res.data.email + '.');
+      var code = document.getElementById('reg-otp');
+      if (code) code.value = '';
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .auth_requestOtp(_regPayload(REG.otpEmail));
+}
+
+// Tahap 2: cek kode → dapat pendingToken.
+function _regVerifyOtp() {
+  var code = String(document.getElementById('reg-otp').value || '').trim();
+  if (!/^[0-9]{6}$/.test(code)) {
+    _msg('register-msg', 'error', 'Masukkan 6 digit kode verifikasi.');
+    return;
+  }
+  var btn = document.getElementById('btn-otp-verify');
+  _setLoading(btn, true);
+  _msg('register-msg', null);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res || !res.success) {
+        _msg('register-msg', 'error', (res && res.error) || 'Kode verifikasi gagal.');
+        return;
+      }
+      REG.pendingToken = res.data.pendingToken;
+      _regSubmitRegister();
+    })
+    .withFailureHandler(function () {
+      _setLoading(btn, false);
+      _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
+    })
+    .auth_verifyOtp({ email: REG.otpEmail, code: code });
+}
+
+// Tahap 3: kirim pendaftaran dengan bukti OTP.
+function _regSubmitRegister() {
+  // Tombol yang sedang terlihat: "Verifikasi" saat masih di step OTP, atau
+  // "Daftar" saat user kembali ke form untuk memperbaiki data yang ditolak.
+  var step = document.getElementById('reg-otp-step');
+  var inOtp = step && !step.classList.contains('n-hidden');
+  var btn = document.getElementById(inOtp ? 'btn-otp-verify' : 'btn-register');
+  _setLoading(btn, true);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res || !res.success) {
+        var err = (res && res.error) || 'Terjadi kesalahan. Coba lagi.';
+        // Email masih terverifikasi — server menyimpan pendingToken (15 menit).
+        // Kembalikan ke form supaya user bisa memperbaiki field yang bermasalah
+        // tanpa menunggu email baru.
+        var keep = /tidak cocok dengan email/i.test(err);
+        _regResetOtp(keep);
+        _msg('register-msg', 'error', err + (keep
+          ? ''
+          : ' Perbaiki data Anda lalu masukkan kode yang sama untuk melanjutkan.'));
+        return;
+      }
       document.getElementById('form-register').reset();
+      _regResetOtp();
+      _showAuthView('login');
+      _msg('login-msg', 'success',
+        'Pendaftaran berhasil. Akun menunggu persetujuan administrator.');
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
       _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
     })
     .auth_register({
-      nama:        document.getElementById('reg-nama').value,
-      email:       document.getElementById('reg-email').value,
-      password:    document.getElementById('reg-password').value,
-      divisiId:    document.getElementById('reg-divisi').value,
-      roleDilamar: document.getElementById('reg-role').value
+      nama:         document.getElementById('reg-nama').value,
+      email:        document.getElementById('reg-email').value,
+      nip:          document.getElementById('reg-nip').value,
+      password:     document.getElementById('reg-password').value,
+      divisiId:     document.getElementById('reg-divisi').value,
+      roleDilamar:  document.getElementById('reg-role').value,
+      pendingToken: REG.pendingToken
     });
 }
 
@@ -1670,7 +1823,8 @@ function _adnRenderUsers() {
     var isSelf = (APP.user && String(APP.user.userId) === String(u.userId));
     t += '<tr>' +
       '<td>' + _esc(u.nama) +
-        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(u.email) + '</span></td>' +
+        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' +
+          _esc(u.nip ? 'NIP ' + u.nip + ' · ' : '') + _esc(u.email) + '</span></td>' +
       '<td>' + _esc(u.namaDivisi) + '</td>' +
       '<td>' + _esc(roleLabel) + '</td>' +
       '<td>' + _adnStatusBadge(u.status) + '</td>' +
@@ -1985,10 +2139,23 @@ function _adnReminderResult(d) {
   var rows = d.divisions.map(function (x) {
     return '<tr><td>' + _esc(x.label) + '</td><td>' + x.targetCount + '</td></tr>';
   }).join('');
+  // Kegagalan email tidak boleh terlihat seperti "tidak ada yang perlu dikirim".
+  var errBlock = '';
+  if (d.emailErrors && d.emailErrors.length) {
+    var errRows = d.emailErrors.map(function (e) {
+      return '<tr><td>' + _esc(e.email || '?') + '</td><td>' + _esc(e.reason || 'Gagal.') + '</td></tr>';
+    }).join('');
+    errBlock = '<div style="margin-top:12px">' +
+      '<div class="n-msg error" style="margin:0 0 8px">' +
+      d.emailErrors.length + ' email gagal terkirim. Notifikasi dalam aplikasi tetap masuk.</div>' +
+      '<table class="n-table n-table-full"><thead><tr><th>Penerima</th><th>Penyebab</th></tr></thead>' +
+      '<tbody>' + errRows + '</tbody></table></div>';
+  }
   return '<div class="n-card" style="padding:0;overflow:hidden">' +
     '<div class="content-section-hd" style="padding:14px 20px;border-bottom:1px solid var(--n-border-subtle);">Ringkasan Periode ' + _esc(d.periode || '') + '</div>' +
     '<table class="n-table n-table-full"><thead><tr><th>Divisi Belum Melapor</th><th>Penerima</th></tr></thead><tbody>' + rows + '</tbody></table>' +
     '<div class="n-pad-muted">Email terkirim: ' + d.sentEmails + ' · notifikasi aplikasi: ' + d.notified + '</div>' +
+    errBlock +
     '</div>';
 }
 

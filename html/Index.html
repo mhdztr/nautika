@@ -63,8 +63,14 @@
           <input type="text" id="reg-nama" placeholder="Nama sesuai dokumen resmi" required>
         </div>
         <div class="form-grp">
-          <label for="reg-email">Email / NIP</label>
+          <label for="reg-email">Email</label>
           <input type="email" id="reg-email" placeholder="nama@instansi.go.id" required>
+          <span class="n-form-hint">Dipakai untuk masuk dan menerima kode verifikasi.</span>
+        </div>
+        <div class="form-grp">
+          <label for="reg-nip">NIP</label>
+          <input type="text" id="reg-nip" inputmode="numeric" placeholder="Nomor Induk Pegawai"
+                 required autocomplete="off">
         </div>
         <div class="form-grp">
           <label for="reg-password">Password</label>
@@ -85,8 +91,26 @@
             <option value="KADIV">Kepala Divisi / Ketua Tim Kerja / Kepala Sub Direktorat</option>
           </select>
         </div>
-        <button type="submit" class="btn-primary" id="btn-register">Kirim Permintaan</button>
+        <button type="submit" class="btn-primary" id="btn-register">Verifikasi Email</button>
       </form>
+
+      <!-- Tahap 2: OTP -->
+      <div id="reg-otp-step" class="n-hidden">
+        <div class="form-grp">
+          <label for="reg-otp">Kode Verifikasi</label>
+          <input type="text" id="reg-otp" inputmode="numeric" maxlength="6"
+                 placeholder="6 digit" autocomplete="one-time-code">
+          <span class="n-form-hint" id="reg-otp-hint">Kode dikirim ke</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-primary" id="btn-otp-verify"
+                  onclick="_regVerifyOtp()">Verifikasi</button>
+          <button type="button" class="btn-sm" id="btn-otp-resend"
+                  onclick="_regResendOtp()">Kirim Ulang</button>
+        </div>
+        <button type="button" class="btn-sm" style="margin-top:8px;width:100%"
+                onclick="_regResetOtp()">Ganti Email</button>
+      </div>
       <div class="auth-foot">
         Sudah punya akun? <a onclick="showAuthView('login')">Masuk</a>
       </div>

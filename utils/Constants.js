@@ -111,7 +111,8 @@ var ROLE = {
 var USER_STATUS = {
   PENDING:  'PENDING',
   APPROVED: 'APPROVED',
-  REJECTED: 'REJECTED'
+  REJECTED: 'REJECTED',
+  NONAKTIF: 'NONAKTIF' // dinonaktifkan Superadmin via Admin Panel (Fase 13)
 };
 
 // ===========================================================================
@@ -226,7 +227,8 @@ var PROP_KEY = {
   LOG_SS_ID:       'LOG_SS_ID',
   SETUP_COMPLETED: 'SETUP_COMPLETED',
   CARTO_API_KEY:   'CARTO_API_KEY',
-  SEED_SUPERADMIN_PASSWORD: 'SEED_SUPERADMIN_PASSWORD'
+  SEED_SUPERADMIN_PASSWORD: 'SEED_SUPERADMIN_PASSWORD',
+  REMINDER_TRIGGER_ID: 'REMINDER_TRIGGER_ID' // id trigger waktu reminder mingguan (Fase 13)
 };
 
 // ===========================================================================

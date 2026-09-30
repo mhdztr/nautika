@@ -24,6 +24,12 @@
 var _SESSION_PREFIX = 'sess_';
 var _SESSION_TTL_SEC = 21600; // 6 jam
 
+// Marker pencabutan sesi. ScriptCache tidak bisa di-enumerate, jadi saat Admin
+// mengubah akun (status/role/divisi) kita tandai userId-nya; setiap permintaan
+// berikutnya dengan token lama ditolak. TTL > TTL sesi agar tidak ada celah.
+var _REVOKED_PREFIX = 'revoked_';
+var _REVOKED_TTL_SEC = 43200; // 12 jam (> _SESSION_TTL_SEC)
+
 // ===========================================================================
 // FUNGSI PUBLIK
 // ===========================================================================
@@ -95,6 +101,9 @@ function auth_register(params) {
         }
         if (existStatus === USER_STATUS.PENDING) {
           return { success: false, error: 'Email ini sudah terdaftar dan sedang menunggu persetujuan.' };
+        }
+        if (existStatus === USER_STATUS.NONAKTIF) {
+          return { success: false, error: 'Email ini terdaftar pada akun yang dinonaktifkan. Hubungi Superadmin.' };
         }
         // REJECTED: izinkan mendaftar ulang → lanjut
       }
@@ -193,11 +202,15 @@ function auth_login(params) {
     if (user['PasswordHash'] !== hashPassword(password)) {
       return { success: false, error: 'Email atau password salah.' };
     }
+    if (user['Status'] === USER_STATUS.NONAKTIF) {
+      return { success: false, error: 'Akun telah dinonaktifkan oleh Superadmin. Silakan hubungi pengelola.' };
+    }
     if (user['Status'] === USER_STATUS.REJECTED) {
       return { success: false, error: 'Akun telah ditolak. Silakan daftarkan akun baru.' };
     }
 
     // Buat session (untuk PENDING maupun APPROVED)
+    _clearRevokedUser(user['UserID']);
     var token = _createSession(user);
 
     // Audit login hanya untuk akun aktif
@@ -277,15 +290,22 @@ function auth_getPendingApprovals(token) {
     var enriched = pending.map(function (q) {
       var userRow   = findRowByField(usersSheet, 'UserID', q['UserID']);
       var divisiRow = findRowByField(divisiSheet, 'DivisiID', q['DivisiID']);
+      
+      function _cellStr(v) {
+        if (v === null || v === undefined || v === '') return '';
+        if (v instanceof Date) return v.toISOString();
+        return String(v);
+      }
+
       return {
-        queueId:     q['QueueID'],
-        userId:      q['UserID'],
-        nama:        userRow  ? userRow.obj['Nama']          : '?',
-        email:       userRow  ? userRow.obj['Email']         : '?',
-        roleDilamar: q['RoleDilamar'],
-        divisiId:    q['DivisiID'],
-        namaDivisi:  divisiRow ? divisiRow.obj['NamaDashboard'] : '?',
-        registeredAt:userRow  ? userRow.obj['RegisteredAt']  : ''
+        queueId:     _cellStr(q['QueueID']),
+        userId:      _cellStr(q['UserID']),
+        nama:        userRow  ? _cellStr(userRow.obj['Nama'])          : '?',
+        email:       userRow  ? _cellStr(userRow.obj['Email'])         : '?',
+        roleDilamar: _cellStr(q['RoleDilamar']),
+        divisiId:    _cellStr(q['DivisiID']),
+        namaDivisi:  divisiRow ? _cellStr(divisiRow.obj['NamaDashboard']) : '?',
+        registeredAt:userRow  ? _cellStr(userRow.obj['RegisteredAt'])  : ''
       };
     });
 
@@ -423,7 +443,28 @@ function _requireSession(token) {
   if (!session) {
     throw new Error('UNAUTHORIZED: Sesi tidak valid atau sudah berakhir. Silakan login ulang.');
   }
+  if (CacheService.getScriptCache().get(_REVOKED_PREFIX + session.userId)) {
+    // Akun diubah Superadmin (status/role/divisi) → paksa login ulang agar
+    // sesi lama tidak lagi memakai hak akses yang sudah usang.
+    CacheService.getScriptCache().remove(_SESSION_PREFIX + token);
+    throw new Error('UNAUTHORIZED: Akun Anda baru saja diperbarui. Silakan login ulang.');
+  }
   return session;
+}
+
+/**
+ * Cabut seluruh sesi aktif seorang user (best-effort, tanpa enumerasi token).
+ * Dipanggil AdminService setiap kali akun diubah.
+ */
+function _revokeUserSessions(userId) {
+  if (!userId) return;
+  CacheService.getScriptCache().put(_REVOKED_PREFIX + userId, String(new Date().getTime()), _REVOKED_TTL_SEC);
+}
+
+/** Bersihkan marker pencabutan — dipanggil saat login berhasil (idents freshly proved). */
+function _clearRevokedUser(userId) {
+  if (!userId) return;
+  CacheService.getScriptCache().remove(_REVOKED_PREFIX + userId);
 }
 
 // ===========================================================================

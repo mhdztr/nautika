@@ -610,18 +610,21 @@ function _dashTotalArmadaAktif() {
   } catch (e) { return 0; }
 }
 
-// 7 divisi yang wajib melapor tiap minggu — dasar KPI "Divisi Melapor".
+// 7 divisi yang wajib melapor tiap minggu — dasar KPI "Divisi Melapor" dan
+// reminder mingguan (NotifikasiService). Basis divisi (7: TU, OPS, INTEL,
+// PANTAU, RAWAT, LOG, AWAK) sesuai PRD §4. Operasi Laut & Udara dikelompokkan
+// dalam satu divisi OPS; Pengawakan (AKN) ikut divalidasi.
 // Muat lazy (bukan konstanta top-level) karena SHEET_TX baru tersedia
 // saat runtime, bukan saat file ini dievaluasi.
 function _ovMelaporDivisiList() {
   return [
-    { label: 'Tata Usaha',     sheet: SHEET_TX.TATA_USAHA },
-    { label: 'Operasi Laut',   sheet: SHEET_TX.OPERASI_LAUT },
-    { label: 'Operasi Udara',  sheet: SHEET_TX.OPERASI_UDARA },
-    { label: 'Intelijen',      sheet: SHEET_TX.INTELIJEN },
-    { label: 'Pemantauan',     sheet: SHEET_TX.PEMANTAUAN },
-    { label: 'Perawatan',      sheet: SHEET_TX.PERAWATAN_KESIAPAN },
-    { label: 'Logistik',       sheet: SHEET_TX.LOGISTIK_BBM }
+    { label: 'Tata Usaha', divisiId: DIVISI_ID.TU,     sheets: [SHEET_TX.TATA_USAHA] },
+    { label: 'Operasi',    divisiId: DIVISI_ID.OPS,    sheets: [SHEET_TX.OPERASI_LAUT, SHEET_TX.OPERASI_UDARA] },
+    { label: 'Intelijen',  divisiId: DIVISI_ID.INTEL,  sheets: [SHEET_TX.INTELIJEN] },
+    { label: 'Pemantauan', divisiId: DIVISI_ID.PANTAU, sheets: [SHEET_TX.PEMANTAUAN] },
+    { label: 'Perawatan',  divisiId: DIVISI_ID.RAWAT,  sheets: [SHEET_TX.PERAWATAN_KESIAPAN] },
+    { label: 'Logistik',   divisiId: DIVISI_ID.LOG,    sheets: [SHEET_TX.LOGISTIK_BBM] },
+    { label: 'Pengawakan', divisiId: DIVISI_ID.AWAK,   sheets: [SHEET_TX.PENGAWAKAN_AKN] }
   ];
 }
 
@@ -631,18 +634,23 @@ function _dashMelaporDetail() {
   return _ovMelaporDivisiList().map(function (d) {
     var melapor = false;
     if (weekRange) {
-      try {
-        _dashActiveRows(d.sheet, true).forEach(function (r) {
-          if (melapor) return;
-          if (!r['DivisiID']) return;
-          var pr = periodeToDateRange(String(r['Periode'] || ''));
-          var inWeek = pr ? (pr.startDate <= weekRange.endDate && pr.endDate >= weekRange.startDate)
-                          : isInRange(new Date(r['Timestamp']), weekRange);
-          if (inWeek) melapor = true;
-        });
-      } catch (e) {}
+      for (var s = 0; s < d.sheets.length && !melapor; s++) {
+        try {
+          _dashActiveRows(d.sheets[s], true).forEach(function (r) {
+            if (melapor) return;
+            // Baris harus milik divisi ini. Semua service tulis TX meng-hardcode
+            // DivisiID modul, jadi filter ini hanya menjaga baris legacy/salah.
+            if (String(r['DivisiID'] || '').trim() &&
+                String(r['DivisiID']) !== String(d.divisiId)) return;
+            var pr = periodeToDateRange(String(r['Periode'] || ''));
+            var inWeek = pr ? (pr.startDate <= weekRange.endDate && pr.endDate >= weekRange.startDate)
+                            : isInRange(new Date(r['Timestamp']), weekRange);
+            if (inWeek) melapor = true;
+          });
+        } catch (e) {}
+      }
     }
-    return { label: d.label, melapor: melapor };
+    return { label: d.label, divisiId: d.divisiId, melapor: melapor };
   });
 }
 

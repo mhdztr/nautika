@@ -1,0 +1,32 @@
+<!-- html/views/Notifikasi.html -->
+<!--
+  Halaman Notifikasi — daftar notifikasi in-app (APPROVAL_REQUEST, DATA_VOIDED, REMINDER_MINGGUAN).
+  Badge unread & reminder strip terhubung ke notifikasi_getRingkasan().
+-->
+<div id="view-tpl-notifikasi" hidden>
+
+  <!-- RINGKASAN -->
+  <div class="content-section">
+    <div id="ntf-ringkasan" class="kpi-grid">
+      <!-- skeleton diisi _ntfRender() -->
+    </div>
+  </div>
+
+  <!-- DAFTAR NOTIFIKASI -->
+  <div class="content-section">
+    <div class="content-section-hd hd-row">
+      <div>Notifikasi Anda</div>
+      <div>
+        <button class="btn-mini btn-ghost" onclick="_ntfMarkAllRead()">Tandai Semua Dibaca</button>
+        <button class="btn-mini" onclick="_ntfReload()">Muat Ulang</button>
+      </div>
+    </div>
+    <div id="ntf-msg" class="n-msg"></div>
+    <div class="n-card" style="padding:0;overflow:hidden">
+      <div id="ntf-list">
+        <!-- diisi _ntfRenderList() -->
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-tpl-notifikasi -->

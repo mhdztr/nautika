@@ -118,9 +118,10 @@ var NAV_SECTIONS = [
   {
     label: 'SISTEM',
     items: [
-      { id: 'kelola-akun', label: 'Kelola Akun',     divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
-      { id: 'master-data', label: 'Master Data',     divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
-      { id: 'riwayat',     label: 'Riwayat Laporan', divisiId: null, minRoles: null }
+      { id: 'notifikasi',  label: 'Notifikasi',       divisiId: null, minRoles: null },
+      { id: 'kelola-akun', label: 'Admin Panel',      divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
+      { id: 'master-data', label: 'Master Data',      divisiId: null, minRoles: ['SUPERADMIN','DIREKTUR'] },
+      { id: 'riwayat',     label: 'Riwayat Laporan',  divisiId: null, minRoles: null }
     ]
   }
 ];
@@ -264,7 +265,7 @@ function handleLogin(e) {
   google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      if (!res.success) { _msg('login-msg', 'error', res.error); return; }
+      if (!res || !res.success) { _msg('login-msg', 'error', (res && res.error) || 'Terjadi kesalahan. Coba lagi.'); return; }
       APP.token = res.data.token;
       APP.user  = res.data.user;
       sessionStorage.setItem(TOKEN_KEY, APP.token);
@@ -293,7 +294,7 @@ function handleRegister(e) {
   google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      if (!res.success) { _msg('register-msg', 'error', res.error); return; }
+      if (!res || !res.success) { _msg('register-msg', 'error', (res && res.error) || 'Terjadi kesalahan. Coba lagi.'); return; }
       _msg('register-msg', 'success', 'Pendaftaran berhasil. Akun menunggu persetujuan administrator.');
       document.getElementById('form-register').reset();
     })
@@ -318,6 +319,98 @@ function handleLogout() {
   _showAuthView('login');
 }
 
+/**
+ * Error handler bersama: kalau server menyatakan sesi tidak valid lagi
+ * (logout paksa, akun dinonaktifkan/diubah Superadmin, TTL habis), paksa
+ * keluar ke layar login dengan pesan yang bisa dimengerti user.
+ * Dipakai oleh semua pemanggilan google.script.run di halaman Notifikasi,
+ * shell status, dan Admin Panel.
+ */
+function _failOrLogout(err) {
+  var msg = (err && err.message) ? err.message : String(err || '');
+  if (/^UNAUTHORIZED/.test(msg)) {
+    handleLogout();
+    _msg('login-msg', 'error',
+      'Sesi Anda berakhir atau akun diperbarui oleh Superadmin. Silakan login kembali.');
+    return;
+  }
+  return msg || 'Gagal menghubungi server.';
+}
+
+/**
+ * Jaring pengaman loader (Fase 13). Dua kegagalan yang tadinya muncul sebagai
+ * "loading selamanya" tanpa pesan apa pun:
+ *   1. Exception di dalam withSuccessHandler — google.script.run TIDAK
+ *      meneruskannya ke withFailureHandler, jadi spinner tetap menggantung.
+ *   2. Server tidak pernah menjawab (script belum di-push, versi deployed
+ *      masih lama, atau hang) — tidak ada callback sama sekali.
+ * _asyncArm menyalakan pengatur waktu; kalau loader selesai (sukses maupun
+ * gagal) memanggil _asyncDisarm, jadi tidak ada perubahan perilaku normal.
+ */
+var _asyncTimeoutMs = 20000;
+var _asyncTimers = {};
+
+// UI kegagalan bersama: pesan + tombol coba lagi. Dipakai oleh timeout,
+// respons kosong, dan handler lain supaya konsisten.
+function _asyncFailUi(wrap, msg, retryCall) {
+  if (!wrap || !wrap.isConnected) return;
+  wrap.innerHTML = '<div class="n-msg error">' + _esc(msg) + '</div>' +
+    (retryCall ? '<div style="margin-top:8px"><button class="btn-mini" onclick="' +
+      retryCall + '">Coba lagi</button></div>' : '');
+}
+
+function _asyncArm(key, wrap, retryCall) {
+  _asyncDisarm(key);
+  _asyncTimers[key] = setTimeout(function () {
+    delete _asyncTimers[key];
+    _asyncFailUi(wrap, 'Server tidak menjawab dalam ' +
+      Math.round(_asyncTimeoutMs / 1000) + ' detik. Kemungkinan perubahan belum di-deploy, ' +
+      'atau server sedang mengalami error.', retryCall);
+  }, _asyncTimeoutMs);
+}
+
+function _asyncDisarm(key) {
+  if (_asyncTimers[key]) { clearTimeout(_asyncTimers[key]); delete _asyncTimers[key]; }
+}
+
+/**
+ * Normalisasi respons google.script.run.
+ *
+ * GAS memanggil success handler dengan `null` (bukan failure handler) bila
+ * fungsi server selesai tanpa nilai balik, atau nilai balik tidak bisa
+ * diserialisasi. Accessor `res.success` pada null melempar TypeError di dalam
+ * callback, sehingga spinner menggantung dan tidak ada jejak errornya.
+ *
+ * @param {*} res respons dari success handler
+ * @return {string|null} pesan error, atau null bila res sah
+ */
+function _asyncResErr(res) {
+  if (!res) {
+    return 'Server mengembalikan respons kosong. Fungsi server mungkin belum ' +
+      'di-deploy (jalankan clasp push) atau melempar exception sebelum return.';
+  }
+  if (res.success) return null;
+  return res.error || 'Permintaan ditolak server.';
+}
+
+// null-safe counterpart of _asyncRenderFail: untuk respons kosong/bermasalah.
+function _asyncResFail(key, wrap, res, retryCall) {
+  _asyncDisarm(key);
+  if (window.console && console.error) {
+    console.error('[nautika] respons tidak valid: ' + key, res);
+  }
+  _asyncFailUi(wrap, _asyncResErr(res), retryCall);
+}
+
+// Dipanggil dari catch di dalam success handler: tampilkan error, jangan spinner.
+function _asyncRenderFail(key, wrap, e) {
+  _asyncDisarm(key);
+  if (window.console && console.error) console.error('[nautika] render gagal: ' + key, e);
+  if (!wrap || !wrap.isConnected) return;
+  wrap.innerHTML = '<div class="n-msg error">Gagal menampilkan data: ' +
+    _esc(e && e.message ? e.message : String(e)) + '</div>';
+}
+
 // ── APP INIT ──────────────────────────────────────────────
 function _initApp() {
   document.getElementById('auth-wrapper').classList.add('n-hidden');
@@ -325,6 +418,7 @@ function _initApp() {
   _renderSidebar();
   var hash = (window.location.hash || '').replace('#', '') || 'overview';
   _routeTo(hash);
+  _applyShellStatus(); // badge notifikasi + strip "divisi belum melapor" (Fase 13)
   window.addEventListener('hashchange', function () {
     _routeTo((window.location.hash || '').replace('#', ''));
   });
@@ -346,7 +440,12 @@ function _renderSidebar() {
     html += '<div class="sb-section-label">' + section.label + '</div>';
     visibleItems.forEach(function (it) {
       html += '<div class="nav-item" id="nav-' + it.id + '" onclick="_routeTo(\'' + it.id + '\')">' +
-        _esc(it.label) + '</div>';
+        _esc(it.label);
+      // Badge jumlah notifikasi belum dibaca (Fase 13)
+      if (it.id === 'notifikasi') {
+        html += '<span class="nav-badge n-hidden" id="nav-notif-badge">0</span>';
+      }
+      html += '</div>';
     });
   });
   nav.innerHTML = html;
@@ -397,7 +496,8 @@ function _openProfilKapal(kapalId) {
 // ── PAGE HEADER ───────────────────────────────────────────
 function _renderPageHeader(viewId) {
   // filter tidak tampil di master-data & profil kapal (tidak relevan)
-  var noFilter = (viewId === 'master-data' || viewId === 'profil-kapal');
+  var noFilter = (viewId === 'master-data' || viewId === 'profil-kapal' ||
+                  viewId === 'kelola-akun' || viewId === 'notifikasi');
   var filterHtml = noFilter ? '' : _buildFilterHtml();
 
   document.getElementById('page-header').innerHTML =
@@ -489,6 +589,7 @@ function _renderViewContent(viewId) {
   if (viewId === 'pengawakan')  { _renderPengawakan(el);  return; }
   if (viewId === 'master-data') { _renderMasterData(el); return; }
   if (viewId === 'kelola-akun') { _renderKelolaAkun(el); return; }
+  if (viewId === 'notifikasi')  { _renderNotifikasi(el);  return; }
   if (viewId === 'riwayat')     { _renderRiwayat(el);    return; }
   if (viewId === 'kegiatan')    { _renderKegiatan(el);    return; }
   if (viewId === 'profil-kapal'){ _renderProfilKapal(el); return; }
@@ -1329,7 +1430,7 @@ function _loadApprovals() {
 
   google.script.run
     .withSuccessHandler(function (res) {
-      if (!res.success) { _appMsg('error', res.error); return; }
+      if (!res || !res.success) { _appMsg('error', (res && res.error) || 'Gagal memuat data.'); return; }
       _renderApprovalTable(res.data);
     })
     .withFailureHandler(function () { _appMsg('error', 'Gagal memuat data.'); })
@@ -1388,7 +1489,7 @@ function doApprove(queueId) {
   if (!confirm('Setujui registrasi ini?')) return;
   google.script.run
     .withSuccessHandler(function (res) {
-      if (!res.success) { _appMsg('error', res.error); return; }
+      if (!res || !res.success) { _appMsg('error', (res && res.error) || 'Terjadi kesalahan.'); return; }
       _appMsg('success', 'Registrasi berhasil disetujui.');
       _loadApprovals();
     })
@@ -1415,7 +1516,7 @@ document.addEventListener('DOMContentLoaded', function () {
     google.script.run
       .withSuccessHandler(function (res) {
         closeRejectModal();
-        if (!res.success) { _appMsg('error', res.error); return; }
+        if (!res || !res.success) { _appMsg('error', (res && res.error) || 'Terjadi kesalahan.'); return; }
         _appMsg('success', 'Registrasi berhasil ditolak.');
         _loadApprovals();
       })
@@ -1451,14 +1552,444 @@ function _renderMasterData(el) {
   _mdLoadAll();
 }
 
-// ── KELOLA AKUN — halaman persetujuan registrasi ─────────────
-// Menu "Kelola Akun" (SUPERADMIN/DIREKTUR) — panel penuh.
+// ── ADMIN PANEL — persetujuan + pengguna + audit log (Fase 13) ──
+// Menu "Admin Panel" (SUPERADMIN/DIREKTUR). Tab Pengguna & Audit Log hanya
+// ditampilkan untuk SUPERADMIN (server juga menolak non-SUPERADMIN).
 // APP_mWraps() dipakai: ka-* di sini; dr-* di-drawer kanan.
+var _ADN = { tab: 'persetujuan', users: [], audit: [], userFormId: null, divisi: [] };
+
 function _renderKelolaAkun(el) {
   var tpl = document.getElementById('view-tpl-kelola-akun');
-  if (!tpl) { el.innerHTML = _moduleStub('Kelola Akun'); return; }
-  el.innerHTML = tpl.innerHTML | '';
+  if (!tpl) { el.innerHTML = _moduleStub('Admin Panel'); return; }
+  el.innerHTML = tpl.innerHTML;
+
+  var isSA = (APP.user && APP.user.role === 'SUPERADMIN');
+  var tabPengguna = document.getElementById('adn-tab-pengguna');
+  var tabAudit = document.getElementById('adn-tab-audit');
+  var tabReminder = document.getElementById('adn-tab-reminder');
+  if (tabPengguna) {
+    if (isSA) tabPengguna.removeAttribute('hidden'); else tabPengguna.setAttribute('hidden', '');
+  }
+  if (tabAudit) {
+    if (isSA) tabAudit.removeAttribute('hidden'); else tabAudit.setAttribute('hidden', '');
+  }
+  if (tabReminder) {
+    if (isSA) tabReminder.removeAttribute('hidden'); else tabReminder.setAttribute('hidden', '');
+  }
+
+  _ADN.tab = 'persetujuan';
+  _ADN.users = [];
+  _ADN.audit = [];
+  _ADN.userFormId = null;
+  _adnSyncTabs();
   _renderApprovalsInto('ka');
+}
+
+function _adnSyncTabs() {
+  var tabs = document.querySelectorAll('#adn-tabs .n-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === _ADN.tab);
+  }
+  var panels = {
+    persetujuan: 'adn-panel-persetujuan',
+    pengguna: 'adn-panel-pengguna',
+    audit: 'adn-panel-audit',
+    reminder: 'adn-panel-reminder'
+  };
+  Object.keys(panels).forEach(function (k) {
+    var el = document.getElementById(panels[k]);
+    if (el) el.hidden = (k !== _ADN.tab);
+  });
+}
+
+function _adnSwitch(tab) {
+  // Guard client-side; server tetap menolak role non-SUPERADMIN (assertScope).
+  if (tab !== 'persetujuan' && !(APP.user && APP.user.role === 'SUPERADMIN')) return;
+  _ADN.tab = tab;
+  _adnSyncTabs();
+  if (tab === 'pengguna') { _adnLoadUsers(); _adnLoadDivisi(); }
+  if (tab === 'audit') _adnLoadAudit();
+  if (tab === 'reminder') _adnLoadReminder();
+}
+
+function _adnGoMasterData() { _routeTo('master-data'); }
+
+// ── TAB PENGGUNA ───────────────────────────────────────────
+function _adnStatusBadge(st) {
+  if (st === 'APPROVED') return '<span class="status-badge" style="background:#ecfdf5;color:#047857;">AKTIF</span>';
+  if (st === 'PENDING')  return '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">MENUNGGU</span>';
+  if (st === 'REJECTED') return '<span class="status-badge" style="background:#fee2e2;color:var(--n-status-critical);">DITOLAK</span>';
+  if (st === 'NONAKTIF') return '<span class="status-badge" style="background:#f3f4f6;color:#374151;">NONAKTIF</span>';
+  return _esc(st || '—');
+}
+
+function _adnLoadUsers() {
+  var wrap = document.getElementById('adn-users-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat daftar pengguna\u2026');
+  _msg('adn-users-msg', null);
+  _asyncArm('adn-users', wrap, '_adnLoadUsers()');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _asyncDisarm('adn-users');
+      if (_asyncResErr(res)) {
+        _asyncResFail('adn-users', wrap, res, '_adnLoadUsers()');
+        return;
+      }
+      try {
+        _ADN.users = res.data || [];
+        _adnRenderUsers();
+      } catch (e) {
+        _asyncRenderFail('adn-users', wrap, e);
+      }
+    })
+    .withFailureHandler(function (err) {
+      _asyncDisarm('adn-users');
+      wrap.innerHTML = '<div class="n-msg error">' + _esc(_failOrLogout(err) || 'Koneksi terputus.') + '</div>';
+    })
+    .admin_getUsers(APP.token);
+}
+
+function _adnRenderUsers() {
+  var wrap = document.getElementById('adn-users-wrap');
+  if (!wrap) return;
+
+  if (_ADN.users.length === 0) {
+    wrap.innerHTML = '<div class="n-pad-muted">Belum ada pengguna.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Nama</th><th>Unit Kerja</th><th>Jabatan</th><th>Status</th><th>Tgl Daftar</th><th>Aksi</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < _ADN.users.length; i++) {
+    var u = _ADN.users[i];
+    var roleLabel = ROLE_LABEL[u.role] || u.role;
+    var isSelf = (APP.user && String(APP.user.userId) === String(u.userId));
+    t += '<tr>' +
+      '<td>' + _esc(u.nama) +
+        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(u.email) + '</span></td>' +
+      '<td>' + _esc(u.namaDivisi) + '</td>' +
+      '<td>' + _esc(roleLabel) + '</td>' +
+      '<td>' + _adnStatusBadge(u.status) + '</td>' +
+      '<td>' + _esc(_adnFmtDate(u.registeredAt)) + '</td>' +
+      '<td>' +
+        (isSelf
+          ? '<span style="font-size:.8rem;color:var(--n-text-muted);">Akun Anda</span>'
+          : '<button class="btn-mini" onclick="_adnOpenEdit(\'' + _esc(u.userId) + '\')">Kelola</button>') +
+      '</td></tr>';
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _adnFmtDate(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('id-ID');
+}
+
+function _adnLoadDivisi() {
+  if (_ADN.divisi.length > 0) return;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res.success) {
+        _ADN.divisi = res.data || [];
+        // Form mungkin sudah dibuka sebelum daftar divisi tiba.
+        if (_ADN.userFormId) _adnFillDivisi(_ADN.userFormId);
+      }
+    })
+    .withFailureHandler(function () {})
+    .auth_getDivisiList();
+}
+
+// Isi dropdown Unit Kerja; selected = UserID agar pilihan awal ikut ter-restore.
+function _adnFillDivisi(selectedUserId) {
+  var sel = document.getElementById('adn-f-divisi');
+  if (!sel) return;
+  var u = selectedUserId ? _adnFindUser(selectedUserId) : null;
+  var current = u ? String(u.divisiId || '') : '';
+  sel.innerHTML = '<option value="">— Lintas Divisi —</option>' + _ADN.divisi.map(function (d) {
+    return '<option value="' + _esc(d.divisiId) + '"' + (d.divisiId === current ? ' selected' : '') + '>' +
+      _esc(d.namaDashboard) + '</option>';
+  }).join('');
+  if (!_ADN.divisi.length) {
+    sel.innerHTML = '<option value="">Memuat unit kerja…</option>';
+  }
+}
+
+// ── FORM KELOLA AKUN (modal) ───────────────────────────────
+function _adnFindUser(userId) {
+  for (var i = 0; i < _ADN.users.length; i++) {
+    if (String(_ADN.users[i].userId) === String(userId)) return _ADN.users[i];
+  }
+  return null;
+}
+
+function _adnOpenEdit(userId) {
+  var u = _adnFindUser(userId);
+  if (!u) return;
+  _ADN.userFormId = userId;
+
+  var roleOpts = ['SUPERADMIN', 'DIREKTUR', 'KADIV', 'STAF'].map(function (r) {
+    return '<option value="' + r + '"' + (r === u.role ? ' selected' : '') + '>' + _esc(ROLE_LABEL[r] || r) + '</option>';
+  }).join('');
+
+  var statusOpts = ['APPROVED', 'REJECTED', 'NONAKTIF'].map(function (s) {
+    var label = s === 'APPROVED' ? 'Aktif' : (s === 'REJECTED' ? 'Ditolak' : 'Nonaktif');
+    return '<option value="' + s + '"' + (s === u.status ? ' selected' : '') + '>' + label + '</option>';
+  }).join('');
+
+  document.getElementById('adn-form-title').textContent = 'Kelola Akun — ' + u.nama;
+  document.getElementById('adn-f-nama').textContent = u.nama;
+  document.getElementById('adn-f-email').textContent = u.email;
+  document.getElementById('adn-f-role').innerHTML = roleOpts;
+  document.getElementById('adn-f-status').innerHTML = statusOpts;
+  document.getElementById('adn-f-password').value = '';
+  _msg('adn-form-msg', null);
+  // Dropdown unit kerja butuh daftar divisi; kalau belum tiba, placeholder dulu.
+  _adnFillDivisi(userId);
+  _adnLoadDivisi();
+  document.getElementById('modal-admin-user').classList.remove('n-hidden');
+  _adnOnRoleChange();
+}
+
+function _adnOnRoleChange() {
+  var role = document.getElementById('adn-f-role').value;
+  var divisi = document.getElementById('adn-f-divisi');
+  if (role === 'SUPERADMIN' || role === 'DIREKTUR') {
+    divisi.value = '';
+    divisi.disabled = true;
+  } else {
+    divisi.disabled = false;
+  }
+}
+
+function _adnCloseForm() {
+  document.getElementById('modal-admin-user').classList.add('n-hidden');
+  _ADN.userFormId = null;
+}
+
+function _adnSaveUser() {
+  var userId = _ADN.userFormId;
+  if (!userId) return;
+  var params = {
+    userId:   userId,
+    role:     document.getElementById('adn-f-role').value,
+    divisiId: document.getElementById('adn-f-divisi').value,
+    status:   document.getElementById('adn-f-status').value
+  };
+
+  var btn = document.getElementById('btn-adn-save');
+  _setLoading(btn, true);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('adn-form-msg', 'error', res.error); return; }
+      _adnCloseForm();
+      _msg('adn-users-msg', 'success', (res.data.changes || []).join('; ') || 'Tidak ada perubahan.');
+      _adnLoadUsers();
+    })
+    .withFailureHandler(function (err) {
+      _setLoading(btn, false);
+      _msg('adn-form-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.');
+    })
+    .admin_updateUser(APP.token, params);
+}
+
+function _adnResetPassword() {
+  var userId = _ADN.userFormId;
+  if (!userId) return;
+  var pass = document.getElementById('adn-f-password').value;
+  if (pass.length < 8) { _msg('adn-form-msg', 'error', 'Password minimal 8 karakter.'); return; }
+  if (!confirm('Setel ulang password akun ini? Password lama tidak berlaku lagi.')) return;
+
+  var btn = document.getElementById('btn-adn-reset');
+  _setLoading(btn, true);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('adn-form-msg', 'error', res.error); return; }
+      document.getElementById('adn-f-password').value = '';
+      _msg('adn-form-msg', 'success', 'Password berhasil disetel ulang. Sampaikan password baru ke pengguna secara aman.');
+    })
+    .withFailureHandler(function (err) {
+      _setLoading(btn, false);
+      _msg('adn-form-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.');
+    })
+    .admin_resetPassword(APP.token, { userId: userId, newPassword: pass });
+}
+
+// ── TAB AUDIT LOG ──────────────────────────────────────────
+function _adnLoadAudit() {
+  var wrap = document.getElementById('adn-audit-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = _loadingInline('Memuat jejak audit\u2026');
+  _msg('adn-audit-msg', null);
+  _asyncArm('adn-audit', wrap, '_adnReloadAudit()');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _asyncDisarm('adn-audit');
+      if (_asyncResErr(res)) {
+        _asyncResFail('adn-audit', wrap, res, '_adnReloadAudit()');
+        return;
+      }
+      try {
+        _ADN.audit = res.data || [];
+        _adnRenderAudit();
+      } catch (e) {
+        _asyncRenderFail('adn-audit', wrap, e);
+      }
+    })
+    .withFailureHandler(function (err) {
+      _asyncDisarm('adn-audit');
+      wrap.innerHTML = '<div class="n-msg error">' + _esc(_failOrLogout(err) || 'Koneksi terputus.') + '</div>';
+    })
+    .admin_getAuditLog(APP.token, { limit: 300 });
+}
+
+function _adnReloadAudit() { _ADN.audit = []; _adnLoadAudit(); }
+
+function _adnRenderAudit() {
+  var wrap = document.getElementById('adn-audit-wrap');
+  if (!wrap) return;
+
+  if (_ADN.audit.length === 0) {
+    wrap.innerHTML = '<div class="n-pad-muted">Belum ada jejak audit.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th>Waktu</th><th>Pelaku</th><th>Aksi</th><th>Target</th><th>Keterangan</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < _ADN.audit.length; i++) {
+    var r = _ADN.audit[i];
+    t += '<tr>' +
+      '<td style="white-space:nowrap;">' + _esc(_adnFmtDateTime(r.timestamp)) + '</td>' +
+      '<td>' + _esc(r.userName) +
+        '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(ROLE_LABEL[r.userRole] || r.userRole || '—') + '</span></td>' +
+      '<td>' + _esc(r.aksi) + '</td>' +
+      '<td>' + _esc(r.sheetTarget || '—') +
+        (r.rowIdTarget ? '<br><span style="font-size:.8rem;color:var(--n-text-muted);">' + _esc(r.rowIdTarget) + '</span>' : '') + '</td>' +
+      '<td>' + _esc(r.alasan || '—') + '</td>' +
+      '</tr>';
+  }
+
+  t += '</tbody></table>';
+  wrap.innerHTML = t;
+}
+
+function _adnFmtDateTime(v) {
+  if (!v) return '—';
+  var d = new Date(v);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('id-ID');
+}
+
+// ── TAB PENGINGAT MINGGUAN (SUPERADMIN) ───────────────────
+function _adnLoadReminder() {
+  var statusEl = document.getElementById('adn-reminder-status');
+  if (statusEl) statusEl.textContent = 'Memuat…';
+  _msg('adn-reminder-msg', null);
+  _asyncArm('adn-reminder', statusEl, '_adnLoadReminder()');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _asyncDisarm('adn-reminder');
+      if (_asyncResErr(res)) {
+        if (statusEl) statusEl.textContent = _asyncResErr(res);
+        return;
+      }
+      try {
+        _adnRenderReminder(res.data);
+      } catch (e) {
+        _asyncDisarm('adn-reminder');
+        if (window.console && console.error) console.error('[nautika] render gagal: reminder', e);
+        if (statusEl) statusEl.textContent = 'Gagal menampilkan status: ' +
+          (e && e.message ? e.message : String(e));
+      }
+    })
+    .withFailureHandler(function (err) {
+      _asyncDisarm('adn-reminder');
+      if (statusEl) statusEl.textContent = _failOrLogout(err) || 'Koneksi terputus.';
+    })
+    .notifikasi_getReminderSettings(APP.token);
+}
+
+function _adnRenderReminder(data) {
+  var statusEl = document.getElementById('adn-reminder-status');
+  var btn = document.getElementById('btn-adn-reminder-toggle');
+  if (statusEl) {
+    statusEl.textContent = (data && data.aktif)
+      ? 'Aktif — dikirim otomatis setiap ' + data.jadwal
+      : 'Nonaktif — belum ada pengiriman otomatis. Jadwal: ' + (data ? data.jadwal : 'Jumat 16:00');
+  }
+  if (btn) {
+    btn.textContent = (data && data.aktif) ? 'Matikan Otomatis' : 'Aktifkan Otomatis';
+    btn._aktif = !!(data && data.aktif);
+  }
+}
+
+function _adnToggleReminder() {
+  var btn = document.getElementById('btn-adn-reminder-toggle');
+  var next = !(btn && btn._aktif);
+  _setLoading(btn, true);
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('adn-reminder-msg', 'error', res.error); return; }
+      _adnRenderReminder(res.data);
+      _msg('adn-reminder-msg', 'success', next ? 'Pengiriman otomatis diaktifkan.' : 'Pengiriman otomatis dimatikan.');
+    })
+    .withFailureHandler(function (err) {
+      _setLoading(btn, false);
+      _msg('adn-reminder-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.');
+    })
+    .notifikasi_setReminderAktif(APP.token, next);
+}
+
+function _adnSendReminderNow() {
+  if (!confirm('Kirim pengingat sekarang ke divisi yang belum melapor?')) return;
+  var btn = document.getElementById('btn-adn-reminder-send');
+  _setLoading(btn, true);
+  _msg('adn-reminder-msg', null);
+  var box = document.getElementById('adn-reminder-result');
+  if (box) box.innerHTML = '';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _setLoading(btn, false);
+      if (!res.success) { _msg('adn-reminder-msg', 'error', res.error); return; }
+      _msg('adn-reminder-msg', 'success', 'Pengingat dikirim.');
+      if (box) box.innerHTML = _adnReminderResult(res.data);
+    })
+    .withFailureHandler(function (err) {
+      _setLoading(btn, false);
+      _msg('adn-reminder-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.');
+    })
+    .notifikasi_generateReminderMingguan(APP.token);
+}
+
+function _adnReminderResult(d) {
+  if (!d) return '';
+  if (!d.divisions || d.divisions.length === 0) {
+    return '<div class="n-card"><div class="n-pad-muted" style="padding:0;">' +
+      'Semua divisi sudah melapor minggu ini (' + _esc(d.periode || '') + '). Tidak ada pengingat yang dikirim.</div></div>';
+  }
+  var rows = d.divisions.map(function (x) {
+    return '<tr><td>' + _esc(x.label) + '</td><td>' + x.targetCount + '</td></tr>';
+  }).join('');
+  return '<div class="n-card" style="padding:0;overflow:hidden">' +
+    '<div class="content-section-hd" style="padding:14px 20px;border-bottom:1px solid var(--n-border-subtle);">Ringkasan Periode ' + _esc(d.periode || '') + '</div>' +
+    '<table class="n-table n-table-full"><thead><tr><th>Divisi Belum Melapor</th><th>Penerima</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="n-pad-muted">Email terkirim: ' + d.sentEmails + ' · notifikasi aplikasi: ' + d.notified + '</div>' +
+    '</div>';
 }
 
 // Render antrean ke salah satu grup APPROVAL_WRAPS (ka/dr).
@@ -2180,6 +2711,167 @@ function _riwRender() {
 
   t += '</tbody></table>';
   wrap.innerHTML = t;
+}
+
+// ── NOTIFIKASI IN-APP (Fase 13) ───────────────────────────
+var _NTF = { unread: 0 };
+
+function _renderNotifikasi(el) {
+  var tpl = document.getElementById('view-tpl-notifikasi');
+  if (!tpl) { el.innerHTML = _moduleStub('Notifikasi'); return; }
+  el.innerHTML = tpl.innerHTML;
+  _ntfReload();
+}
+
+function _ntfJenisLabel(j) {
+  if (j === 'APPROVAL_REQUEST')   return 'Persetujuan';
+  if (j === 'DATA_VOIDED')        return 'Data Dianulir';
+  if (j === 'REMINDER_MINGGUAN')  return 'Pengingat Mingguan';
+  return j || '—';
+}
+
+function _ntfJenisBadge(j) {
+  if (j === 'APPROVAL_REQUEST')  return '<span class="status-badge" style="background:#FEF3C7;color:#92400E;">Persetujuan</span>';
+  if (j === 'DATA_VOIDED')       return '<span class="status-badge" style="background:#FEE2E2;color:var(--n-crit);">Data Dianulir</span>';
+  if (j === 'REMINDER_MINGGUAN') return '<span class="status-badge" style="background:var(--n-primary-light);color:var(--n-primary);">Pengingat</span>';
+  return '<span class="status-badge" style="background:#F3F4F6;color:#374151;">' + _esc(j || '—') + '</span>';
+}
+
+function _ntfReload() {
+  var list = document.getElementById('ntf-list');
+  if (!list) return;
+  list.innerHTML = _loadingInline('Memuat notifikasi\u2026');
+  _msg('ntf-msg', null);
+  _asyncArm('ntf-list', list, '_ntfReload()');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      _asyncDisarm('ntf-list');
+      if (_asyncResErr(res)) {
+        list.innerHTML = '<div class="n-pad-muted"><div class="n-msg error">' +
+          _esc(_asyncResErr(res)) + '</div></div>';
+        return;
+      }
+      try {
+        _NTF.unread = (res.data && res.data.unreadCount) || 0;
+        _renderNotifBadge(_NTF.unread);
+        _ntfRenderStrip(res.data);
+        _ntfRenderList((res.data && res.data.items) || []);
+      } catch (e) {
+        _asyncRenderFail('ntf-list', list, e);
+      }
+    })
+    .withFailureHandler(function (err) {
+      _asyncDisarm('ntf-list');
+      var m = _failOrLogout(err);
+      list.innerHTML = '<div class="n-pad-muted">' + _esc(m || 'Koneksi terputus.') + '</div>';
+    })
+    .notifikasi_getList(APP.token);
+}
+
+function _ntfRenderStrip(d) {
+  var el = document.getElementById('ntf-ringkasan');
+  if (!el) return;
+  var items = (d && d.items) || [];
+  var unread = (d && d.unreadCount) || 0;
+  el.innerHTML =
+    '<div class="kpi-card"><div class="kpi-main">' +
+      '<div class="kpi-label">Total Notifikasi</div>' +
+      '<div class="kpi-value">' + items.length + '</div>' +
+    '</div></div>' +
+    '<div class="kpi-card"><div class="kpi-main">' +
+      '<div class="kpi-label">Belum Dibaca</div>' +
+      '<div class="kpi-value">' + unread + '</div>' +
+      '<div class="kpi-sub">' + (unread > 0 ? 'Perlu ditinjau' : 'Semua sudah dibaca') + '</div>' +
+    '</div></div>';
+}
+
+function _ntfRenderList(items) {
+  var list = document.getElementById('ntf-list');
+  if (!list) return;
+
+  if (!items || items.length === 0) {
+    list.innerHTML = '<div class="n-pad-muted">Belum ada notifikasi.</div>';
+    return;
+  }
+
+  var t = '<table class="n-table n-table-full"><thead><tr>' +
+    '<th style="width:150px;">Jenis</th><th>Pesan</th><th style="width:150px;">Waktu</th><th style="width:120px;">Status</th>' +
+    '</tr></thead><tbody>';
+
+  for (var i = 0; i < items.length; i++) {
+    var n = items[i];
+    var unread = !n.isRead;
+    t += '<tr' + (unread ? ' style="background:var(--n-surface-2);"' : '') + '>' +
+      '<td>' + _ntfJenisBadge(n.jenis) + '</td>' +
+      '<td style="font-weight:' + (unread ? '600' : '400') + ';">' + _esc(n.pesan) + '</td>' +
+      '<td>' + _esc(_riwFmtTS(n.createdAt)) + '</td>' +
+      '<td>' + (unread
+        ? '<button class="btn-mini" onclick="_ntfMarkRead(\'' + _esc(n.notifId) + '\')">Tandai Dibaca</button>'
+        : '<span style="color:var(--n-text-muted);font-size:.8rem;">Dibaca</span>') +
+      '</td></tr>';
+  }
+
+  t += '</tbody></table>';
+  list.innerHTML = t;
+}
+
+function _ntfMarkRead(notifId) {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _msg('ntf-msg', 'error', res.error); return; }
+      _ntfReload();
+    })
+    .withFailureHandler(function (err) { _msg('ntf-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.'); })
+    .notifikasi_markRead(APP.token, notifId);
+}
+
+function _ntfMarkAllRead() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) { _msg('ntf-msg', 'error', res.error); return; }
+      _ntfReload();
+      _applyShellStatus();
+    })
+    .withFailureHandler(function (err) { _msg('ntf-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.'); })
+    .notifikasi_markAllRead(APP.token);
+}
+
+// ── SHELL — badge unread & strip "divisi belum melapor" ───
+function _applyShellStatus() {
+  if (!APP.token || !APP.user) return;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res || !res.success) return; // silent: badge/strip bukan fitur kritis, jangan crash
+      _renderNotifBadge((res.data && res.data.unreadCount) || 0);
+      _renderReminderStrip(res.data ? res.data.divisiBelumMelapor : null);
+    })
+    .withFailureHandler(function (err) { _failOrLogout(err); /* shell status: paksa logout bila sesi mati */ })
+    .notifikasi_getRingkasan(APP.token);
+}
+
+function _renderNotifBadge(n) {
+  var badge = document.getElementById('nav-notif-badge');
+  if (!badge) return;
+  if (n > 0) {
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.classList.remove('n-hidden');
+  } else {
+    badge.classList.add('n-hidden');
+  }
+}
+
+function _renderReminderStrip(info) {
+  var strip = document.getElementById('reminder-strip');
+  if (!strip) return;
+  if (!info) {
+    strip.classList.add('n-hidden');
+    strip.innerHTML = '';
+    return;
+  }
+  strip.innerHTML = '<strong>' + _esc(info.label) + '</strong> belum melapor untuk minggu ini. ' +
+    'Lengkapi laporan mingguan Anda sebelum akhir pekan.';
+  strip.classList.remove('n-hidden');
 }
 
 // ── UTILITIES ─────────────────────────────────────────────

@@ -129,6 +129,9 @@
 
   <!-- MAIN -->
   <main class="app-main">
+    <div class="reminder-strip n-hidden" id="reminder-strip">
+      <!-- diisi _renderReminderStrip() — peringatan "divisi belum melapor" -->
+    </div>
     <div class="page-header" id="page-header">
       <!-- diisi oleh _renderPageHeader() -->
     </div>
@@ -195,6 +198,40 @@
 </div>
 
 <!-- =========================================================
+     MODAL — Kelola Akun (Admin Panel / tab Pengguna, SUPERADMIN)
+     Diisi oleh _adnOpenEdit() dari Script_Main.html
+     ========================================================= -->
+<div class="n-overlay n-hidden" id="modal-admin-user">
+  <div class="n-modal">
+    <h2 id="adn-form-title">Kelola Akun</h2>
+    <div id="adn-form-msg" class="n-msg"></div>
+    <div class="n-info-static" style="margin-bottom:16px">
+      <div id="adn-f-nama" style="font-weight:600;"></div>
+      <div id="adn-f-email" style="font-size:.8125rem;"></div>
+    </div>
+    <div class="form-grp">
+      <label for="adn-f-role">Jabatan</label>
+      <select id="adn-f-role" onchange="_adnOnRoleChange()"></select>
+    </div>
+    <div class="form-grp">
+      <label for="adn-f-divisi">Unit Kerja</label>
+      <select id="adn-f-divisi"></select>
+    </div>
+    <div class="form-grp">
+      <label for="adn-f-status">Status Akun</label>
+      <select id="adn-f-status"></select>
+    </div>
+    <div class="form-grp">
+      <label for="adn-f-password">Reset Password (opsional)</label>
+      <input type="password" id="adn-f-password" placeholder="Minimal 8 karakter" autocomplete="new-password">
+    </div>
+    <button class="btn-primary" id="btn-adn-save" onclick="_adnSaveUser()">Simpan Perubahan</button>
+    <button class="btn-ghost" id="btn-adn-reset" onclick="_adnResetPassword()">Reset Password</button>
+    <button class="btn-ghost" onclick="_adnCloseForm()">Batal</button>
+  </div>
+</div>
+
+<!-- =========================================================
      VIEW TEMPLATES — server-side included, disimpan hidden
      Script_Main.html membaca innerHTML dan me-render konten
      ========================================================= -->
@@ -211,6 +248,8 @@
   <?!= html_include('html/views/Pengawakan'); ?>
   <?!= html_include('html/views/Kegiatan'); ?>
   <?!= html_include('html/views/Riwayat'); ?>
+  <?!= html_include('html/views/Notifikasi'); ?>
+  <?!= html_include('html/views/Admin'); ?>
 </div>
 
 

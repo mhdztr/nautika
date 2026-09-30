@@ -67,7 +67,22 @@ function doExportAudit() {
  * DEBUG ONLY. Fungsi minimal untuk isolasi error storage GAS.
  */
 function debug_ping() {
-  return { ping: 'pong', ts: new Date().toISOString() };
+  var res = { ping: 'pong', ts: new Date().toISOString(), steps: [] };
+  try {
+    res.steps.push('properties');
+    var props = PropertiesService.getScriptProperties();
+    var mId = props.getProperty('NAUTIKA_MASTER_SS_ID');
+    res.masterId = mId;
+
+    res.steps.push('spreadsheet');
+    if (mId) {
+      var ss = SpreadsheetApp.openById(mId);
+      res.ssName = ss.getName();
+    }
+  } catch (e) {
+    res.error = e.message;
+  }
+  return res;
 }
 
 /**
@@ -88,5 +103,54 @@ function debug_readIndex() {
     return json;
   } catch (err) {
     return { caughtError: String(err), stack_first_line: (err && err.stack ? String(err.stack).split('\n')[0] : '(no stack)') };
+  }
+}
+
+/**
+ * DEBUG ONLY — Diagnosa admin_getUsers tanpa token.
+ * Jalankan dari editor GAS: pilih fungsi ini di dropdown lalu klik "Run".
+ * Lihat hasil di panel "Execution log" atau "Executions".
+ * Hapus setelah masalah teridentifikasi.
+ */
+function debug_adminCheck() {
+  var results = { step: '', error: null };
+  try {
+    results.step = '1_getIds';
+    var ids = getSpreadsheetIds();
+    results.masterId_prefix = (ids.masterId || '').substring(0, 8) + '...';
+
+    results.step = '2_openUsers';
+    var usersSheet = openMasterSheet(SHEET_MASTER.USERS);
+    results.usersSheetExists = !!usersSheet;
+
+    results.step = '3_readUsers';
+    var rows = sheetToObjects(usersSheet);
+    results.rowCount = rows.length;
+
+    results.step = '4_openDivisi';
+    var divisiSheet = openMasterSheet(SHEET_MASTER.DIVISI);
+    results.divisiSheetExists = !!divisiSheet;
+
+    results.step = '5_mapValues';
+    // Cek apakah ada Date object yang berpotensi bermasalah saat serialisasi
+    var sample = rows.slice(0, 3).map(function (u) {
+      return {
+        userId: String(u['UserID'] || ''),
+        nama: String(u['Nama'] || ''),
+        registeredAt_type: typeof u['RegisteredAt'],
+        registeredAt_isDate: u['RegisteredAt'] instanceof Date,
+        approvedAt_type: typeof u['ApprovedAt'],
+        approvedAt_isDate: u['ApprovedAt'] instanceof Date
+      };
+    });
+    results.sample = sample;
+    results.step = 'DONE';
+    Logger.log('[debug_adminCheck] ' + JSON.stringify(results));
+    return results;
+  } catch (e) {
+    results.error = e.message;
+    results.stack = e.stack || '';
+    Logger.log('[debug_adminCheck] FAIL at ' + results.step + ': ' + e.message);
+    return results;
   }
 }

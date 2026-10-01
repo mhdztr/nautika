@@ -89,6 +89,9 @@
           <button type="button" id="tu-btn-lock-pagu" class="btn-mini n-hidden" onclick="tuUnlockPagu(false)">Batalkan</button>
         </div>
 
+        <!-- Berapa kali pagu sudah direvisi (dihitung server dari seluruh riwayat) -->
+        <div class="tu-pagu-rev" id="tu-pagu-rev">—</div>
+
         <!-- Realisasi row -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
@@ -143,6 +146,7 @@
           <input type="number" id="rv-pagu-abt" min="0" step="1" placeholder="0">
         </div>
       </div>
+      <div class="tu-pagu-rev" id="rv-pagu-rev">—</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div class="form-grp">
           <label for="rv-real-sp2d">Realisasi SP2D (Rp)</label>
@@ -161,6 +165,7 @@
         <label for="rv-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(jika Pagu berubah)</span></label>
         <input type="text" id="rv-catatan" placeholder="Opsional">
       </div>
+      <div id="tu-revisi-attach"></div>
       <button class="btn-primary" id="btn-confirm-revisi" onclick="tuRevisiConfirm()">Simpan Revisi</button>
       <button class="btn-ghost" onclick="tuCloseRevisiModal()" style="margin-top:8px;">Batal</button>
     </div>

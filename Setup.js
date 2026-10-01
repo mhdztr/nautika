@@ -168,7 +168,7 @@ function _setupMaster(props) {
   var defaultSheet = ss.getSheets()[0];
 
   _createSheetWithHeaders(ss, SHEET_MASTER.KAPAL, [
-    'KapalID', 'Nama', 'Kelas', 'Homebase_UPT', 'StatusAktif'
+    'KapalID', 'Nama', 'Kelas', 'Homebase_UPT', 'StatusAktif', 'JenisKapal'
   ]);
 
   _createSheetWithHeaders(ss, SHEET_MASTER.KAWASAN_KONSERVASI, [
@@ -572,6 +572,14 @@ var OPSI_SEED = {
   OPS_HARI_KATEGORI: [
     { label: 'KAPAL_PUSAT', tampil: 'Kapal Pusat' },
     { label: 'SEMUA_KAPAL', tampil: 'Semua Kapal' },
+    { label: 'SPEEDBOAT', tampil: 'Speedboat' }
+  ],
+  // Jenis kapal armada. Memakai token yang sama dengan `OPS_HARI_KATEGORI`
+  // supaya KapalID pada laporan bisa dicocokkan dengan kategori hari operasi
+  // tanpa kosakata enum baru. `SEMUA_KAPAL` sengaja TIDAK ada di sini — itu
+  // kategori pelaporan (agregat semua kapal), bukan jenis sebuah kapal.
+  KAPAL_JENIS: [
+    { label: 'KAPAL_PUSAT', tampil: 'Kapal Pusat' },
     { label: 'SPEEDBOAT', tampil: 'Speedboat' }
   ]
 };

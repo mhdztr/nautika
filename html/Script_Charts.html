@@ -366,6 +366,17 @@ function _chartLine(canvasId, labels, datasets, opts) {
       };
     });
 
+    var yScale = {
+      beginAtZero: true,
+      grid: { color: _CHART_COLORS.grid },
+      ticks: {
+        color: _CHART_COLORS.textMuted,
+        font: { size: 11 },
+        callback: function (v) { return opts.yFmt ? opts.yFmt(v) : _chartCompact(v); }
+      },
+      border: { display: false }
+    };
+
     var chart = new Chart(ctx, {
       type: 'line',
       data: { labels: labels, datasets: dsOut },
@@ -373,11 +384,19 @@ function _chartLine(canvasId, labels, datasets, opts) {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           nvVal:   { enabled: false },
-          nvEnd:   { enabled: true, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textPrimary }
+          nvEnd:   { enabled: !opts.noEndLabel, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textPrimary },
+          tooltip: {
+            callbacks: {
+              label: function (c) {
+                var fmt = opts.fmt || _chartNum;
+                return c.dataset.label + ': ' + fmt(c.raw);
+              }
+            }
+          }
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: _CHART_COLORS.textSecondary, font: { size: 11 } }, border: { display: false } },
-          y: _chartYScale()
+          y: yScale
         }
       })
     });
@@ -416,23 +435,44 @@ function _chartBar(canvasId, labels, datasets, opts) {
     });
 
     var horizontal = !!opts.horizontal;
+    var showValLabel = !opts.noValueLabel;
+
+    var yScale = {
+      beginAtZero: true,
+      grid: { color: _CHART_COLORS.grid },
+      ticks: {
+        color: _CHART_COLORS.textMuted,
+        font: { size: 11 },
+        callback: function (v) { return opts.yFmt ? opts.yFmt(v) : _chartCompact(v); }
+      },
+      border: { display: false }
+    };
+
     var chart = new Chart(ctx, {
       type: 'bar',
       data: { labels: labels, datasets: dsOut },
       options: _chartBase(opts, {
         indexAxis: horizontal ? 'y' : 'x',
         plugins: {
-          nvVal: { enabled: true, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textSecondary, horizontal: horizontal },
-          nvEnd: { enabled: false }
+          nvVal: { enabled: showValLabel && !horizontal, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textSecondary, horizontal: false },
+          nvEnd: { enabled: false },
+          tooltip: {
+            callbacks: {
+              label: function (c) {
+                var fmt = opts.fmt || _chartNum;
+                return c.dataset.label + ': ' + fmt(c.raw);
+              }
+            }
+          }
         },
         scales: horizontal
           ? {
-              x: _chartYScale(),
+              x: yScale,
               y: { grid: { display: false }, ticks: { color: _CHART_COLORS.textPrimary, font: { size: 11 }, autoSkip: false }, border: { display: false } }
             }
           : {
               x: { grid: { display: false }, ticks: { color: _CHART_COLORS.textSecondary, font: { size: 11 }, autoSkip: false }, border: { display: false } },
-              y: _chartYScale()
+              y: yScale
             }
       })
     });

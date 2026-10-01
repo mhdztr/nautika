@@ -26,6 +26,39 @@
 
 var _TU_DIVISI_ID = 'DIV-TU';
 
+/**
+ * Berapa kali Pagu sudah direvisi.
+ *
+ * Definisi: jumlah TRANSISI nilai (PaguReguler, PaguABT) pada baris ACTIVE
+ * yang berbeda dari baris ACTIVE sebelumnya, dibaca kronologis. Baris
+ * pertama tidak dihitung — itu pagu awal, bukan revisi.
+ *
+ * Menghitung seluruh riwayat, bukan hanya rantai Supersedes satu periode,
+ * karena Pagu bersifat kumulatif: nilainya diwarisi laporan minggu
+ * sebelumnya, jadi revisi bisa terjadi di periode mana pun.
+ *
+ * Dihitung dari perubahan NILAI, bukan dari `CatatanRevisiPagu` yang terisi:
+ * `tataUsaha_revisi` mewajibkan alasan revisi tapi tidak memaksa Catatan
+ * Revisi Pagu walau Pagu berubah, jadi menghitung dari kolom catatan akan
+ * understated.
+ *
+ * @param {Array<Object>} activeRows Baris TX_TataUsaha berstatus ACTIVE.
+ * @returns {number} jumlah revisi pagu yang sudah terjadi.
+ */
+function _tuHitungRevisiPagu(activeRows) {
+  var urut = activeRows.slice().sort(function (a, b) {
+    return new Date(a['Timestamp']) - new Date(b['Timestamp']);
+  });
+  var jumlah = 0;
+  var prev = null;
+  for (var i = 0; i < urut.length; i++) {
+    var cur = { r: _num(urut[i]['PaguReguler']), a: _num(urut[i]['PaguABT']) };
+    if (prev && (cur.r !== prev.r || cur.a !== prev.a)) jumlah++;
+    prev = cur;
+  }
+  return jumlah;
+}
+
 // ── BACA KPI ─────────────────────────────────────────────
 
 /**
@@ -35,6 +68,7 @@ var _TU_DIVISI_ID = 'DIV-TU';
  * @param {{mode:string, month:number, year:number, dateFrom:string, dateTo:string}} filter
  * @returns {{success:boolean, data:{
  *   paguReguler: number, paguABT: number, paguTotal: number,
+ *   revisiPagu: number,   // berapa kali pagu sudah direvisi (seluruh riwayat)
  *   realisasiSP2D: number, realisasiAkrual: number,
  *   sisaSP2D: number, sisaAkrual: number,
  *   pctSP2D: number, pctAkrual: number,
@@ -65,12 +99,19 @@ function tataUsaha_getKPI(token, filter) {
     var paguABT     = latestActive ? _num(latestActive['PaguABT'])     : 0;
     var paguTotal   = paguReguler + paguABT;
 
-    // Realisasi akumulatif = SUM dari baris ACTIVE dalam range
+    // Realisasi akumulatif = SUM dari baris ACTIVE secara YTD (1 Jan s.d. batas akhir filter)
+    var tahunRef = range.startDate.getFullYear();
+    var ytdStart = new Date(tahunRef, 0, 1);
+
     var realisasiSP2D   = 0;
     var realisasiAkrual = 0;
-    activeInRange.forEach(function (r) {
-      realisasiSP2D   += _num(r['RealisasiSP2D_Minggu']);
-      realisasiAkrual += _num(r['RealisasiAkrual_Minggu']);
+    rows.forEach(function (r) {
+      if (String(r['Status']) !== ROW_STATUS.ACTIVE) return;
+      var ts = new Date(r['Timestamp']);
+      if (ts >= ytdStart && ts <= range.endDate) {
+        realisasiSP2D   += _num(r['RealisasiSP2D_Minggu']);
+        realisasiAkrual += _num(r['RealisasiAkrual_Minggu']);
+      }
     });
 
     var sisaSP2D   = paguReguler - realisasiSP2D;
@@ -89,6 +130,7 @@ function tataUsaha_getKPI(token, filter) {
         paguReguler:          paguReguler,
         paguABT:              paguABT,
         paguTotal:            paguTotal,
+        revisiPagu:           _tuHitungRevisiPagu(activeAll),
         realisasiSP2D:        realisasiSP2D,
         realisasiAkrual:      realisasiAkrual,
         sisaSP2D:             sisaSP2D,

@@ -73,6 +73,9 @@ function master_getKapalList(token) {
     var session = _mdRequireSession(token);
     _mdAssertRead(session);
 
+    _mdEnsureKapalJenisOpsi();
+    ensureKapalJenisColumn();
+
     var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
     var rows = sheetToObjects(sheet);
 
@@ -89,13 +92,18 @@ function master_getKapalList(token) {
 /**
  * Helper internal (tanpa RBAC — pemanggil sudah assert scope masing-masing):
  * cek apakah sebuah KapalID terdaftar di master kapal. Dipakai service lain
- * (Operasi Laut/Udara, Logistik) untuk menvalidasi input opsional KapalID.
+ * (Operasi Laut/Udara, Logistik) untuk memvalidasi KapalID.
+ *
+ * KOSONG = VALID. Service yang mewajibkan kapal (Operasi Laut &
+ * Udara sejak Fase 14 Item 6) sudah menolak string kosong sebelum memanggil
+ * helper ini; pemanggil yang KapalID-nya opsional (mis. Logistik) tetap
+ * memperlakukan kosong sebagai "tidak menautkan kapal".
  * @param {string} kapalId
  * @returns {boolean}
  */
 function master_kapalExists(kapalId) {
   var id = String(kapalId || '').trim();
-  if (!id) return true; // KapalID opsional — kosong = valid
+  if (!id) return true;
   var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
   var rows = sheetToObjects(sheet);
   for (var i = 0; i < rows.length; i++) {
@@ -105,9 +113,72 @@ function master_kapalExists(kapalId) {
 }
 
 /**
+ * Self-heal grup Opsi `KAPAL_JENIS` untuk DB yang dibuat sebelum enum ini
+ * ada. Tanpa ini, `_reqOpsi` akan menolak SEMUA kapal baru di DB lama
+ * ("Jenis kapal tidak dikenal") sampai user menjalankan `setupSeedOpsi()`
+ * secara manual — dan dropdown Master Kapal akan kosong tanpa penjelasan.
+ *
+ * Cheap guard: hanya menyentuh sheet Opsi saat grupnya masih kosong, lalu
+ * memakai `_seedOpsi` yang sudah idempoten. Kegagalan tidak boleh mematikan
+ * jalur baca — enum tetap kosong dan validasi akan menolak dengan pesan jelas.
+ */
+function _mdEnsureKapalJenisOpsi() {
+  try {
+    if (getOpsiDetail(OPSI_KODE.KAPAL_JENIS).length) return;
+    var masterSS = SpreadsheetApp.openById(getSpreadsheetIds().masterId);
+    if (_seedOpsi(masterSS)) {
+      clearOpsiCache();
+      Logger.log('[_mdEnsureKapalJenisOpsi] Grup ' + OPSI_KODE.KAPAL_JENIS + ' di-seed otomatis.');
+    }
+  } catch (e) {
+    Logger.log('[_mdEnsureKapalJenisOpsi] Gagal self-heal: ' + e.message);
+  }
+}
+
+/**
+ * Helper internal (tanpa RBAC): baca `JenisKapal` (enum Opsi `KAPAL_JENIS`)
+ * dari master kapal. Dipakai Operasi Laut untuk mencocokkan kapal yang dipilih
+ * dengan `HariOperasi_Kategori` pada laporan.
+ *
+ * KOLOM KOSONG = TIDAK DIBATASI. Baris kapal lama (sebelum kolom ada) dibaca
+ * sebagai `''` dan dianggap cocok dengan kategori apa pun — supaya data lama
+ * tidak terkunci dari form. Kapal baru wajib mengisi lewat Master Data.
+ *
+ * @param {string} kapalId
+ * @returns {string} token enum uppercase, atau '' bila kapal tidak ada / kosong
+ */
+function master_kapalJenis(kapalId) {
+  var id = String(kapalId || '').trim();
+  if (!id) return '';
+  var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+  var rows = sheetToObjects(sheet);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['KapalID'] || '').trim() === id) {
+      return String(rows[i]['JenisKapal'] || '').trim().toUpperCase();
+    }
+  }
+  return '';
+}
+
+/**
+ * Helper internal (tanpa RBAC): apakah kapal boleh dipakai untuk kategori hari
+ * operasi tertentu. `SEMUA_KAPAL` = agregat semua kapal, jadi tidak dibatasi.
+ * @param {string} kapalId
+ * @param {string} hariKategori token OPS_HARI_KATEGORI (bisa kosong)
+ * @returns {boolean}
+ */
+function master_kapalCocokKategori(kapalId, hariKategori) {
+  var kat = String(hariKategori || '').trim().toUpperCase();
+  if (!kat || kat === 'SEMUA_KAPAL') return true;
+  var jenis = master_kapalJenis(kapalId);
+  if (!jenis) return true;   // kapal lama tanpa JenisKapal → tidak dibatasi
+  return jenis === kat;
+}
+
+/**
  * Tambah kapal baru.
  * @param {string} token
- * @param {{kapalId:string, nama:string, kelas:string, homebaseUpt:string, statusAktif:boolean}} params
+ * @param {{kapalId:string, nama:string, kelas:string, homebaseUpt:string, jenisKapal:string, statusAktif:boolean}} params
  */
 function master_createKapal(token, params) {
   try {
@@ -122,14 +193,19 @@ function master_createKapal(token, params) {
       var homebaseUpt = _optText(p.homebaseUpt);
       var statusAktif = _optBool(p.statusAktif, true);
 
+      _mdEnsureKapalJenisOpsi();
+      var jenisKapal  = _reqOpsi(p.jenisKapal, 'Jenis kapal', OPSI_KODE.KAPAL_JENIS);
+
       var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+      ensureKapalJenisColumn();
       if (findRowByField(sheet, 'KapalID', kapalId)) {
         return { success: false, error: 'Kapal dengan ID ' + kapalId + ' sudah terdaftar.' };
       }
 
       appendRowData(sheet, {
         KapalID: kapalId, Nama: nama, Kelas: kelas,
-        Homebase_UPT: homebaseUpt, StatusAktif: statusAktif
+        Homebase_UPT: homebaseUpt, StatusAktif: statusAktif,
+        JenisKapal: jenisKapal
       });
 
       _mdAuditLog(session.userId, 'CREATE', SHEET_MASTER.KAPAL, kapalId, 'Tambah kapal: ' + nama);
@@ -144,7 +220,7 @@ function master_createKapal(token, params) {
 /**
  * Update kapal (field opsional — diisi yang berubah saja).
  * @param {string} token
- * @param {{kapalId:string, nama:string, kelas:string, homebaseUpt:string, statusAktif:boolean}} params
+ * @param {{kapalId:string, nama:string, kelas:string, homebaseUpt:string, jenisKapal:string, statusAktif:boolean}} params
  */
 function master_updateKapal(token, params) {
   try {
@@ -155,7 +231,9 @@ function master_updateKapal(token, params) {
       var p = params || {};
       var kapalId = _reqText(p.kapalId, 'KapalID');
 
+      _mdEnsureKapalJenisOpsi();
       var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+      ensureKapalJenisColumn();
       var found = findRowByField(sheet, 'KapalID', kapalId);
       if (!found) return { success: false, error: 'Kapal ' + kapalId + ' tidak ditemukan.' };
 
@@ -164,6 +242,9 @@ function master_updateKapal(token, params) {
       if (p.kelas !== undefined)       updates.Kelas       = _optText(p.kelas);
       if (p.homebaseUpt !== undefined) updates.Homebase_UPT = _optText(p.homebaseUpt);
       if (p.statusAktif !== undefined) updates.StatusAktif = _optBool(p.statusAktif, true);
+      if (p.jenisKapal !== undefined && String(p.jenisKapal).trim() !== '') {
+        updates.JenisKapal = _reqOpsi(p.jenisKapal, 'Jenis kapal', OPSI_KODE.KAPAL_JENIS);
+      }
 
       if (Object.keys(updates).length > 0) {
         updateRowCells(sheet, found.rowIndex, updates);
@@ -587,10 +668,11 @@ function master_setOpsiJenisAktif(token, params) {
 
 function _normalizeKapal(row) {
   return {
-    kapalId:    String(row['KapalID']   === undefined || row['KapalID'] === null ? '' : row['KapalID']),
-    nama:       String(row['Nama']      === undefined || row['Nama'] === null ? '' : row['Nama']),
-    kelas:      String(row['Kelas']     === undefined || row['Kelas'] === null ? '' : row['Kelas']),
+    kapalId:    String(row['KapalID']   === undefined || row['KapalID']   === null ? '' : row['KapalID']),
+    nama:       String(row['Nama']      === undefined || row['Nama']      === null ? '' : row['Nama']),
+    kelas:      String(row['Kelas']     === undefined || row['Kelas']     === null ? '' : row['Kelas']),
     homebaseUpt:String(row['Homebase_UPT'] === undefined || row['Homebase_UPT'] === null ? '' : row['Homebase_UPT']),
+    jenisKapal: String(row['JenisKapal'] === undefined || row['JenisKapal'] === null ? '' : String(row['JenisKapal']).toUpperCase()),
     statusAktif: row['StatusAktif'] === true || String(row['StatusAktif']) === 'true' ||
                  String(row['StatusAktif']) === 'TRUE' || row['StatusAktif'] === 1
   };
@@ -620,6 +702,24 @@ function _reqText(val, label) {
 
 function _optText(val) {
   return String(val === undefined || val === null ? '' : val).trim();
+}
+
+/**
+ * Wajib diisi DAN harus berupa token yang terdaftar di sheet `Opsi` pada grup
+ * enum tertentu (sumber tunggal seluruh enum domain). `getOpsiList` sudah
+ * menyimpan hanya `Label` yang punya `LabelTampil` terisi.
+ * @param {string} val
+ * @param {string} label nama field untuk pesan error
+ * @param {string} kode grup enum (OPSI_KODE)
+ * @returns {string} token uppercase
+ */
+function _reqOpsi(val, label, kode) {
+  var s = String(val === undefined || val === null ? '' : val).trim().toUpperCase();
+  if (!s) throw new Error(label + ' wajib diisi.');
+  if (getOpsiList(kode).indexOf(s) === -1) {
+    throw new Error(label + ' "' + s + '" tidak valid — pilih dari daftar.');
+  }
+  return s;
 }
 
 function _optBool(val, defaultVal) {

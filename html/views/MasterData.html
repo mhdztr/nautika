@@ -104,12 +104,18 @@
           <input type="text" id="md-kapal-homebase" placeholder="cth: Bitung" maxlength="80" autocomplete="off">
         </div>
       </div>
-      <div class="form-grp">
-        <label for="md-kapal-status">Status</label>
-        <select id="md-kapal-status">
-          <option value="true" selected>Aktif</option>
-          <option value="false">Tidak Aktif</option>
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div class="form-grp">
+          <label for="md-kapal-jenis">Jenis Kapal <span style="color:var(--n-status-critical);">*</span></label>
+          <select id="md-kapal-jenis"></select>
+        </div>
+        <div class="form-grp">
+          <label for="md-kapal-status">Status</label>
+          <select id="md-kapal-status">
+            <option value="true" selected>Aktif</option>
+            <option value="false">Tidak Aktif</option>
+          </select>
+        </div>
       </div>
 
       <div style="display:flex;gap:12px;margin-top:24px;">

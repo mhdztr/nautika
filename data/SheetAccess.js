@@ -173,6 +173,16 @@ function ensurePemantauanKapalKolom() {
 }
 
 /**
+ * Pastikan kolom JenisKapal ada di sheet master `Kapal` (enum grup Opsi
+ * `KAPAL_JENIS`). Dipanggil di titik tulis Master Kapal supaya DB lama ter-heal
+ * otomatis tanpa setupForce. Baris kapal lama yang kolomnya kosong tetap
+ * valid — dibaca sebagai "tidak dibatasi jenis" (lihat `master_kapalJenis`).
+ */
+function ensureKapalJenisColumn() {
+  ensureMasterColumn(SHEET_MASTER.KAPAL, 'JenisKapal');
+}
+
+/**
  * Ambil sheet detail transaksi, buat otomatis bila belum ada (self-heal,
  * idempoten). Dipakai untuk sheet rincian per-item (TX_*_Detail — revisi
  * rincian audit) supaya DB lama ter-heal tanpa `setupForce`.
@@ -478,6 +488,21 @@ function getOpsiLabelMap(kode) {
   }
   try { cache.put(key, JSON.stringify(map), 600); } catch (e) { /* ignore */ }
   return map;
+}
+
+/**
+ * Label tampilan satu token enum; jatuh ke token itu sendiri bila tidak ada
+ * di peta (atau token kosong → string kosong). Dipakai untuk pesan error yang
+ * perlu menyebut nama ramah, bukan token mentah.
+ * @param {string} kode grup enum (OPSI_KODE)
+ * @param {string} token
+ * @returns {string}
+ */
+function getOpsiLabel(kode, token) {
+  var t = String(token || '').trim().toUpperCase();
+  if (!t) return '';
+  var map = getOpsiLabelMap(kode);
+  return map[t] || t;
 }
 
 /**

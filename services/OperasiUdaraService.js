@@ -204,7 +204,17 @@ function operasiUdara_submit(token, params) {
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_UDARA);
       ensureKapalColumns(); // self-heal: pastikan kolom KapalID ada (Fase 12)
-      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+      // KapalID WAJIB (Fase 14 Item 6) — sumber bar "Kapal Pengawas Teraktif"
+      // di Overview & agregasi Profil Kapal. Kosong = tidak ada yang bisa
+      // dihitung, jadi ditolak di server (bukan hanya disembunyikan di UI).
+      // Tidak ada pencocokan `JenisKapal` di modul ini: TX_OperasiUdara tidak
+      // punya kolom `HariOperasi_Kategori` (lihat DATA_SCHEMA.md), jadi tidak
+      // ada kategori yang perlu dicocokkan.
+      var kapalIdSubmit = String(p.KapalID || '').trim();
+      if (!kapalIdSubmit) {
+        return { success: false, error: 'Kapal Pengawas wajib dipilih.' };
+      }
+      if (!master_kapalExists(kapalIdSubmit)) {
         return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
       }
       var rows = sheetToObjects(sheet);
@@ -232,7 +242,7 @@ function operasiUdara_submit(token, params) {
         VoidedAt: '',
 
         WPPCode: p.WPPCode,
-        KapalID: p.KapalID || '',
+        KapalID: kapalIdSubmit,
         KII: p.KII || 0,
         KIA: p.KIA || 0,
         ObjekSDK: p.ObjekSDK || 0,
@@ -282,12 +292,38 @@ function operasiUdara_revisi(token, params) {
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_UDARA);
       ensureKapalColumns(); // self-heal (Fase 12)
-      if (p.KapalID && !master_kapalExists(p.KapalID)) {
-        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
-      }
       var oldRowData = findRowByField(sheet, 'RowID', targetRowId);
       if (!oldRowData || String(oldRowData.obj['Status']) !== ROW_STATUS.ACTIVE) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
+      }
+
+      var oldObj = oldRowData.obj;
+
+      // Semua validasi WAJIB selesai sebelum baris lama ditandai SUPERSEDED —
+      // kalau tidak, revisi yang gagal akan menghilangkan data aktif.
+      //
+      // KapalID wajib (Fase 14 Item 6). Diisi dari form revisi (modal punya
+      // pemilih kapal, di-prefill nilai baris lama) atau — ketika client tidak
+      // mengirim — diwarisi dari baris lama. Baris lama tanpa KapalID tidak
+      // punya sumber nilai, jadi revisi wajib memilih kapal: inilah jalur
+      // mengisi kolom kosong pada data lama lewat UI.
+      var kapalIdRevisi = String(
+        p.KapalID !== undefined ? p.KapalID : (oldObj.KapalID || '')
+      ).trim();
+      if (!kapalIdRevisi) {
+        return { success: false, error: 'Kapal Pengawas wajib dipilih. Laporan lama belum punya kapal — pilih kapal untuk merevisi.' };
+      }
+      if (!master_kapalExists(kapalIdRevisi)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
+
+      // Validasi rincian per-item HARUS sebelum baris lama ditandai SUPERSEDED
+      // (pola data-loss yang sudah diperbaiki di Pemantauan/Intelijen Fase 12).
+      var rincianRevisi = null;
+      if (p.rincian !== undefined) {
+        var detailItems = _opsUdaraValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        rincianRevisi = detailItems.items;
       }
 
       // Tandai lama sebagai SUPERSEDED
@@ -298,7 +334,6 @@ function operasiUdara_revisi(token, params) {
         VoidedAt: new Date().toISOString()
       });
 
-      var oldObj = oldRowData.obj;
       var newRowId = Utilities.getUuid();
 
       var newRow = {
@@ -314,7 +349,7 @@ function operasiUdara_revisi(token, params) {
         VoidedAt: '',
 
         WPPCode: oldObj.WPPCode, // Tidak bisa ubah WPPCode di revisi
-        KapalID: p.KapalID !== undefined ? p.KapalID : oldObj.KapalID,
+        KapalID: kapalIdRevisi,
         KII: p.KII !== undefined ? p.KII : oldObj.KII,
         KIA: p.KIA !== undefined ? p.KIA : oldObj.KIA,
         ObjekSDK: p.ObjekSDK !== undefined ? p.ObjekSDK : oldObj.ObjekSDK,
@@ -324,11 +359,10 @@ function operasiUdara_revisi(token, params) {
         HariOperasi_Target: p.HariOperasi_Target !== undefined ? p.HariOperasi_Target : oldObj.HariOperasi_Target
       };
 
-      // Rincian opsional: superkan rincian lama, derive hitungan dari rincian baru.
-      if (p.rincian !== undefined) {
-        var detailItems = _opsUdaraValidateRincian(p.rincian);
-        if (detailItems.error) return { success: false, error: detailItems.error };
-        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'OBJEK_SDK']);
+      // Validasi rincian sudah dijalankan di atas (sebelum SUPERSEDED); di sini
+      // hanya menerapkan hitungan turunan.
+      if (rincianRevisi !== null) {
+        var counts = _detailCountByType(rincianRevisi, 'ItemType', ['KII', 'KIA', 'OBJEK_SDK']);
         newRow.KII = counts.KII;
         newRow.KIA = counts.KIA;
         newRow.ObjekSDK = counts.OBJEK_SDK;
@@ -336,11 +370,11 @@ function operasiUdara_revisi(token, params) {
 
       appendRowData(sheet, newRow);
 
-      if (p.rincian !== undefined) {
+      if (rincianRevisi !== null) {
         var oldChildren = _detailActiveChildren(SHEET_TX.OPERASI_UDARA, targetRowId);
         _detailSetChildrenStatus(SHEET_TX.OPERASI_UDARA, targetRowId, ROW_STATUS.SUPERSEDED,
           alasanRevisi, session.userId, newRow.Timestamp);
-        _detailWriteChildren('OPERASI_UDARA', newRowId, detailItems.items, {
+        _detailWriteChildren('OPERASI_UDARA', newRowId, rincianRevisi, {
           DivisiID: session.divisiId,
           Periode: oldObj.Periode,
           SubmittedBy: session.userId,

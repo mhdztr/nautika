@@ -164,6 +164,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // menutupi semua render dinamis setelahnya.
   try { _icoDecorate(); _icoWatch(); } catch (e) { /* dekorasi tidak boleh halt app */ }
 
+  // Overlay click-to-close: klik di luar .n-modal menutup popup,
+  // dengan konfirmasi jika ada field yang sudah diisi.
+  try { _initOverlayClose(); } catch (e) { /* tidak boleh halt app */ }
+
   // Fallback safety: jika dalam 15 detik callback tidak pernah dipanggil
   // (GAS RPC error, sandbox restriction, dsb), paksa sembunyikan loading.
   var _loadingTimedOut = false;
@@ -1028,9 +1032,17 @@ function _ovRenderData(d) {
     var topEl = document.getElementById('ov-chart-teraktif');
     if (topEl) {
       var teraktif = (d.charts.kapalTeraktif || []).filter(function (k) { return (Number(k.val) || 0) > 0; });
+      // Hari operasi yang tidak bisa diatribusikan ke kapal (baris lama sebelum
+      // KapalID jadi wajib). Tanpa catatan ini, chart kosong terlihat seperti
+      // tidak ada aktivitas — padahal ada hari operasi yang tidak masuk grafik.
+      var tanpaKapal = Number(d.charts.hariTanpaKapal) || 0;
+      var catatan = tanpaKapal > 0
+        ? '<div style="font-size:.75rem;color:var(--n-text-muted);margin-top:10px;">' +
+            _idNum(tanpaKapal) + ' hari operasi belum tertaut kapal — revise lapisannya agar masuk grafik.</div>'
+        : '';
       topEl.innerHTML = teraktif.length
-        ? '<div class="ov-plot-bars">' + _ovBars(teraktif) + '</div>'
-        : '<div class="chart-empty">Belum ada data hari operasi pada periode terpilih.</div>';
+        ? '<div class="ov-plot-bars">' + _ovBars(teraktif) + '</div>' + catatan
+        : '<div class="chart-empty">Belum ada hari operasi yang tertaut kapal pada periode terpilih.' + catatan + '</div>';
     }
   }
 }
@@ -2245,6 +2257,14 @@ function _mdLoadKapal() {
   if (wrap) wrap.innerHTML = _tableSkeleton(4, 5);
   if (sum)  sum.innerHTML   = '';
 
+  // Muat label enum Jenis Kapal lebih dulu supaya kolom "Jenis" di tabel
+  // menampilkan teks (bukan token mentah) sejak render pertama. Kegagalan di
+  // sini tidak boleh memblokir tabel — label akan jatuh ke token mentah.
+  _mdLoadKapalJenis(
+    function () { _mdRenderKapal(_MD.data.kapal); },
+    function () { _mdRenderKapal(_MD.data.kapal); }
+  );
+
   google.script.run
     .withSuccessHandler(function (res) {
       if (!res.success) { _mdKapalMsg('error', res.error); return; }
@@ -2286,6 +2306,7 @@ function _mdRenderKapal(items) {
       '<td>' + _esc(k.nama) + '</td>' +
       '<td>' + _esc(k.kelas || '\u2014') + '</td>' +
       '<td>' + _esc(k.homebaseUpt || '\u2014') + '</td>' +
+      '<td>' + _esc(k.jenisKapal ? _mdKapalJenisLabel(k.jenisKapal) : '\u2014') + '</td>' +
       '<td>' + badge + '</td>' +
       '<td>' +
         '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_openProfilKapal(\'' + _esc(k.kapalId) + '\')">Profil</button>' +
@@ -2299,20 +2320,44 @@ function _mdRenderKapal(items) {
 
   wrap.innerHTML =
     '<table class="n-table"><thead><tr>' +
-      '<th>ID</th><th>Nama</th><th>Kelas</th><th>Homebase / UPT</th><th>Status</th><th>Aksi</th>' +
+      '<th>ID</th><th>Nama</th><th>Kelas</th><th>Homebase / UPT</th><th>Jenis</th><th>Status</th><th>Aksi</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+// Label enum JenisKapal untuk tabel Master Kapal. Opsi diambil dari cache
+// `master_getOpsiJenis`; kalau belum termuat, tampilkan token mentahnya
+// (bukan kosong) supaya admin tetap bisa melihat kapal lewat kategori apa pun.
+function _mdKapalJenisLabel(token) {
+  var t = String(token || '').trim();
+  if (!t) return '';
+  var items = _MD.kapalJenisOptions || [];
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].value === t) return items[i].label;
+  }
+  return t;
 }
 
 function _mdOpenKapalModal(kapalId) {
   _MD.editingKapalId = kapalId || null;
   _mdKapalModalMsg(null);
   var row = kapalId ? (_MD.data.kapal || []).filter(function (k) { return k.kapalId === kapalId; })[0] : null;
+  var rowJenis = row ? String(row.jenisKapal || '') : '';
+
+  _mdLoadKapalJenis(function () {
+    _mdOpenKapalModalFill(kapalId, row, rowJenis);
+  });
+}
+
+function _mdOpenKapalModalFill(kapalId, row, rowJenis) {
 
   var idIn   = document.getElementById('md-kapal-id');
   var nmIn   = document.getElementById('md-kapal-nama');
   var klIn   = document.getElementById('md-kapal-kelas');
   var hbIn   = document.getElementById('md-kapal-homebase');
+  var jnSel  = document.getElementById('md-kapal-jenis');
   var stSel  = document.getElementById('md-kapal-status');
+
+  _fillOpsiSelect('md-kapal-jenis', _MD.kapalJenisOptions || [], '(Pilih Jenis Kapal)');
 
   if (row) {
     idIn.value  = row.kapalId;
@@ -2320,11 +2365,15 @@ function _mdOpenKapalModal(kapalId) {
     klIn.value  = row.kelas || '';
     hbIn.value  = row.homebaseUpt || '';
     stSel.value = row.statusAktif ? 'true' : 'false';
+    // Kapal lama belum punya JenisKapal → biarkan kosong agar bisa diisi
+    // tanpa memaksa admin memilih ulang saat hanya ingin mengubah yang lain.
+    if (jnSel) jnSel.value = rowJenis;
     idIn.disabled = true;
     document.getElementById('md-kapal-modal-title').textContent = 'Edit Kapal';
   } else {
     idIn.value = ''; nmIn.value = ''; klIn.value = ''; hbIn.value = '';
     stSel.value = 'true';
+    if (jnSel) jnSel.value = '';
     idIn.disabled = false;
     document.getElementById('md-kapal-modal-title').textContent = 'Tambah Kapal';
   }
@@ -2334,6 +2383,31 @@ function _mdOpenKapalModal(kapalId) {
 
 function _mdKapalModalMsg(type, text) { _mdMsg('md-kapal-modal-msg', type, text); }
 
+// Ambil daftar enum KAPAL_JENIS dari sheet Opsi (lazily, di-cache) untuk
+// mengisi dropdown "Jenis Kapal". Golongan Opsi lain dimuat lewat tab Opsi,
+// jadi tidak boleh diasumsikan sudah tersedia saat modal kapal dibuka.
+function _mdLoadKapalJenis(done, onError) {
+  if (_MD.kapalJenisOptions) { done(_MD.kapalJenisOptions); return; }
+  var fail = function () {
+    if (onError) onError();
+    else _mdKapalModalMsg('error', 'Gagal memuat daftar Jenis Kapal.');
+  };
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res && res.success && res.data) {
+        var items = ((res.data.groups || {}).KAPAL_JENIS || [])
+          .filter(function (it) { return it.aktif !== false; })
+          .map(function (it) { return { value: it.label, label: it.labelTampil || it.label }; });
+        _MD.kapalJenisOptions = items;
+        done(items);
+      } else {
+        fail();
+      }
+    })
+    .withFailureHandler(fail)
+    .master_getOpsiJenis(APP.token);
+}
+
 function _mdSaveKapal() {
   var editing = !!_MD.editingKapalId;
   var btn = document.getElementById('md-btn-kapal-save');
@@ -2342,11 +2416,18 @@ function _mdSaveKapal() {
     nama:         ((document.getElementById('md-kapal-nama')  || {}).value || '').trim(),
     kelas:        ((document.getElementById('md-kapal-kelas') || {}).value || '').trim(),
     homebaseUpt:  ((document.getElementById('md-kapal-homebase') || {}).value || '').trim(),
+    jenisKapal:   ((document.getElementById('md-kapal-jenis')   || {}).value || '').trim(),
     statusAktif:  ((document.getElementById('md-kapal-status')  || {}).value || 'true') === 'true'
   };
 
   if (!params.kapalId || !params.nama) {
     _mdKapalModalMsg('error', 'KapalID dan Nama wajib diisi.');
+    return;
+  }
+  // JenisKapal menentukan kapal mana yang muncul di form Operasi Laut untuk
+  // tiap Kategori Hari Operasi (Fase 14 Item 6) — jadi wajib saat buat baru.
+  if (!params.jenisKapal) {
+    _mdKapalModalMsg('error', 'Jenis Kapal wajib dipilih.');
     return;
   }
   _mdKapalModalMsg(null);
@@ -2356,10 +2437,11 @@ function _mdSaveKapal() {
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
       if (!res.success) { _mdKapalModalMsg('error', res.error); return; }
-      closeModal('modal-md-kapal');
-      _mdKapalMsg('success', res.message);
-      _MD.data.kapal = null;
-      _mdLoadKapal();
+      _formSubmitDone('modal-md-kapal', res.message, function () {
+        _mdKapalMsg('success', res.message);
+        _MD.data.kapal = null;
+        _mdLoadKapal();
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -2505,10 +2587,11 @@ function _mdSaveKawasan() {
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
       if (!res.success) { _mdKawasanModalMsg('error', res.error); return; }
-      closeModal('modal-md-kawasan');
-      _mdKawasanMsg('success', res.message);
-      _MD.data.kawasan = null;
-      _mdLoadKawasan();
+      _formSubmitDone('modal-md-kawasan', res.message, function () {
+        _mdKawasanMsg('success', res.message);
+        _MD.data.kawasan = null;
+        _mdLoadKawasan();
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -3258,11 +3341,206 @@ function _setLoading(btn, loading) {
   } else {
     btn.innerHTML = btn._orig || btn.textContent;
   }
+  // Kalau tombol ini berada di dalam popup form, tampilkan overlay loading
+  // besar di area form supaya proses simpan jauh lebih terlihat (bukan hanya
+  // teks "Memproses…" di tombol).
+  var ov = btn.closest ? btn.closest('.n-overlay') : null;
+  if (ov && ov.id) _formLoadingOverlay(ov.id, loading, 'Menyimpan\u2026');
 }
 
+// ── STATE SUKSES DI DALAM MODAL FORM ───────────────────────
+// Saat submit berhasil, isi modal popup tidak langsung hilang kosong: diganti
+// panel "Berhasil" sebentar, baru ditutup otomatis. Markup modal asli disimpan
+// di _FORM_SUCCESS supaya bisa dipulihkan saat form dibuka lagi.
+var _FORM_SUCCESS = {};
+
+function _formRestore(modalId) {
+  var rec = _FORM_SUCCESS[modalId];
+  if (!rec) return false;
+  // Batalkan timer auto-close: kalau modal ditutup lebih awal dan langsung
+  // dibuka lagi, timer lama tidak boleh menutup form yang sedang dipakai.
+  if (rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
+  rec.modal.innerHTML = rec.origHTML;
+  delete _FORM_SUCCESS[modalId];
+  return true;
+}
+
+// Menutup overlay loading (dipakai juga oleh _setLoading).
+function _formLoadingOverlay(modalId, on, text) {
+  if (!modalId) return;
+  var ov = document.getElementById(modalId);
+  if (!ov) return;
+  // Fallback ke .n-modal untuk popup yang tidak memakai area scroll form
+  // (mis. Master Data, Kegiatan) — keduanya punya position:relative.
+  var scroll = ov.querySelector('.n-modal-form-scroll') || ov.querySelector('.n-modal');
+  if (!scroll) return;
+  var el = scroll.querySelector('.form-loading-overlay');
+  if (!on) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    return;
+  }
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'form-loading-overlay';
+    scroll.appendChild(el);
+  }
+  el.innerHTML = '<span class="n-spin-lg"></span>' +
+                 '<span class="loading-text">' + _esc(text || 'Menyimpan\u2026') + '</span>';
+  el.classList.add('show');
+}
+
+// Tampilkan panel "Berhasil" di dalam modal form. `sub` = kalimat konfirmasi,
+// `onClose` = aksi setelah panel ditutup (umumnya reload KPI + riwayat).
+function _formShowSuccess(modalId, sub, onClose, delay) {
+  var ov = document.getElementById(modalId);
+  var modal = ov && ov.querySelector('.n-modal');
+  if (!modal) {
+    // Fallback: tetap jalankan aksi lanjutan supaya alur tidak macet.
+    if (onClose) onClose();
+    return;
+  }
+  var titleEl = modal.querySelector('h2');
+  var titleHTML = titleEl ? titleEl.outerHTML : '';
+
+  var msIcon =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M4.5 12.5l5 5 10-11"/></svg>';
+
+  var rec = _FORM_SUCCESS[modalId];
+  if (!rec) {
+    rec = { modal: modal, origHTML: modal.innerHTML };
+    _FORM_SUCCESS[modalId] = rec;
+  }
+  rec.close = onClose || null;
+
+  modal.innerHTML =
+    titleHTML +
+    '<div class="modal-success" role="status" aria-live="polite">' +
+      '<div class="ms-icon" aria-hidden="true">' + msIcon + '</div>' +
+      '<div class="ms-title">Berhasil</div>' +
+      '<div class="ms-sub">' + _esc(sub || 'Laporan berhasil disimpan.') + '</div>' +
+      '<div class="ms-auto">Menutup otomatis\u2026</div>' +
+    '</div>';
+
+  if (rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
+  rec.timer = setTimeout(function () {
+    var fn = (rec && rec.close) || null;
+    _formRestore(modalId);
+    closeModal(modalId);
+    if (fn) fn();
+  }, delay || 650);
+}
+
+// Titik masuk tunggal untuk 14 form laporan: dipanggil dari callback
+// `_attachUploadAll`. Upload gagal (ok === false) tidak menampilkan panel
+// sukses — perilaku lama (tutup modal + reload) dipertahankan.
+function _formSubmitDone(modalId, sub, onClose, ok) {
+  // Berhenti di "Mengunggah…" — baik sukses maupun gagal, overlay sudah tidak
+  // relevan karena isi modal akan diganti panel sukses atau langsung ditutup.
+  _formLoadingOverlay(modalId, false);
+  if (ok === false) {
+    closeModal(modalId);
+    if (onClose) onClose();
+    return;
+  }
+  _formShowSuccess(modalId, sub, onClose);
+}
+
+// Peta key lampiran → id modal form, supaya overlay loading ikut berlanjut
+// selama tahap unggah (bukan hanya saat simpan ke server).
+var _ATTACH_MODAL = {
+  tu: 'modal-tu-form',
+  opslaut: 'modal-ops-laut-form',
+  opsudara: 'modal-ops-udara-form',
+  intel: 'modal-int-form',
+  kgd: 'modal-kgd-form',
+  pem: 'modal-pem-form',
+  rawk: 'modal-rawk-form',
+  rawd: 'modal-rawd-form',
+  rawi: 'modal-rawi-form',
+  lga: 'modal-lga-form',
+  lgb: 'modal-lgb-form',
+  lgp: 'modal-lgp-form',
+  awkakn: 'modal-akn-form',
+  awkkeg: 'modal-akk-form'
+};
+function _attachModalId(key) { return _ATTACH_MODAL[key] || null; }
+
 function closeModal(id) {
+  // Kalau sedang menampilkan panel sukses, pulihkan markup modal asli dulu
+  // supaya form bisa dipakai lagi saat dibuka berikutnya.
+  _formRestore(id);
   var el = document.getElementById(id);
   if (el) el.classList.add('n-hidden');
+}
+
+// ── OVERLAY KLIK DI LUAR MODAL = TUTUP ──────────────────────────────────
+// Berlaku untuk semua .n-overlay yang berisi form. Overlay drawer (n-z-drawer)
+// dan modal-hd (read-only detail) dikecualikan.
+// Jika ada field yang sudah diisi, tampilkan konfirmasi sebelum menutup.
+
+var _MODAL_OVERLAY_EXCLUDE = {
+  'dr-mask': true,         // drawer persetujuan
+  'modal-hd': true,        // modal lihat detail (read-only)
+  'modal-reject': true,    // modal tolak pendaftaran (satu field saja, aman)
+  'modal-admin-user': true // modal admin kelola akun
+};
+
+// Cek apakah overlay memiliki field yang telah diisi pengguna.
+function _modalHasDirtyFields(overlayEl) {
+  var inputs = overlayEl.querySelectorAll('input, textarea, select');
+  for (var i = 0; i < inputs.length; i++) {
+    var el = inputs[i];
+    // Skip: hidden, disabled, readonly, checkbox "tidak perlu lampiran"
+    if (el.type === 'hidden' || el.disabled || el.readOnly) continue;
+    if (el.type === 'checkbox') continue;
+    // Skip: input bertipe file (nilai default = '')
+    if (el.type === 'file') continue;
+    // Select: dirty bila berubah dari option pertama (index 0) dan option > 1
+    if (el.tagName === 'SELECT') {
+      if (el.options.length > 1 && el.selectedIndex > 0) return true;
+      continue;
+    }
+    var v = (el.value || '').trim();
+    // Angka: dirty jika bukan '0' dan bukan ''
+    if (el.type === 'number') { if (v !== '' && v !== '0') return true; continue; }
+    if (v !== '') return true;
+  }
+  return false;
+}
+
+// Pasang listener overlay-click-to-close satu kali saat init.
+function _initOverlayClose() {
+  document.addEventListener('click', function (e) {
+    // Cari overlay terdekat yang menjadi target klik
+    var overlay = e.target;
+    if (!overlay || !overlay.classList || !overlay.classList.contains('n-overlay')) return;
+    // Klik harus tepat di overlay (bukan di anak elemen .n-modal)
+    var modal = overlay.querySelector('.n-modal');
+    if (modal && modal.contains(e.target)) return;
+    // Lewati overlay yang dikecualikan
+    if (_MODAL_OVERLAY_EXCLUDE[overlay.id]) return;
+    // Lewati overlay drawer (pakai kelas n-z-drawer)
+    if (overlay.classList.contains('n-z-drawer')) return;
+    // Lewati overlay yang sudah hidden
+    if (overlay.classList.contains('n-hidden')) return;
+
+    // Jika ada field yang diisi, konfirmasi dulu
+    if (_modalHasDirtyFields(overlay)) {
+      var ok = confirm('Formulir ini memiliki isian yang belum disimpan.\nApakah Anda yakin ingin menutup dan membuang perubahan?');
+      if (!ok) return;
+    }
+
+    // Cari tombol Batal / fungsi close yang terkait dengan overlay ini
+    // (supaya state modul ikut di-reset, mis. _TU.pendingRowId)
+    var cancelBtn = overlay.querySelector('button.btn-ghost, button.btn-outline');
+    if (cancelBtn && cancelBtn.onclick) {
+      cancelBtn.click();
+    } else {
+      closeModal(overlay.id);
+    }
+  });
 }
 
 // ── MODAL LIHAT RIWAYAT (detail submission, berlaku semua modul) ──
@@ -3678,6 +3956,10 @@ function _attachUploadAll(key, rowIds, after) {
 
   if (s.tasks.length === 0) { if (after) after(true); return; }
 
+  // Data sudah tersimpan, sekarang tinggal mengunggah lampiran — lanjutkan
+  // overlay besar dengan status baru supaya prosesnya tetap terlihat.
+  var mid = _attachModalId(key);
+  if (mid) _formLoadingOverlay(mid, true, 'Mengunggah lampiran\u2026');
   _attachReadTasks(key, 0, function () { _attachRunNext(key, 0); });
 }
 
@@ -3739,6 +4021,8 @@ function _attachFail(key, text) {
   s.busy = false;
   var doneCb = s.after;
   s.after = null;
+  var mid = _attachModalId(key);
+  if (mid) _formLoadingOverlay(mid, false);
   _attachMsg(key, 'warn', text + ' Baris sudah tersimpan; lampiran yang belum ter-upload akan dicoba lagi.');
   if (doneCb) doneCb(false);
 }
@@ -3834,47 +4118,44 @@ function _tuRenderKPI(d) {
   var el = document.getElementById('tu-kpi-strip');
   if (!el) return;
 
-  var kpiData = [
-    { lbl: 'Pagu Reguler',      val: _rupiah(d.paguReguler),    sub: 'Diperbarui dari laporan terakhir' },
-    { lbl: 'Pagu ABT',          val: _rupiah(d.paguABT),        sub: 'Anggaran Biaya Tambahan' },
-    { lbl: 'Realisasi SP2D',    val: d.pctSP2D + '%',           sub: _rupiah(d.realisasiSP2D) + ' dari ' + _rupiah(d.paguReguler) },
-    { lbl: 'Realisasi Akrual',  val: d.pctAkrual + '%',         sub: _rupiah(d.realisasiAkrual) + ' dari ' + _rupiah(d.paguABT) },
-    { lbl: 'Sisa SP2D',         val: _rupiah(d.sisaSP2D),       sub: d.sisaSP2D >= 0 ? 'Saldo aman' : 'Melebihi Pagu' },
-    { lbl: 'Sisa Akrual',       val: _rupiah(d.sisaAkrual),     sub: d.sisaAkrual >= 0 ? 'Saldo aman' : 'Melebihi Pagu' }
-  ];
+  // Pagu diambil server dari baris ACTIVE terbaru (berlaku tahunan, bukan per-filter).
+  // Jika belum ada laporan, nilai = 0.
+  var paguSource = d.paguReguler > 0 || d.paguABT > 0 ? 'Berlaku tahunan' : 'Belum diisi';
 
   var progSP2D   = Math.min(Math.max(d.pctSP2D,   0), 100);
   var progAkrual = Math.min(Math.max(d.pctAkrual, 0), 100);
   var clsSP2D    = progSP2D   >= 90 ? 'warn' : '';
   var clsAkrual  = progAkrual >= 90 ? 'warn' : '';
 
+  // Baris 1: Pagu (2 kartu) + Realisasi SP2D
   var html = '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);">';
-  kpiData.slice(0,2).forEach(function(k) {
-    html += '<div class="kpi-card"><div class="kpi-label">' + k.lbl + '</div>' +
-      '<div class="kpi-value" style="font-size:1.25rem;">' + k.val + '</div>' +
-      '<div class="kpi-sub">' + k.sub + '</div></div>';
-  });
-  // SP2D dengan progress bar
+  // Pagu Reguler
+  html += '<div class="kpi-card"><div class="kpi-label">Pagu Reguler</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.paguReguler) + '</div>' +
+    '<div class="kpi-sub">' + paguSource + '</div></div>';
+  // Pagu ABT
+  html += '<div class="kpi-card"><div class="kpi-label">Pagu ABT</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.paguABT) + '</div>' +
+    '<div class="kpi-sub">Anggaran Biaya Tambahan</div></div>';
+  // Realisasi SP2D: persen besar + bar + sub teks
   html += '<div class="kpi-card"><div class="kpi-label">Realisasi SP2D</div>' +
     '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctSP2D + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
-    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsSP2D + '" style="width:' + progSP2D + '%;"></div></div>' +
-    '<div class="prog-labels"><span>0%</span><span>' + _rupiah(d.realisasiSP2D) + '</span><span>100%</span></div></div></div>';
+    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsSP2D + '" style="width:' + progSP2D + '%;"></div></div></div>' +
+    '<div class="kpi-sub">' + _rupiah(d.realisasiSP2D) + ' dari ' + _rupiah(d.paguReguler) + '</div></div>';
   html += '</div>';
 
+  // Baris 2: Realisasi Akrual + Sisa SP2D + Sisa Akrual
   html += '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:0;">';
-  // Akrual dengan progress bar
   html += '<div class="kpi-card"><div class="kpi-label">Realisasi Akrual</div>' +
     '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctAkrual + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
-    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsAkrual + '" style="width:' + progAkrual + '%;"></div></div>' +
-    '<div class="prog-labels"><span>0%</span><span>' + _rupiah(d.realisasiAkrual) + '</span><span>100%</span></div></div></div>';
-  // Sisa SP2D
+    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsAkrual + '" style="width:' + progAkrual + '%;"></div></div></div>' +
+    '<div class="kpi-sub">' + _rupiah(d.realisasiAkrual) + ' dari ' + _rupiah(d.paguABT) + '</div></div>';
   html += '<div class="kpi-card"><div class="kpi-label">Sisa SP2D</div>' +
     '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaSP2D < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaSP2D) + '</div>' +
-    '<div class="kpi-sub">' + kpiData[4].sub + '</div></div>';
-  // Sisa Akrual
+    '<div class="kpi-sub">' + (d.sisaSP2D >= 0 ? 'Saldo aman' : 'Melebihi Pagu') + '</div></div>';
   html += '<div class="kpi-card"><div class="kpi-label">Sisa Akrual</div>' +
     '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaAkrual < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaAkrual) + '</div>' +
-    '<div class="kpi-sub">' + kpiData[5].sub + '</div></div>';
+    '<div class="kpi-sub">' + (d.sisaAkrual >= 0 ? 'Saldo aman' : 'Melebihi Pagu') + '</div></div>';
   html += '</div>';
 
   el.innerHTML = html;
@@ -3908,6 +4189,7 @@ function tuOpenForm() {
   }
   _tuSetPaguBar(kp ? 'lock' : 'none');
   _tuShowCatatan(false);
+  _tuRenderRevisiPagu('tu-pagu-rev', false);
 
   _tuFillFormContext();
   _msg('tu-form-msg', '', '');
@@ -3926,6 +4208,7 @@ function _tuSetPaguBar(state) {
   var pa    = document.getElementById('tu-pagu-abt');
   if (pr) pr.readOnly = (state === 'lock');
   if (pa) pa.readOnly = (state === 'lock');
+  _tuWatchPagu(state === 'unlock');
   if (state === 'none') {
     if (bar) bar.classList.add('n-hidden');
     if (btnU) btnU.classList.add('n-hidden');
@@ -3945,9 +4228,60 @@ function _tuSetPaguBar(state) {
   if (btnL) btnL.classList.toggle('n-hidden', state !== 'unlock');
 }
 
+// Pasang/lepas pemantau perubahan nilai Pagu. Ditempel di satu tempat
+// (_tuSetPaguBar) supaya tidak ada listener nyangkut saat modal ditutup
+// dalam keadaan pagu terbuka — kalau nyangkut, penghitung akan ikut
+// berubah di luar modal.
+function _tuWatchPagu(on) {
+  ['tu-pagu-reguler', 'tu-pagu-abt'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (on) el.addEventListener('input', _tuPaguBerubah);
+    else    el.removeEventListener('input', _tuPaguBerubah);
+  });
+}
+
 function _tuShowCatatan(show) {
   var wrap = document.getElementById('tu-catatan-wrap');
   if (wrap) wrap.classList.toggle('n-hidden', !show);
+}
+
+// Penghitung "Revisi pagu: sudah N kali" (server: _tuHitungRevisiPagu di
+// TataUsahaService, lewat KPI.revisiPagu). Angka = revisi yang SUDAH terjadi.
+// Saat pagu dibuka untuk diubah, tambahkan prediksi "Jika disimpan, menjadi
+// revisi ke-(N+1)" — user jadi tahu nomor yang akan terpakai sebelum menyimpan.
+function _tuRenderRevisiPagu(elId, next) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  var k = _TU.kpi;
+  el.classList.remove('is-next');
+  // KPI belum termuat → jangan tampilkan "Belum pernah direvisi": itu klaim
+  // yang belum terverifikasi. Tanda hubung netral sampai data tiba.
+  if (!k) { el.textContent = '\u2014'; return; }
+  var n = parseInt(k.revisiPagu, 10);
+  if (isNaN(n) || n < 0) n = 0;
+  var html = n > 0
+    ? 'Revisi pagu: sudah <b>' + n + '</b> kali'
+    : 'Belum pernah direvisi';
+  if (next) {
+    html += ' \u2014 jika disimpan, menjadi <b>revisi ke-' + (n + 1) + '</b>.';
+    el.classList.add('is-next');
+  }
+  el.innerHTML = html;
+}
+
+// Apakah nilai Pagu saat ini benar-benar berbeda dari nilai dasar (dari
+// laporan sebelumnya)? Membuka "Ubah Pagu" tanpa mengubah angka TIDAK
+// menambah revisi — jadi prediksi "revisi ke-N" harus hilang kalau nilai
+// dikembalikan ke nilai asal.
+function _tuPaguBerubah() {
+  var pr = document.getElementById('tu-pagu-reguler');
+  var pa = document.getElementById('tu-pagu-abt');
+  var base = _TU._paguBase || { r: null, a: null };
+  var berubah =
+    (pr && Number(pr.value || 0) !== Number(base.r)) ||
+    (pa && Number(pa.value || 0) !== Number(base.a));
+  _tuRenderRevisiPagu('tu-pagu-rev', berubah);
 }
 
 function tuUnlockPagu(enable) {
@@ -3961,6 +4295,8 @@ function tuUnlockPagu(enable) {
     }
     _tuSetPaguBar('unlock');
     _tuShowCatatan(true);
+    // Nilai saat unlock masih sama dengan nilai dasar → belum sebuah revisi.
+    _tuRenderRevisiPagu('tu-pagu-rev', false);
   } else {
     var pr = document.getElementById('tu-pagu-reguler');
     var pa = document.getElementById('tu-pagu-abt');
@@ -3970,6 +4306,7 @@ function tuUnlockPagu(enable) {
     if (cl) cl.value = '';
     _tuSetPaguBar('lock');
     _tuShowCatatan(false);
+    _tuRenderRevisiPagu('tu-pagu-rev', false);
   }
   _msg('tu-form-msg', null);
 }
@@ -4057,9 +4394,10 @@ function tuSubmit() {
       _setLoading(btn, false);
       if (!res.success) { _msg('tu-form-msg', 'error', res.error); return; }
       _msg('tu-form-msg', 'success', res.data.message);
-      _attachUploadAll('tu', [res.data.rowId], function () {
-        closeModal('modal-tu-form');
-        _tuLoadKPI();
+      _attachUploadAll('tu', [res.data.rowId], function (ok) {
+        _formSubmitDone('modal-tu-form', 'Pagu dan realisasi minggu ini tersimpan.', function () {
+          _tuLoadKPI();
+        }, ok);
       });
     })
     .withFailureHandler(function () {
@@ -4084,7 +4422,9 @@ function tuOpenRevisiModal(rowId) {
     document.getElementById('rv-catatan').value       = '';
     var info = document.getElementById('tu-revisi-info');
     if (info) info.textContent = 'Merevisi laporan periode ' + row.periode + '.';
+    _tuRenderRevisiPagu('rv-pagu-rev', false);
   }
+  _attachInit('tu-revisi', { refSheet: 'TX_TataUsaha' });
   _msg('tu-revisi-msg', null);
   document.getElementById('modal-tu-revisi').classList.remove('n-hidden');
 }
@@ -4114,11 +4454,13 @@ function tuRevisiConfirm() {
   google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      tuCloseRevisiModal();
-      if (!res.success) { _msg('tu-history-msg', 'error', res.error); return; }
-      _msg('tu-history-msg', 'success', res.data.message);
+      if (!res.success) { _msg('tu-revisi-msg', 'error', res.error); return; }
       _attachCarry('TX_TataUsaha', params.targetRowId, res.data.rowId);
-      _tuLoadKPI();
+      _attachUploadAll('tu-revisi', [res.data.rowId], function () {
+        tuCloseRevisiModal();
+        _msg('tu-history-msg', 'success', res.data.message);
+        _tuLoadKPI();
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -4177,7 +4519,169 @@ var _OPS = {
 };
 
 // Cache GeoJSON WPP — dibagi Kapal & Pesawat (load sekali per sesi)
-var _OPS_GEO = { wppGeoJsonData: null };
+var _OPS_GEO = { wppGeoJsonData: null, wppPromise: null };
+
+// Sumber geometri WPPNRI. Berkas ±10 MB di-host di GitHub raw (bukan GAS —
+// Sheet/Apps Script tidak bisa menyajikan berkas statik besar tanpa biaya).
+// Risikonya nyata: satu unduhan gagal = peta kosong. Yang sebelumnya terjadi,
+// `fetch` tanpa guard membuat SETIAP panggilan `_renderWppLayer()` /
+// `_renderOpsUdaraWppLayer()` menyalakan unduhan 10 MB sendiri (ganti tab,
+// ganti filter, KPI reload), dan `.catch` hanya `console.error` — jadi user
+// hanya melihat kotak abu-abu tanpa batas WPP dan tanpa pesan apa pun.
+var _OPS_GEO_SRC        = 'https://raw.githubusercontent.com/mhdztr/wppnri/main/wpp_final.geojson';
+var _OPS_GEO_TIMEOUT_MS = 30000;   // batas waktu sebelum menyerah
+var _OPS_GEO_RETRY      = 2;       // total percobaan (1 retry)
+
+// Unduh geometri dengan timeout + retry. Resolve dengan FeatureCollection.
+function _opsFetchWppGeoJson(attempt) {
+  attempt = attempt || 1;
+  return new Promise(function (resolve, reject) {
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    // GitHub raw mengirim max-age sangat panjang → setelah berhasil,
+    // unduhan berikutnya dilayani cache browser (tidak boros 10 MB).
+    var opts = { cache: 'force-cache' };
+    if (ctrl) opts.signal = ctrl.signal;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, _OPS_GEO_TIMEOUT_MS);
+
+    fetch(_OPS_GEO_SRC, opts)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        clearTimeout(timer);
+        if (!data || !data.features || !data.features.length) {
+          throw new Error('Berkas batas WPP kosong.');
+        }
+        resolve(data);
+      })
+      .catch(function (e) {
+        clearTimeout(timer);
+        if (attempt < _OPS_GEO_RETRY) {           // koneksi sempat putus / CDN rate-limit
+          _opsFetchWppGeoJson(attempt + 1).then(resolve, reject);
+          return;
+        }
+        reject(new Error(
+          e && e.name === 'AbortError'
+            ? 'Waktu muat batas WPP habis (' + (_OPS_GEO_TIMEOUT_MS / 1000) + ' detik).'
+            : 'Gagal memuat batas WPP dari sumber geospasial.'
+        ));
+      });
+  });
+}
+
+// Ambil cache GeoJSON WPP bersama (load sekali, dipakai Laut & Udara).
+// cb(geoJsonData, null) | cb(null, pesanError) — pemanggil WAJIB menangani
+// kedua cabang; tidak ada lagi diam-diam gagal.
+function _opsGetGeoData(cb) {
+  if (_OPS_GEO.wppGeoJsonData) { cb(_OPS_GEO.wppGeoJsonData, null); return; }
+  // Satu promise dipakai bersama: pemanggil yang datang sebelum unduhan
+  // selesai ikut menunggu, bukan memulai unduhan kedua.
+  if (!_OPS_GEO.wppPromise) {
+    _OPS_GEO.wppPromise = _opsFetchWppGeoJson(1).then(function (data) {
+      _OPS_GEO.wppGeoJsonData = data;
+      return data;
+    });
+  }
+  _OPS_GEO.wppPromise.then(
+    function (data) { cb(data, null); },
+    function (err) {
+      _OPS_GEO.wppPromise = null;   // izinkan percobaan berikutnya
+      cb(null, err.message || 'Gagal memuat batas WPP.');
+    }
+  );
+}
+
+// ── STATUS & LEGENDA PETA ─────────────────────────────────
+// Container peta tidak punya elemen status di view, jadi dibuat dari JS.
+// Tanpa ini kegagalan unduhan GeoJSON tidak pernah terlihat user.
+function _opsMapStatus(mapId, mode, msg, onRetry) {
+  var host = document.getElementById(mapId);
+  if (!host) return;
+  var old = host.querySelector('.ops-map-status');
+  if (old) old.remove();
+  if (!mode) return;
+
+  var el = document.createElement('div');
+  el.className = 'ops-map-status';
+  var inner = document.createElement('div');
+  inner.className = 'ops-map-status-inner';
+
+  if (mode === 'loading') {
+    var sp = document.createElement('span');
+    sp.className = 'n-spin';
+    inner.appendChild(sp);
+    var l = document.createElement('div');
+    l.textContent = msg || 'Memuat batas WPP…';
+    inner.appendChild(l);
+  } else {
+    var t = document.createElement('strong');
+    t.textContent = 'Batas WPP belum tampil';
+    inner.appendChild(t);
+    var d = document.createElement('div');
+    d.textContent = msg || 'Sumber geospasial tidak dapat dihubungi.';
+    inner.appendChild(d);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ops-map-retry';
+    btn.textContent = 'Coba lagi';
+    btn.addEventListener('click', function () { if (onRetry) onRetry(); });
+    inner.appendChild(btn);
+  }
+  el.appendChild(inner);
+  host.appendChild(el);
+}
+
+// Legenda skala intensitas (PRD.md §8.1: 0 / 1-5 / 6-15 / >15).
+function _opsMapLegend(mapId, colors) {
+  var host = document.getElementById(mapId);
+  if (!host) return;
+  if (host.querySelector('.ops-map-legend')) return;   // jangan dobel saat filter berubah
+
+  var el = document.createElement('div');
+  el.className = 'ops-map-legend';
+  var html = '<div class="ops-map-legend-title">Kapal + rumpon (periode ini)</div>';
+  colors.forEach(function (c) {
+    html += '<div class="ops-map-legend-row"><i style="background:' + c.fill + '"></i>' + c.label + '</div>';
+  });
+  el.innerHTML = html;
+  host.appendChild(el);
+}
+
+// Peta warna choropleth — SATU hue (navy), pucat → pekat (PRD §8.1: bukan
+// traffic-light multi-warna). Di-mirror dari token Style.html sebagai hex
+// karena Leaflet menulis gaya sebagai ATRIBUT SVG (`fill="..."`), dan `var()`
+// hanya resolve di CSS — bukan di atribut. (Bug lama: `var(--n-primary)`
+// membuat setiap WPP terisi hitam, bukan navy.)
+var _OPS_WPP_SCALE = [
+  { max: 0,  fill: '#E4E7F2', label: '0 kapal' },          // ~ --n-primary-light
+  { max: 5,  fill: '#A9B0D0', label: '1-5 kapal' },
+  { max: 15, fill: '#6B76A8', label: '6-15 kapal' },
+  { max: Infinity, fill: '#2B3674', label: '>15 kapal' }  // --n-primary
+];
+function _opsWppFill(intensitas) {
+  var n = Number(intensitas) || 0;
+  for (var i = 0; i < _OPS_WPP_SCALE.length; i++) {
+    if (n <= _OPS_WPP_SCALE[i].max) return _OPS_WPP_SCALE[i].fill;
+  }
+  return _OPS_WPP_SCALE[_OPS_WPP_SCALE.length - 1].fill;
+}
+
+// Cocokkan kode GeoJSON (string) dengan key wppIntensitas dari server.
+// Sheet bisa menyimpan "571" atau " 571 " — tanpa trim, seluruh peta
+// diam-diam jadi warna 0 padahal datanya ada.
+function _opsWppIntensitas(wppIntensitas, wppCode) {
+  if (!wppIntensitas || wppCode === undefined || wppCode === null) return 0;
+  var v = wppIntensitas[wppCode];
+  if (v === undefined) v = wppIntensitas[String(wppCode).trim()];
+  return Number(v) || 0;
+}
+// Satu sumber untuk tooltip kedua peta (Laut & Udara) supaya tidak berbeda.
+function _opsWppTooltip(props, intensitas) {
+  var nama = props.name || props.wppnri || 'WPP';
+  return '<strong>' + nama + '</strong><br>WPP: ' + props.wppnri +
+         '<br>Kapal + rumpon periode ini: ' + (Number(intensitas) || 0);
+}
 
 // Teardown kedua peta (Kapal & Pesawat) sekaligus
 function _opsTeardownMaps() {
@@ -4224,20 +4728,6 @@ function _opsRenderTab() {
   }
 }
 
-// Ambil cache GeoJSON WPP bersama (load sekali, dipakai Laut & Udara)
-function _opsGetGeoData(cb) {
-  if (_OPS_GEO.wppGeoJsonData) { cb(_OPS_GEO.wppGeoJsonData); return; }
-  fetch('https://raw.githubusercontent.com/mhdztr/wppnri/main/wpp_final.geojson')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-       _OPS_GEO.wppGeoJsonData = data;
-       cb(data);
-    })
-    .catch(function(err) {
-       console.error("Gagal load GeoJSON WPP dari GitHub", err);
-    });
-}
-
 // ── Loader Leaflet on-demand ─────────────────────────────────
 // Leaflet CSS+JS tidak di-load di Index.html (itu memblokir DOMContentLoaded).
 // Di-inject secara dinamis pertama kali modul Operasi dibuka.
@@ -4281,7 +4771,6 @@ var _OPSLAUT = {
   wppData: null,       // cache WPP list
   wppOptions: null,    // [{value,label}] utk select WPP pada daftar rumpon
   kpiData: null,       // simpan result kpi agar _renderWppLayer bisa pakai kpiData.wppIntensitas
-  wppGeoJsonData: null,// cache geojson dari github (dialihkan ke _OPS_GEO)
   rows: [],            // riwayat periode terakhir (utk prefill rincian saat revisi)
   listKapal: null,     // _nList kapal (form tambah)
   listRumpon: null,    // _nList rumpon (form tambah)
@@ -4417,42 +4906,42 @@ function _renderWppLayer() {
     window.opsLautWppLayer = null;
   }
 
-  _opsGetGeoData(function(geoData) {
-    if (!window.opsLautMap) return;
+  _opsMapStatus('map-ops-laut', 'loading');
+  _opsGetGeoData(function (geoData, err) {
+    if (!window.opsLautMap) return;   // pindah tab / pindah halaman saat unduhan berjalan
+    if (err) {
+      // Dulu: diam-diam. Kotak peta tetap abu-abu tanpa alasan — user
+      // menyimpulkan petanya memang kosong.
+      _opsMapStatus('map-ops-laut', 'error', err, _renderWppLayer);
+      return;
+    }
     var kpi = _OPSLAUT.kpiData;
+    var intensitasOf = function (code) {
+      return _opsWppIntensitas(kpi && kpi.wppIntensitas, code);
+    };
     window.opsLautWppLayer = L.geoJSON(geoData, {
         style: function(feature) {
-          var wppCode = feature.properties.wppnri; // properti geojson: wppnri (kode), name (mis. "WPP 571")
-          var intensitas = 0;
-          if (kpi && kpi.wppIntensitas && kpi.wppIntensitas[wppCode]) {
-            intensitas = kpi.wppIntensitas[wppCode];
-          }
-
-          var fillColor = '#e2e8f0'; // default empty
-          var fillOpacity = 0.5;
-          if (intensitas > 0) {
-            fillColor = 'var(--n-primary)';
-            fillOpacity = Math.min(0.2 + (intensitas * 0.05), 0.8);
-          }
-
+          var intensitas = intensitasOf(feature.properties.wppnri);
+          // Skala intensitas: 0 kapal WAJIB tetap terlihat (PRD §8.1) → palet
+          // pucat, bukan "sembunyikan". Bobot ditegakkan lewat warna satu hue.
           return {
-            fillColor: fillColor,
+            fillColor: _opsWppFill(intensitas),
+            fillOpacity: 0.85,
             weight: 1,
             opacity: 1,
-            color: '#cbd5e1',
-            fillOpacity: fillOpacity
+            color: 'rgba(43,54,116,0.45)'
           };
         },
         onEachFeature: function(feature, layer) {
           var wppCode = feature.properties.wppnri;
-          var nama    = feature.properties.name || wppCode;
-          var intensitas = 0;
-          if (_OPSLAUT.kpiData && _OPSLAUT.kpiData.wppIntensitas) {
-            intensitas = _OPSLAUT.kpiData.wppIntensitas[wppCode] || 0;
-          }
-          layer.bindTooltip("<strong>" + nama + "</strong><br>WPP: " + wppCode + "<br>Intensitas periode ini: " + intensitas, {sticky: true});
+          layer.bindTooltip(
+            _opsWppTooltip(feature.properties, intensitasOf(wppCode)),
+            { sticky: true }
+          );
         }
       }).addTo(window.opsLautMap);
+    _opsMapStatus('map-ops-laut', null);
+    _opsMapLegend('map-ops-laut', _OPS_WPP_SCALE);
   });
 }
 
@@ -4622,8 +5111,16 @@ function _opsLautRincian() {
   return kapal.concat(rumpon);
 }
 
+function opsLautBindKapalKategori() {
+  var el = document.getElementById('ops-hari-kategori');
+  if (el && !el.dataset.kapalBound) {
+    el.dataset.kapalBound = '1';
+    el.addEventListener('change', function () { _kapalSyncKategori('ops-kapal', 'ops-hari-kategori'); });
+  }
+}
+
 function opsLautOpenForm() {
-  _kapalInit('ops-kapal');
+  _kapalInit('ops-kapal', '');
   _kdlReset('ops-kapal');
   ['ops-valuasi-ikan','ops-valuasi-rumpon',
    'ops-riksa-kii','ops-riksa-kia','ops-riksa-sdk','ops-hari-jumlah'].forEach(function(id) {
@@ -4637,6 +5134,7 @@ function opsLautOpenForm() {
   var target = document.getElementById('ops-hari-target');
   if (target) target.value = '180';
   opsLautBindLists();
+  opsLautBindKapalKategori();
 
   _msg('ops-laut-form-msg', '', '');
   _attachInit('opslaut', { refSheet: 'TX_OperasiLaut' });
@@ -5054,24 +5552,37 @@ function _kdlSet(id, token, label) {
 // di form Operasi Laut/Udara & Logistik memakai master_getKapalList.
 var _KAPAL_ITEMS   = [];
 var _KAPAL_LABEL   = {}; // kapalId → nama (untuk tabel riwayat & profil)
+var _KAPAL_JENIS   = {}; // kapalId → JenisKapal (filter form per kategori hari operasi)
 
-function _kapalInit(id) {
-  if (_KAPAL_ITEMS.length) { _kdlInit(id, _KAPAL_ITEMS); return; }
+function _kapalItemsFor(jenisKategori) {
+  var kat = String(jenisKategori || '').trim().toUpperCase();
+  if (!kat || kat === 'SEMUA_KAPAL') return _KAPAL_ITEMS.slice();
+  return _KAPAL_ITEMS.filter(function (k) {
+    var j = String(k.jenis || '').trim().toUpperCase();
+    return !j || j === kat; // kapal lama tanpa JenisKapal → tidak dibatasi
+  });
+}
+
+function _kapalInit(id, jenisKategori) {
+  var items = _kapalItemsFor(jenisKategori);
+  if (_KAPAL_ITEMS.length) { _kdlInit(id, items); return; }
   google.script.run
     .withSuccessHandler(function (res) {
       if (res && res.success && res.data) {
         _KAPAL_ITEMS = res.data.map(function (k) {
-          _KAPAL_LABEL[String(k.kapalId)] = String(k.nama || k.kapalId || '');
-          return { value: String(k.kapalId || ''), label: _KAPAL_LABEL[String(k.kapalId)] };
+          var kid = String(k.kapalId || '');
+          _KAPAL_LABEL[kid] = String(k.nama || kid || '');
+          _KAPAL_JENIS[kid] = String(k.jenisKapal || '').trim().toUpperCase();
+          return { value: kid, label: _KAPAL_LABEL[kid], jenis: _KAPAL_JENIS[kid] };
         });
       } else {
         _KAPAL_ITEMS = [];
       }
-      if (id) _kdlInit(id, _KAPAL_ITEMS);
+      if (id) _kdlInit(id, _kapalItemsFor(jenisKategori));
     })
     .withFailureHandler(function () {
       _KAPAL_ITEMS = [];
-      if (id) _kdlInit(id, _KAPAL_ITEMS);
+      if (id) _kdlInit(id, []);
     })
     .master_getKapalList(APP.token);
 }
@@ -5081,6 +5592,24 @@ function _kapalName(kapalId) {
   return _KAPAL_LABEL[String(kapalId)] || String(kapalId);
 }
 
+/**
+ * Saring ulang dropdown kapal berdasarkan kategori hari operasi (Fase 14
+ * Item 6). Dipanggil saat kategori berubah: kapal yang jenisnya tidak cocok
+ * disembunyikan dari daftar, dan pilihan yang jadi tidak sah di-reset.
+ */
+function _kapalSyncKategori(kdlId, kategoriId) {
+  var kat = _v(kategoriId);
+  _KDL_DATA[kdlId] = _kapalItemsFor(kat);
+  var chosen = _v(kdlId);
+  if (chosen) {
+    var jenis = _KAPAL_JENIS[String(chosen)] || '';
+    var katU = String(kat || '').toUpperCase();
+    var cocok = (!katU || katU === 'SEMUA_KAPAL' || !jenis || jenis === katU);
+    if (!cocok) _kdlClear(kdlId);
+  }
+  _kdlFilter(kdlId);
+}
+
 function _kapalCellPlain(kapalId) {
   if (!kapalId) return '—';
   return '<span style="font-size:.82rem;">' + _esc(_kapalName(kapalId)) + '</span>';
@@ -5088,6 +5617,13 @@ function _kapalCellPlain(kapalId) {
 
 function opsLautSubmit() {
   _msg('ops-laut-form-msg', '', '');
+  // Kapal Pengawas wajib (Fase 14 Item 6) — bar "Kapal Pengawas Teraktif"
+  // di Overview & agregasi Profil Kapal diturunkan dari kolom ini.
+  var kapal = _v('ops-kapal');
+  if (!kapal) {
+    _msg('ops-laut-form-msg', 'error', 'Kapal Pengawas wajib dipilih.');
+    return;
+  }
   var attachErr = _attachValidate('opslaut');
   if (attachErr) { _msg('ops-laut-form-msg', 'error', attachErr); return; }
   var btn = document.getElementById('ops-btn-submit');
@@ -5118,10 +5654,11 @@ function opsLautSubmit() {
       if(res.success) {
         _msg('ops-laut-form-msg', 'success', res.data.message);
         var rowId = res.data && res.data.rowId;
-        _attachUploadAll('opslaut', rowId ? [rowId] : [], function() {
-          closeModal('modal-ops-laut-form');
-          _opsLautLoadKPI();
-          _opsLautLoadHistory();
+        _attachUploadAll('opslaut', rowId ? [rowId] : [], function(ok) {
+          _formSubmitDone('modal-ops-laut-form', 'Data Operasi Laut minggu ini tersimpan.', function () {
+            _opsLautLoadKPI();
+            _opsLautLoadHistory();
+          }, ok);
         });
       } else {
         _msg('ops-laut-form-msg', 'error', res.error);
@@ -5241,6 +5778,14 @@ function opsLautBindRevisiLists() {
 function _opsLautAddRvKapal() { if (_OPSLAUT.rvKapal) _OPSLAUT.rvKapal.add(); }
 function _opsLautAddRvRumpon() { if (_OPSLAUT.rvRumpon) _OPSLAUT.rvRumpon.add(); }
 
+function opsLautBindRevisiKapalKategori() {
+  var el = document.getElementById('rv-ops-hari-kategori');
+  if (el && !el.dataset.kapalBound) {
+    el.dataset.kapalBound = '1';
+    el.addEventListener('change', function () { _kapalSyncKategori('rv-ops-kapal', 'rv-ops-hari-kategori'); });
+  }
+}
+
 function opsLautOpenRevisiModal(rowId) {
   _OPSLAUT.pendingRowId = rowId;
   document.getElementById('rv-ops-alasan').value = '';
@@ -5260,6 +5805,17 @@ function opsLautOpenRevisiModal(rowId) {
   }
   _OPSLAUT.rvKapal.set(kapalItems);
   _OPSLAUT.rvRumpon.set(rumponItems);
+
+  // Prefill KapalID lama (Fase 14 Item 6): kolom ini dulu opsional sehingga
+  // baris lama bisa kosong — modal sekarang menjadi jalur pengisiannya.
+  var kategoriLama = r ? String(r.HariOperasi_Kategori || '') : '';
+  var kapalLama = r ? String(r.KapalID || '') : '';
+  _kapalInit('rv-ops-kapal', kategoriLama);
+  _kdlReset('rv-ops-kapal');
+  if (kapalLama) _kdlSet('rv-ops-kapal', kapalLama, _KAPAL_LABEL[kapalLama] || kapalLama);
+  opsLautBindRevisiKapalKategori();
+
+  _attachInit('opslaut-revisi', { refSheet: 'TX_OperasiLaut' });
   document.getElementById('modal-ops-revisi').classList.remove('n-hidden');
 }
 
@@ -5271,11 +5827,22 @@ function opsLautRevisiConfirm() {
   var btn = document.getElementById('ops-btn-revisi-save');
   btn.disabled = true; btn.textContent = 'Menyimpan...';
   
+  // KapalID wajib saat revisi (Fase 14 Item 6). Server mewarisi nilai lama
+  // bila tidak dikirim; dari UI selalu dikirim eksplisit agar pengguna bisa
+  // tepat kapal — termasuk mengisi baris lama yang masih kosong.
+  var kapal = _v('rv-ops-kapal');
+  if (!kapal) {
+    _msg('ops-revisi-msg', 'error', 'Kapal Pengawas wajib dipilih.');
+    btn.disabled = false; btn.textContent = 'Simpan Revisi';
+    return;
+  }
+
   var params = {
     targetRowId: _OPSLAUT.pendingRowId,
-    alasanRevisi: alasan
+    alasanRevisi: alasan,
+    KapalID: kapal
   };
-  
+
   opsLautBindRevisiLists();
   var rincian = _OPSLAUT.rvKapal.get().concat(_OPSLAUT.rvRumpon.get());
   if (rincian.length) params.rincian = rincian;
@@ -5293,13 +5860,13 @@ function opsLautRevisiConfirm() {
     .withSuccessHandler(function(res) {
       btn.disabled = false; btn.textContent = 'Simpan Revisi';
       if(res.success) {
-        _msg('ops-revisi-msg', 'success', res.data.message);
         _attachCarry('TX_OperasiLaut', params.targetRowId, res.data.rowId);
-        setTimeout(function(){
+        _attachUploadAll('opslaut-revisi', [res.data.rowId], function () {
           closeModal('modal-ops-revisi');
+          _msg('ops-laut-hist-msg', 'success', res.data.message);
           _opsLautLoadKPI();
           _opsLautLoadHistory();
-        }, 1000);
+        });
       } else {
         _msg('ops-revisi-msg', 'error', res.error);
       }
@@ -5410,42 +5977,38 @@ function _renderOpsUdaraWppLayer() {
     window.opsUdaraWppLayer = null;
   }
 
-  _opsGetGeoData(function(geoData) {
+  _opsMapStatus('map-ops-udara', 'loading');
+  _opsGetGeoData(function (geoData, err) {
     if (!window.opsUdaraMap) return;
+    if (err) {
+      _opsMapStatus('map-ops-udara', 'error', err, _renderOpsUdaraWppLayer);
+      return;
+    }
     var kpi = _OPSUDARA.kpiData;
+    var intensitasOf = function (code) {
+      return _opsWppIntensitas(kpi && kpi.wppIntensitas, code);
+    };
     window.opsUdaraWppLayer = L.geoJSON(geoData, {
         style: function(feature) {
-          var wppCode = feature.properties.wppnri;
-          var intensitas = 0;
-          if (kpi && kpi.wppIntensitas && kpi.wppIntensitas[wppCode]) {
-            intensitas = kpi.wppIntensitas[wppCode];
-          }
-
-          var fillColor = '#e2e8f0';
-          var fillOpacity = 0.5;
-          if (intensitas > 0) {
-            fillColor = 'var(--n-primary)';
-            fillOpacity = Math.min(0.2 + (intensitas * 0.05), 0.8);
-          }
-
+          var intensitas = intensitasOf(feature.properties.wppnri);
           return {
-            fillColor: fillColor,
+            fillColor: _opsWppFill(intensitas),
+            fillOpacity: 0.85,
             weight: 1,
             opacity: 1,
-            color: '#cbd5e1',
-            fillOpacity: fillOpacity
+            color: 'rgba(43,54,116,0.45)'
           };
         },
         onEachFeature: function(feature, layer) {
           var wppCode = feature.properties.wppnri;
-          var nama    = feature.properties.name || wppCode;
-          var intensitas = 0;
-          if (_OPSUDARA.kpiData && _OPSUDARA.kpiData.wppIntensitas) {
-            intensitas = _OPSUDARA.kpiData.wppIntensitas[wppCode] || 0;
-          }
-          layer.bindTooltip("<strong>" + nama + "</strong><br>WPP: " + wppCode + "<br>Intensitas periode ini: " + intensitas, {sticky: true});
+          layer.bindTooltip(
+            _opsWppTooltip(feature.properties, intensitasOf(wppCode)),
+            { sticky: true }
+          );
         }
       }).addTo(window.opsUdaraMap);
+    _opsMapStatus('map-ops-udara', null);
+    _opsMapLegend('map-ops-udara', _OPS_WPP_SCALE);
   });
 }
 
@@ -5571,7 +6134,9 @@ function _opsUdaraRefreshCaptions() {
 }
 
 function opsUdaraOpenForm() {
-  _kapalInit('oud-kapal');
+  // TX_OperasiUdara tidak punya kolom HariOperasi_Kategori (lihat
+  // DATA_SCHEMA.md), jadi dropdown kapal TIDAK disaring per kategori.
+  _kapalInit('oud-kapal', '');
   _kdlReset('oud-kapal');
   ['oud-rumpon','oud-cakupan','oud-hari-jumlah'].forEach(function(id) {
     var el = document.getElementById(id);
@@ -5594,6 +6159,12 @@ function opsUdaraOpenForm() {
 
 function opsUdaraSubmit() {
   _msg('ops-udara-form-msg', '', '');
+  // Kapal Pengawas wajib (Fase 14 Item 6) — sumber bar "Kapal Pengawas
+  // Teraktif" di Overview & agregasi Profil Kapal.
+  if (!_v('oud-kapal')) {
+    _msg('ops-udara-form-msg', 'error', 'Kapal Pengawas wajib dipilih.');
+    return;
+  }
   var attachErr = _attachValidate('opsudara');
   if (attachErr) { _msg('ops-udara-form-msg', 'error', attachErr); return; }
   var btn = document.getElementById('oud-btn-submit');
@@ -5620,10 +6191,11 @@ function opsUdaraSubmit() {
       if(res.success) {
         _msg('ops-udara-form-msg', 'success', res.data.message);
         var rowId = res.data && res.data.rowId;
-        _attachUploadAll('opsudara', rowId ? [rowId] : [], function() {
-          closeModal('modal-ops-udara-form');
-          _opsUdaraLoadKPI();
-          _opsUdaraLoadHistory();
+        _attachUploadAll('opsudara', rowId ? [rowId] : [], function(ok) {
+          _formSubmitDone('modal-ops-udara-form', 'Data Operasi Udara minggu ini tersimpan.', function () {
+            _opsUdaraLoadKPI();
+            _opsUdaraLoadHistory();
+          }, ok);
         });
       } else {
         _msg('ops-udara-form-msg', 'error', res.error);
@@ -5738,6 +6310,15 @@ function opsUdaraOpenRevisiModal(rowId) {
     });
   }
   _OPSUDARA.rvObjek.set(items);
+
+  // Prefill KapalID lama (Fase 14 Item 6). TX_OperasiUdara tidak punya kolom
+  // HariOperasi_Kategori, jadi dropdown kapal tidak disaring.
+  var kapalLama = r ? String(r.KapalID || '') : '';
+  _kapalInit('rv-oud-kapal', '');
+  _kdlReset('rv-oud-kapal');
+  if (kapalLama) _kdlSet('rv-oud-kapal', kapalLama, _KAPAL_LABEL[kapalLama] || kapalLama);
+
+  _attachInit('oud-revisi', { refSheet: 'TX_OperasiUdara' });
   document.getElementById('modal-oud-revisi').classList.remove('n-hidden');
 }
 
@@ -5749,9 +6330,19 @@ function opsUdaraRevisiConfirm() {
   var btn = document.getElementById('oud-btn-revisi-save');
   btn.disabled = true; btn.textContent = 'Menyimpan...';
 
+  // KapalID wajib saat revisi (Fase 14 Item 6) — termasuk untuk mengisi
+  // baris lama yang masih kosong. Server mewarisi nilai lama bila tidak dikirim.
+  var kapal = _v('rv-oud-kapal');
+  if (!kapal) {
+    _msg('oud-revisi-msg', 'error', 'Kapal Pengawas wajib dipilih.');
+    btn.disabled = false; btn.textContent = 'Simpan Revisi';
+    return;
+  }
+
   var params = {
     targetRowId: _OPSUDARA.pendingRowId,
-    alasanRevisi: alasan
+    alasanRevisi: alasan,
+    KapalID: kapal
   };
 
   opsUdaraBindRevisiList();
@@ -5767,13 +6358,13 @@ function opsUdaraRevisiConfirm() {
     .withSuccessHandler(function(res) {
       btn.disabled = false; btn.textContent = 'Simpan Revisi';
       if(res.success) {
-        _msg('oud-revisi-msg', 'success', res.data.message);
         _attachCarry('TX_OperasiUdara', params.targetRowId, res.data.rowId);
-        setTimeout(function(){
+        _attachUploadAll('oud-revisi', [res.data.rowId], function () {
           closeModal('modal-oud-revisi');
+          _msg('oud-hist-msg', 'success', res.data.message);
           _opsUdaraLoadKPI();
           _opsUdaraLoadHistory();
-        }, 1000);
+        });
       } else {
         _msg('oud-revisi-msg', 'error', res.error);
       }
@@ -6117,11 +6708,12 @@ function intelSubmit(e) {
         _msg('int-form-msg', 'success', res.data.message);
         var rowIds = (res.data && res.data.rowIds) || [];
         _intelResetForm();
-        _attachUploadAll('intel', rowIds, function() {
-          closeModal('modal-int-form');
-          _intelLoadKPI();
-          _intelLoadHistory();
-          _msg('int-form-msg', '', '');
+        _attachUploadAll('intel', rowIds, function(ok) {
+          _formSubmitDone('modal-int-form', 'Laporan intelijen tersimpan.', function () {
+            _intelLoadKPI();
+            _intelLoadHistory();
+            _msg('int-form-msg', '', '');
+          }, ok);
         });
       } else {
         _msg('int-form-msg', 'error', res.error);
@@ -6236,6 +6828,7 @@ function intelOpenRevisiModal(rowId) {
     _intelBindRevisiList().set(items);
   }
   document.getElementById('rv-int-alasan').value = '';
+  _attachInit('intel-revisi', { refSheet: 'TX_Intelijen' });
   _msg('int-revisi-msg', '', '');
   document.getElementById('modal-int-revisi').classList.remove('n-hidden');
 }
@@ -6268,13 +6861,13 @@ function intelRevisiConfirm() {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('int-revisi-msg', 'success', res.data.message);
         _attachCarry('TX_Intelijen', params.targetRowId, res.data.rowId);
-        setTimeout(function(){
+        _attachUploadAll('intel-revisi', [res.data.rowId], function () {
           closeModal('modal-int-revisi');
+          _msg('int-hist-msg', 'success', res.data.message);
           _intelLoadKPI();
           _intelLoadHistory();
-        }, 900);
+        });
       } else {
         _msg('int-revisi-msg', 'error', res.error);
       }
@@ -6504,10 +7097,11 @@ function kgdSubmit() {
       if (res.success) {
         _msg('kgd-form-msg', 'success', res.data.message);
         var rowIds = (res.data && res.data.rowIds) || [];
-        _attachUploadAll('kgd', rowIds, function() {
-          closeModal('modal-kgd-form');
-          _kgdLoadKPI();
-          _kgdLoadHistory();
+        _attachUploadAll('kgd', rowIds, function(ok) {
+          _formSubmitDone('modal-kgd-form', 'Kegiatan pendukung tersimpan.', function () {
+            _kgdLoadKPI();
+            _kgdLoadHistory();
+          }, ok);
         });
       } else {
         _msg('kgd-form-msg', 'error', res.error);
@@ -6545,6 +7139,7 @@ function kgdOpenRevisiModal(rowId) {
   document.getElementById('rv-kgd-deskripsi').value = r.Deskripsi || '';
   document.getElementById('rv-kgd-pihak').value = r.PihakHadir || '';
   document.getElementById('rv-kgd-alasan').value = '';
+  _attachInit('kgd-revisi', { refSheet: 'TX_KegiatanDirektorat' });
   _msg('kgd-revisi-msg', '', '');
   document.getElementById('modal-kgd-revisi').classList.remove('n-hidden');
 }
@@ -6578,13 +7173,13 @@ function kgdRevisiConfirm() {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('kgd-revisi-msg', 'success', res.data.message);
         _attachCarry('TX_KegiatanDirektorat', params.targetRowId, res.data.rowId);
-        setTimeout(function(){
+        _attachUploadAll('kgd-revisi', [res.data.rowId], function () {
           closeModal('modal-kgd-revisi');
+          _msg('kgd-hist-msg', 'success', res.data.message);
           _kgdLoadKPI();
           _kgdLoadHistory();
-        }, 900);
+        });
       } else {
         _msg('kgd-revisi-msg', 'error', res.error);
       }
@@ -6920,11 +7515,12 @@ function pemSubmit(e) {
         _msg('pem-form-msg', 'success', res.data.message);
         var rowIds = (res.data && res.data.rowIds) || [];
         _pemResetForm();
-        _attachUploadAll('pem', rowIds, function() {
-          closeModal('modal-pem-form');
-          _pemLoadKPI();
-          _pemLoadHistory();
-          _msg('pem-form-msg', '', '');
+        _attachUploadAll('pem', rowIds, function(ok) {
+          _formSubmitDone('modal-pem-form', 'Laporan pemantauan tersimpan.', function () {
+            _pemLoadKPI();
+            _pemLoadHistory();
+            _msg('pem-form-msg', '', '');
+          }, ok);
         });
       } else {
         _msg('pem-form-msg', 'error', res.error);
@@ -6979,6 +7575,7 @@ function pemOpenRevisiModal(rowId) {
     document.getElementById('rv-pem-jumlah').value = (Number(r.Jumlah) || 0);
   }
   document.getElementById('rv-pem-alasan').value = '';
+  _attachInit('pem-revisi', { refSheet: 'TX_Pemantauan' });
   _msg('pem-revisi-msg', '', '');
   document.getElementById('modal-pem-revisi').classList.remove('n-hidden');
 }
@@ -7006,13 +7603,13 @@ function pemRevisiConfirm() {
     .withSuccessHandler(function(res) {
       _setLoading(btn, false);
       if (res.success) {
-        _msg('pem-revisi-msg', 'success', res.data.message);
         _attachCarry('TX_Pemantauan', params.targetRowId, res.data.rowId);
-        setTimeout(function(){
+        _attachUploadAll('pem-revisi', [res.data.rowId], function () {
           closeModal('modal-pem-revisi');
+          _msg('pem-hist-msg', 'success', res.data.message);
           _pemLoadKPI();
           _pemLoadHistory();
-        }, 900);
+        });
       } else {
         _msg('pem-revisi-msg', 'error', res.error);
       }
@@ -7085,15 +7682,28 @@ function _tuLoadCharts() {
       if (!res.success) return;
       var d = res.data;
       var labels = d.months.map(function (m) { return _chartMonthLabel(m); });
-      var fmtRp  = function (v) { return _rupiah(v); };
+      // Gunakan format compact (jt/M) agar sumbu Y tidak bertabrakan
+      var fmtCompact = _chartCompact;
+      // Tooltip menampilkan nilai full Rupiah saat hover
+      var tooltipCb = function (v) { return 'Rp ' + _chartCompact(v); };
       _chartLine('tu-chart-tren', labels, [
-        { label: 'SP2D',   data: d.sp2dYtd,   color: _CHART_COLORS.primary },
-        { label: 'Akrual', data: d.akrualYtd, color: _CHART_COLORS.primaryAlpha }
-      ], { fmt: fmtRp, emptyMsg: 'Belum ada realisasi pada rentang terpilih.' });
+        { label: 'SP2D (YTD)',   data: d.sp2dYtd,   color: _CHART_COLORS.primary },
+        { label: 'Akrual (YTD)', data: d.akrualYtd, color: _CHART_COLORS.primarySoft }
+      ], {
+        fmt: tooltipCb,
+        yFmt: fmtCompact,
+        noEndLabel: true,
+        emptyMsg: 'Belum ada realisasi pada rentang terpilih.'
+      });
       _chartBar('tu-chart-bulanan', labels, [
         { label: 'SP2D',   data: d.sp2dBulanan,   color: _CHART_COLORS.primary },
-        { label: 'Akrual', data: d.akrualBulanan, color: _CHART_COLORS.primaryAlpha }
-      ], { fmt: fmtRp, emptyMsg: 'Belum ada realisasi bulanan pada rentang terpilih.' });
+        { label: 'Akrual', data: d.akrualBulanan, color: _CHART_COLORS.primarySoft }
+      ], {
+        fmt: tooltipCb,
+        yFmt: fmtCompact,
+        noValueLabel: true,
+        emptyMsg: 'Belum ada realisasi bulanan pada rentang terpilih.'
+      });
     })
     .withFailureHandler(function () {})
     .tataUsaha_getTren(APP.token, APP.filter);
@@ -7668,10 +8278,11 @@ function _rawatSubmitKesiapan() {
       if (!res.success) { _msg('rawk-form-msg', 'error', res.error); return; }
       _msg('rawk-form-msg', 'success', res.data.message);
       document.getElementById('rawk-penyebab').value = '';
-      _attachUploadAll('rawk', [res.data.rowId], function() {
-        closeModal('modal-rawk-form');
-        _rawatLoadKPI();
-        _rawatFetchHistory('kesiapan');
+      _attachUploadAll('rawk', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-rawk-form', 'Update kesiapan kapal tersimpan.', function () {
+          _rawatLoadKPI();
+          _rawatFetchHistory('kesiapan');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -7699,10 +8310,11 @@ function _rawatSubmitDocking() {
       _msg('rawd-form-msg', 'success', res.data.message);
       document.getElementById('rawd-nilai').value = '';
       document.getElementById('rawd-kontraktor').value = '';
-      _attachUploadAll('rawd', [res.data.rowId], function() {
-        closeModal('modal-rawd-form');
-        _rawatLoadKPI();
-        _rawatFetchHistory('docking');
+      _attachUploadAll('rawd', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-rawd-form', 'Update docking tersimpan.', function () {
+          _rawatLoadKPI();
+          _rawatFetchHistory('docking');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawd-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -7729,10 +8341,11 @@ function _rawatSubmitItem() {
       _msg('rawi-form-msg', 'success', res.data.message);
       document.getElementById('rawi-nama').value = '';
       document.getElementById('rawi-nilai').value = '';
-      _attachUploadAll('rawi', [res.data.rowId], function() {
-        closeModal('modal-rawi-form');
-        _rawatLoadKPI();
-        _rawatFetchHistory('item');
+      _attachUploadAll('rawi', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-rawi-form', 'Item perawatan tersimpan.', function () {
+          _rawatLoadKPI();
+          _rawatFetchHistory('item');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('rawi-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -7753,6 +8366,7 @@ function _rawatOpenRevisi(jenis, rowId) {
   fields.innerHTML = _rawatRevisiFieldsHtml(jenis, row);
 
   document.getElementById('rawat-revisi-alasan').value = '';
+  _attachInit('rawat-revisi', { refSheet: _RAWAT_SHEET[jenis] });
   _msg('rawat-revisi-msg', null);
   document.getElementById('modal-rawat-revisi').classList.remove('n-hidden');
 }
@@ -7832,14 +8446,16 @@ function _rawatRevisiConfirm() {
   var runner = google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      _rawatCloseRevisi();
-      if (!res.success) { _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
-      _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      if (!res.success) { _msg('rawat-revisi-msg', 'error', res.error); return; }
       _attachCarry('TX_Perawatan_' + (
         jenis === 'kesiapan' ? 'Kesiapan' : (jenis === 'docking' ? 'Docking' : 'Item')
       ), params.targetRowId, res.data.rowId);
-      _rawatLoadKPI();
-      _rawatFetchHistory(jenis);
+      _attachUploadAll('rawat-revisi', [res.data.rowId], function () {
+        _rawatCloseRevisi();
+        _msg(_RAWAT_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+        _rawatLoadKPI();
+        _rawatFetchHistory(jenis);
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -8470,10 +9086,11 @@ function _logSubmitAmunisi() {
       (res.data.warnings || []).forEach(function (w) { _msg('lga-form-msg', 'warn', w); });
       document.getElementById('lga-penggunaan').value = '';
       document.getElementById('lga-stok').value = '';
-      _attachUploadAll('lga', [res.data.rowId], function() {
-        closeModal('modal-lga-form');
-        _logLoadKPI();
-        _logFetchHistory('amunisi');
+      _attachUploadAll('lga', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-lga-form', 'Penggunaan amunisi tersimpan.', function () {
+          _logLoadKPI();
+          _logFetchHistory('amunisi');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lga-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -8507,10 +9124,11 @@ function _logSubmitBbm() {
       (res.data.warnings || []).forEach(function (w) { _msg('lgb-form-msg', 'warn', w); });
       document.getElementById('lgb-realisasi').value = '';
       document.getElementById('lgb-pagu').value = '';
-      _attachUploadAll('lgb', [res.data.rowId], function() {
-        closeModal('modal-lgb-form');
-        _logLoadKPI();
-        _logFetchHistory('bbm');
+      _attachUploadAll('lgb', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-lgb-form', 'Realisasi BBM tersimpan.', function () {
+          _logLoadKPI();
+          _logFetchHistory('bbm');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lgb-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -8534,10 +9152,11 @@ function _logSubmitPersonil() {
       if (!res.success) { _msg('lgp-form-msg', 'error', res.error); return; }
       _msg('lgp-form-msg', 'success', res.data.message);
       document.getElementById('lgp-nilai').value = '';
-      _attachUploadAll('lgp', [res.data.rowId], function() {
-        closeModal('modal-lgp-form');
-        _logLoadKPI();
-        _logFetchHistory('personil');
+      _attachUploadAll('lgp', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-lgp-form', 'Komponen logistik dan personil tersimpan.', function () {
+          _logLoadKPI();
+          _logFetchHistory('personil');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('lgp-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -8559,6 +9178,8 @@ function _logOpenRevisi(jenis, rowId) {
   fields.innerHTML = _logRevisiFieldsHtml(jenis, row);
 
   document.getElementById('log-revisi-alasan').value = '';
+  var refSheet = 'TX_Logistik_' + (jenis === 'amunisi' ? 'Amunisi' : (jenis === 'bbm' ? 'BBM' : 'Personil'));
+  _attachInit('log-revisi', { refSheet: refSheet });
   _msg('log-revisi-msg', null);
   document.getElementById('modal-log-revisi').classList.remove('n-hidden');
 }
@@ -8627,15 +9248,17 @@ function _logRevisiConfirm() {
   var runner = google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      _logCloseRevisi();
-      if (!res.success) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
-      _msg(_LOG_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
-      (res.data.warnings || []).forEach(function (w) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'warn', w); });
+      if (!res.success) { _msg('log-revisi-msg', 'error', res.error); return; }
       _attachCarry('TX_Logistik_' + (
         jenis === 'amunisi' ? 'Amunisi' : (jenis === 'bbm' ? 'BBM' : 'Personil')
       ), params.targetRowId, res.data.rowId);
-      _logLoadKPI();
-      _logFetchHistory(jenis);
+      _attachUploadAll('log-revisi', [res.data.rowId], function () {
+        _logCloseRevisi();
+        _msg(_LOG_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+        (res.data.warnings || []).forEach(function (w) { _msg(_LOG_PREFIX[jenis] + '-history-msg', 'warn', w); });
+        _logLoadKPI();
+        _logFetchHistory(jenis);
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
@@ -9059,10 +9682,11 @@ function _awkSubmitAkn() {
       if (!res.success) { _msg('akn-form-msg', 'error', res.error); return; }
       _msg('akn-form-msg', 'success', res.data.message);
       document.getElementById('akn-jumlah').value = '';
-      _attachUploadAll('awkakn', [res.data.rowId], function() {
-        closeModal('modal-akn-form');
-        _awkLoadKPI();
-        _awkFetchHistory('akn');
+      _attachUploadAll('awkakn', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-akn-form', 'Perubahan komposisi AKN tersimpan.', function () {
+          _awkLoadKPI();
+          _awkFetchHistory('akn');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('akn-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -9092,10 +9716,11 @@ function _awkSubmitKegiatan() {
       document.getElementById('akk-judul').value = '';
       document.getElementById('akk-wilayah').value = '';
       document.getElementById('akk-peserta').value = '';
-      _attachUploadAll('awkkeg', [res.data.rowId], function() {
-        closeModal('modal-akk-form');
-        _awkLoadKPI();
-        _awkFetchHistory('kegiatan');
+      _attachUploadAll('awkkeg', [res.data.rowId], function(ok) {
+        _formSubmitDone('modal-akk-form', 'Log kegiatan personel tersimpan.', function () {
+          _awkLoadKPI();
+          _awkFetchHistory('kegiatan');
+        }, ok);
       });
     })
     .withFailureHandler(function () { _setLoading(btn, false); _msg('akk-form-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.'); })
@@ -9116,6 +9741,8 @@ function _awkOpenRevisi(jenis, rowId) {
   fields.innerHTML = _awkRevisiFieldsHtml(jenis, row);
 
   document.getElementById('awak-revisi-alasan').value = '';
+  var refSheet = 'TX_Pengawakan_' + (jenis === 'akn' ? 'AKN' : 'Kegiatan');
+  _attachInit('awak-revisi', { refSheet: refSheet });
   _msg('awak-revisi-msg', null);
   document.getElementById('modal-awak-revisi').classList.remove('n-hidden');
 }
@@ -9172,12 +9799,14 @@ function _awkRevisiConfirm() {
   var runner = google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
-      _awkCloseRevisi();
-      if (!res.success) { _msg(_AWK_PREFIX[jenis] + '-history-msg', 'error', res.error); return; }
-      _msg(_AWK_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+      if (!res.success) { _msg('awak-revisi-msg', 'error', res.error); return; }
       _attachCarry('TX_Pengawakan_' + (jenis === 'akn' ? 'AKN' : 'Kegiatan'), params.targetRowId, res.data.rowId);
-      _awkLoadKPI();
-      _awkFetchHistory(jenis);
+      _attachUploadAll('awak-revisi', [res.data.rowId], function () {
+        _awkCloseRevisi();
+        _msg(_AWK_PREFIX[jenis] + '-history-msg', 'success', res.data.message);
+        _awkLoadKPI();
+        _awkFetchHistory(jenis);
+      });
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);

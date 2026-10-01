@@ -156,7 +156,8 @@ var OPSI_KODE = {
   RAWAT_TAHAP:    'RAWAT_TAHAP',
   RAWAT_KATEGORI: 'RAWAT_KATEGORI',
   OPS_RIKSA_KATEGORI: 'OPS_RIKSA_KATEGORI',
-  OPS_HARI_KATEGORI: 'OPS_HARI_KATEGORI'
+  OPS_HARI_KATEGORI: 'OPS_HARI_KATEGORI',
+  KAPAL_JENIS:       'KAPAL_JENIS'
 };
 
 // Judul grup untuk UI Master Data (chrome, bukan data domain — nilainya tidak
@@ -171,7 +172,8 @@ var OPSI_GROUP_LABEL = {
   RAWAT_TAHAP:    'Tahap Docking',
   RAWAT_KATEGORI: 'Kategori Pekerjaan',
   OPS_RIKSA_KATEGORI: 'Kategori Riksa',
-  OPS_HARI_KATEGORI: 'Kategori Hari Operasi'
+  OPS_HARI_KATEGORI: 'Kategori Hari Operasi',
+  KAPAL_JENIS:       'Jenis Kapal'
 };
 
 // ===========================================================================

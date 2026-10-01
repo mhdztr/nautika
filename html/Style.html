@@ -80,7 +80,6 @@ a { text-decoration: none; color: inherit; }
   border-radius: 50%;
   animation: _spin 0.8s linear infinite;
 }
-@keyframes _spin { to { transform: rotate(360deg); } }
 
 /* ============================================================
    AUTH VIEWS
@@ -219,6 +218,18 @@ a { text-decoration: none; color: inherit; }
   background: rgba(245, 158, 11, 0.07);
 }
 .tu-pagu-bar .btn-mini { margin-top: 0; flex: 0 0 auto; }
+
+/* Penghitung "Revisi pagu: sudah N kali" — tepat di bawah baris input Pagu.
+   Steel-blue netral, bukan kartu; informasi sekunder yang harus tetap
+   terbaca tanpa bersaing dengan nilai Pagu itu sendiri. */
+.tu-pagu-rev {
+  margin: -8px 0 18px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--n-text-muted);
+}
+.tu-pagu-rev.is-next { color: var(--n-text-secondary); }
+.tu-pagu-rev b { color: var(--n-text-primary); font-weight: 600; }
 
 /* ── ITEM LIST "rincian per-item" (revisi Fase 13) ─────────
    Baris input berulang di modal form (kapal, rumpon, objek udara,
@@ -829,9 +840,79 @@ a { text-decoration: none; color: inherit; }
   border: 2px solid var(--n-primary-light);
   border-top-color: var(--n-primary);
   border-radius: 50%;
-  animation: n-spin 0.7s linear infinite;
+  animation: _spin 0.7s linear infinite;
 }
-@keyframes n-spin { to { transform: rotate(360deg); } }
+
+/* Form loading overlay (lebih terlihat saat submit) */
+.n-modal-form-scroll { position: relative; }
+.form-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(1px);
+  border-radius: var(--n-r-md);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 5;
+}
+.form-loading-overlay.show { display: flex; }
+.form-loading-overlay .loading-text {
+  font-size: .82rem;
+  color: var(--n-text-primary);
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+/* Success state di dalam modal form */
+.modal-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 12px 12px;
+  gap: 12px;
+  animation: _modalSuccessIn .16s ease-out;
+}
+@keyframes _modalSuccessIn {
+  from { opacity: 0; transform: scale(.985); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.modal-success .ms-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #ECFDF5;
+  border: 1px solid rgba(16,185,129,0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-success .ms-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--n-status-success);
+  stroke-width: 2.25;
+}
+.modal-success .ms-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--n-text-primary);
+  letter-spacing: -.01em;
+}
+.modal-success .ms-sub {
+  font-size: .88rem;
+  color: var(--n-text-secondary);
+  max-width: 38ch;
+}
+.modal-success .ms-auto {
+  font-size: .78rem;
+  color: var(--n-text-muted);
+  margin-top: 4px;
+}
 
 /* ============================================================
    PAGE CONTENT AREA — DESIGN.md §5
@@ -1098,6 +1179,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-lg);
   box-shadow: 0 8px 32px rgba(0,0,0,0.12);
   padding: 32px; width: 400px; max-width: 90vw;
+  position: relative;   /* fallback overlay loading untuk modal tanpa .n-modal-form-scroll */
 }
 .n-modal h2 {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1148,6 +1230,16 @@ a { text-decoration: none; color: inherit; }
   animation: _spin 0.7s linear infinite;
   vertical-align: middle;
   margin-right: 6px;
+}
+.n-spin-lg {
+  display: inline-block;
+  width: 22px; height: 22px;
+  border: 3px solid rgba(43,54,116,0.12);
+  border-top-color: var(--n-primary);
+  border-right-color: rgba(43,54,116,0.08);
+  border-radius: 50%;
+  animation: _spin 0.7s linear infinite;
+  vertical-align: middle;
 }
 
 /* ============================================================
@@ -1632,5 +1724,95 @@ a { text-decoration: none; color: inherit; }
   font-size: 0.875rem;
 }
 .n-table-full { width: 100%; }
+
+/* Shared spin keyframe (filter-busy, n-spin-sm, n-spin-lg) */
+@keyframes _spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   PETA WPP — STATUS & LEGENDA CHOROPLETH
+   Peta tidak punya elemen DOM sendiri di view: container
+   `#map-ops-*` diisi Leaflet. Status muat & legenda dibuat
+   dari JS (satu helper untuk Kapal & Pesawat) lalu diposisikan
+   absolut di atas kanvas peta. Tanpa ini, kegagalan fetch
+   GeoJSON hanya muncul di console — user hanya melihat kotak
+   abu-abu dan mengira peta-nya memang kosong.
+   ============================================================ */
+.ops-map-status {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(248,250,252,0.88);
+  backdrop-filter: blur(1px);
+}
+.ops-map-status-inner {
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--n-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.ops-map-status strong {
+  display: block;
+  color: var(--n-text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.ops-map-retry {
+  margin-top: 2px;
+  padding: 7px 16px;
+  border-radius: var(--n-r-pill);
+  border: 1px solid var(--n-primary);
+  background: var(--n-primary);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ops-map-retry:hover { background: #232C5E; }
+.ops-map-retry:focus-visible {
+  outline: 2px solid var(--n-primary);
+  outline-offset: 2px;
+}
+
+.ops-map-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 450;
+  padding: 10px 12px;
+  border-radius: var(--n-r-sm);
+  background: rgba(255,255,255,0.94);
+  box-shadow: var(--n-shadow-card);
+  font-size: 0.6875rem;
+  color: var(--n-text-secondary);
+  line-height: 1.45;
+  pointer-events: none;
+}
+.ops-map-legend-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--n-text-primary);
+}
+.ops-map-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ops-map-legend-row i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(43,54,116,0.18);
+}
 
 </style>

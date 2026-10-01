@@ -73,23 +73,6 @@
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
-          <div class="form-grp">
-            <label for="ops-kapal">Kapal Pengawas <span style="color:var(--n-text-muted);font-weight:400;">(opsional — untuk Profil Kapal)</span></label>
-            <div class="kdl-sel">
-              <input type="text" id="ops-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
-              <input type="hidden" id="ops-kapal">
-              <button type="button" id="ops-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
-              <span class="kdl-caret"></span>
-              <div class="kdl-panel" id="ops-kapal-panel">
-                <input type="text" id="ops-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
-                <ul class="kdl-list" id="ops-kapal-dd"></ul>
-              </div>
-            </div>
-          </div>
-          <div class="form-grp"></div>
-        </div>
-
         <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
         <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 4px;">Penangkapan Kapal &amp; Valuasi</h3>
         <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:14px;">Jumlah ditertibkan dihitung otomatis dari daftar di bawah.</div>
@@ -168,6 +151,23 @@
           </div>
         </div>
 
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 14px;">
+          <div class="form-grp">
+            <label for="ops-kapal">Kapal Pengawas <span style="color:var(--n-text-muted);font-weight:400;">(wajib)</span></label>
+            <div class="kdl-sel">
+              <input type="text" id="ops-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
+              <input type="hidden" id="ops-kapal">
+              <button type="button" id="ops-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+              <span class="kdl-caret"></span>
+              <div class="kdl-panel" id="ops-kapal-panel">
+                <input type="text" id="ops-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
+                <ul class="kdl-list" id="ops-kapal-dd"></ul>
+              </div>
+            </div>
+          </div>
+          <div class="form-grp"></div>
+        </div>
+
         <div id="opslaut-attach" style="margin-top:20px;"></div>
       </div>
 
@@ -216,6 +216,18 @@
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-grp"><label for="rv-ops-kapal">Kapal Pengawas <span style="color:var(--n-status-critical);">*</span></label>
+            <div class="kdl-sel">
+              <input type="text" id="rv-ops-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
+              <input type="hidden" id="rv-ops-kapal">
+              <button type="button" id="rv-ops-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+              <span class="kdl-caret"></span>
+              <div class="kdl-panel" id="rv-ops-kapal-panel">
+                <input type="text" id="rv-ops-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
+                <ul class="kdl-list" id="rv-ops-kapal-dd"></ul>
+              </div>
+            </div>
+          </div>
           <div class="form-grp"><label>Hari Op. Kategori</label>
             <select id="rv-ops-hari-kategori"></select>
           </div>
@@ -230,6 +242,7 @@
         <label for="rv-ops-alasan">Alasan Revisi <span style="color:var(--n-status-critical);">*</span></label>
         <input type="text" id="rv-ops-alasan" placeholder="Alasan perubahan...">
       </div>
+      <div id="opslaut-revisi-attach"></div>
 
       <div style="display:flex;gap:12px;margin-top:24px;">
         <button class="btn-primary" id="ops-btn-revisi-save" onclick="opsLautRevisiConfirm()">Simpan Revisi</button>

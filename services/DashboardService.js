@@ -195,11 +195,16 @@ function dashboard_getOverview(token, filter) {
     var nMelapor = melaporDetail.filter(function (d) { return d.melapor; }).length;
 
     // Top 5 kapal pengawas teraktif (kapal + satuan udara digabung per KapalID).
+    // Baris tanpa KapalID tidak bisa diatribusikan ke kapal mana pun, tapi hari
+    // operasinya tetap masuk KPI. Jumlahnya dikembalikan terpisah supaya UI
+    // bisa menjelaskan chart kosong alih-alih menampilkan "0" misterius.
     var kapalHari = {};
+    var hariTanpaKapal = 0;
     lautInRange.concat(udaraInRange).forEach(function (r) {
+      var hari = _num(r['HariOperasi_Jumlah']);
       var id = String(r['KapalID'] || '').trim();
-      if (!id) return;
-      kapalHari[id] = (kapalHari[id] || 0) + _num(r['HariOperasi_Jumlah']);
+      if (!id) { hariTanpaKapal += hari; return; }
+      kapalHari[id] = (kapalHari[id] || 0) + hari;
     });
     var kapalTeraktif = Object.keys(kapalHari).map(function (id) {
       var info = _dashKapalInfo(id);
@@ -316,7 +321,8 @@ title: 'Operasi Kapal Pengawas dan Pesawat',
           { label: 'Dipantau \u2013 KII',   val: kiiDipantau,  tone: 'light' },
           { label: 'Dipantau \u2013 KIA',   val: kiaDipantau,  tone: 'lighter' }
         ],
-        kapalTeraktif: kapalTeraktif
+        kapalTeraktif: kapalTeraktif,
+        hariTanpaKapal: hariTanpaKapal
       }
     };
 

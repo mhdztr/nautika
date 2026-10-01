@@ -220,7 +220,14 @@ function operasiLaut_submit(token, params) {
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_LAUT);
       ensureKapalColumns(); // self-heal: pastikan kolom KapalID ada (Fase 12)
-      if (p.KapalID && !master_kapalExists(p.KapalID)) {
+      // KapalID WAJIB (Fase 14 Item 6) — sumber bar "Kapal Pengawas Teraktif"
+      // di Overview & agregasi Profil Kapal. Kosong = tidak ada yang bisa
+      // dihitung, jadi ditolak di server (bukan hanya disembunyikan di UI).
+      var kapalIdSubmit = String(p.KapalID || '').trim();
+      if (!kapalIdSubmit) {
+        return { success: false, error: 'Kapal Pengawas wajib dipilih.' };
+      }
+      if (!master_kapalExists(kapalIdSubmit)) {
         return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
       }
       // Kategori Riksa & Hari Operasi = enum referensi dari sheet `Opsi`.
@@ -231,6 +238,14 @@ function operasiLaut_submit(token, params) {
       var hariKat = String(p.HariOperasi_Kategori || '').trim().toUpperCase();
       if (hariKat && getOpsiList(OPSI_KODE.OPS_HARI_KATEGORI).indexOf(hariKat) === -1) {
         return { success: false, error: 'Kategori Hari Operasi tidak valid.' };
+      }
+      // Kapal harus cocok dengan kategori hari operasi yang dipilih. Kapal lama
+      // tanpa `JenisKapal` (kolom baru) tidak dibatasi — lihat
+      // `master_kapalCocokKategori`.
+      if (!master_kapalCocokKategori(kapalIdSubmit, hariKat)) {
+        return { success: false, error: 'Kapal yang dipilih jenisnya (' +
+          getOpsiLabel(OPSI_KODE.KAPAL_JENIS, master_kapalJenis(kapalIdSubmit)) +
+          ') tidak cocok dengan kategori hari operasi. Pilih kapal lain atau ubah kategori.' };
       }
       var rows = sheetToObjects(sheet);
 
@@ -257,7 +272,7 @@ function operasiLaut_submit(token, params) {
         VoidedAt: '',
         
         WPPCode: p.WPPCode,
-        KapalID: p.KapalID || '',
+        KapalID: kapalIdSubmit,
         KII_Ditangkap: p.KII_Ditangkap || 0,
         KIA_Ditangkap: p.KIA_Ditangkap || 0,
         AsalNegaraAsing: p.AsalNegaraAsing || '',
@@ -315,9 +330,6 @@ function operasiLaut_revisi(token, params) {
 
       var sheet = openTransaksiSheet(SHEET_TX.OPERASI_LAUT);
       ensureKapalColumns(); // self-heal (Fase 12)
-      if (p.KapalID && !master_kapalExists(p.KapalID)) {
-        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
-      }
       var oldRowData = findRowByField(sheet, 'RowID', targetRowId);
       if (!oldRowData || String(oldRowData.obj['Status']) !== ROW_STATUS.ACTIVE) {
         return { success: false, error: 'Baris tidak ditemukan atau bukan status ACTIVE.' };
@@ -329,9 +341,51 @@ function operasiLaut_revisi(token, params) {
       if (riksaKat && getOpsiList(OPSI_KODE.OPS_RIKSA_KATEGORI).indexOf(riksaKat) === -1) {
         return { success: false, error: 'Kategori Riksa tidak valid.' };
       }
-      var hariKat = String(p.HariOperasi_Kategori || '').trim().toUpperCase();
+      // Kategori EFEKTIF = yang dikirim, atau nilai lama bila tidak dikirim.
+      // `hariKat` ini juga yang ditulis ke baris baru. Kalau kita hanya melihat
+      // nilai `p`, revisi yang tidak mengirim kategori akan lolos validasi kapal
+      // untuk kategori kosong — padahal baris hasilnya memakai kategori lama,
+      // jadi kapal yang tidak cocok pun bisa masuk.
+      var hariKat = String(
+        p.HariOperasi_Kategori ? p.HariOperasi_Kategori : (oldObj.HariOperasi_Kategori || '')
+      ).trim().toUpperCase();
       if (hariKat && getOpsiList(OPSI_KODE.OPS_HARI_KATEGORI).indexOf(hariKat) === -1) {
         return { success: false, error: 'Kategori Hari Operasi tidak valid.' };
+      }
+
+      // Semua validasi WAJIB selesai sebelum baris lama ditandai SUPERSEDED —
+      // kalau tidak, revisi yang gagal akan menghilangkan data aktif (bug yang
+      // pernah terjadi dan sudah diperbaiki).
+      //
+      // KapalID wajib (Fase 14 Item 6). Diisi dari form revisi (modal punya
+      // pemilih kapal, di-prefill nilai baris lama) atau — ketika client tidak
+      // mengirim — diwarisi dari baris lama. Baris lama tanpa KapalID tidak
+      // punya sumber nilai, jadi revisi wajib memilih kapal: inilah jalur
+      // mengisi kolom kosong pada data lama lewat UI.
+      var kapalIdRevisi = String(
+        p.KapalID !== undefined ? p.KapalID : (oldObj.KapalID || '')
+      ).trim();
+      if (!kapalIdRevisi) {
+        return { success: false, error: 'Kapal Pengawas wajib dipilih. Laporan lama belum punya kapal — pilih kapal untuk merevisi.' };
+      }
+      if (!master_kapalExists(kapalIdRevisi)) {
+        return { success: false, error: 'KapalID tidak terdaftar di master kapal.' };
+      }
+      if (!master_kapalCocokKategori(kapalIdRevisi, hariKat)) {
+        return { success: false, error: 'Kapal yang dipilih jenisnya (' +
+          getOpsiLabel(OPSI_KODE.KAPAL_JENIS, master_kapalJenis(kapalIdRevisi)) +
+          ') tidak cocok dengan kategori hari operasi. Pilih kapal lain atau ubah kategori.' };
+      }
+
+      // Validasi rincian per-item HARUS sebelum baris lama ditandai SUPERSEDED.
+      // Kalau tidak, revisi yang gagal (mis. nama kapal kosong) meninggalkan data
+      // aktif hilang tanpa bar pengganti — pola yang sudah diperbaiki di
+      // Pemantauan/Intelijen (Fase 12) tapi belum ikut diterapkan di modul ini.
+      var rincianRevisi = null;
+      if (p.rincian !== undefined) {
+        var detailItems = _opsLautValidateRincian(p.rincian);
+        if (detailItems.error) return { success: false, error: detailItems.error };
+        rincianRevisi = detailItems.items;
       }
 
       // Tandai lama sebagai SUPERSEDED
@@ -357,7 +411,7 @@ function operasiLaut_revisi(token, params) {
         VoidedAt: '',
         
         WPPCode: oldObj.WPPCode, // Tidak bisa ubah WPPCode di revisi
-        KapalID: p.KapalID !== undefined ? p.KapalID : oldObj.KapalID,
+        KapalID: kapalIdRevisi,
         KII_Ditangkap: p.KII_Ditangkap !== undefined ? p.KII_Ditangkap : oldObj.KII_Ditangkap,
         KIA_Ditangkap: p.KIA_Ditangkap !== undefined ? p.KIA_Ditangkap : oldObj.KIA_Ditangkap,
         AsalNegaraAsing: p.AsalNegaraAsing !== undefined ? p.AsalNegaraAsing : oldObj.AsalNegaraAsing,
@@ -368,31 +422,31 @@ function operasiLaut_revisi(token, params) {
         HasilRiksa_KII: p.HasilRiksa_KII !== undefined ? p.HasilRiksa_KII : oldObj.HasilRiksa_KII,
         HasilRiksa_KIA: p.HasilRiksa_KIA !== undefined ? p.HasilRiksa_KIA : oldObj.HasilRiksa_KIA,
         HasilRiksa_ObjekSDK: p.HasilRiksa_ObjekSDK !== undefined ? p.HasilRiksa_ObjekSDK : oldObj.HasilRiksa_ObjekSDK,
-        HariOperasi_Kategori: hariKat !== undefined && hariKat !== '' ? hariKat : String(oldObj.HariOperasi_Kategori || ''),
+        // `hariKat` sudah nilai efektif (p, atau warisan baris lama).
+        HariOperasi_Kategori: hariKat,
         HariOperasi_Jumlah: p.HariOperasi_Jumlah !== undefined ? p.HariOperasi_Jumlah : oldObj.HariOperasi_Jumlah,
         HariOperasi_Target: p.HariOperasi_Target !== undefined ? p.HariOperasi_Target : oldObj.HariOperasi_Target
       };
 
-      // Rincian opsional: superkan rincian lama, derive hitungan dari rincian baru.
+      // Validasi rincian per-item sudah dijalankan di atas (sebelum SUPERSEDED);
+      // di sini hanya menerapkan hitungan turunan.
       // Bila `rincian` tidak dikirim → nilai header lama dipertahankan (tanpa rebase).
-      if (p.rincian !== undefined) {
-        var detailItems = _opsLautValidateRincian(p.rincian);
-        if (detailItems.error) return { success: false, error: detailItems.error };
-        var counts = _detailCountByType(detailItems.items, 'ItemType', ['KII', 'KIA', 'RUMPON']);
+      if (rincianRevisi !== null) {
+        var counts = _detailCountByType(rincianRevisi, 'ItemType', ['KII', 'KIA', 'RUMPON']);
         newRow.KII_Ditangkap = counts.KII;
         newRow.KIA_Ditangkap = counts.KIA;
         newRow.RumponDitertibkan = counts.RUMPON;
-        newRow.AsalNegaraAsing = _detailUniqueJoin(detailItems.items, 'ItemType', 'KIA', 'AsalNegara');
+        newRow.AsalNegaraAsing = _detailUniqueJoin(rincianRevisi, 'ItemType', 'KIA', 'AsalNegara');
       }
 
       appendRowData(sheet, newRow);
 
-      if (p.rincian !== undefined) {
+      if (rincianRevisi !== null) {
         // SupersedesRowID rincian baru = RowID rincian lama pada urutan yang sama.
         var oldChildren = _detailActiveChildren(SHEET_TX.OPERASI_LAUT, targetRowId);
         _detailSetChildrenStatus(SHEET_TX.OPERASI_LAUT, targetRowId, ROW_STATUS.SUPERSEDED,
           alasanRevisi, session.userId, newRow.Timestamp);
-        _detailWriteChildren('OPERASI_LAUT', newRowId, detailItems.items, {
+        _detailWriteChildren('OPERASI_LAUT', newRowId, rincianRevisi, {
           DivisiID: session.divisiId,
           Periode: oldObj.Periode,
           SubmittedBy: session.userId,

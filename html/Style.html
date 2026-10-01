@@ -399,7 +399,8 @@ a { text-decoration: none; color: inherit; }
 .attach-chip button:focus-visible,
 .n-list-del:focus-visible,
 .n-iconbtn:focus-visible,
-.n-iconbtn-sm:focus-visible {
+.n-iconbtn-sm:focus-visible,
+.n-iconbtn-x:focus-visible {
   outline: 2px solid var(--n-primary);
   outline-offset: 2px;
 }
@@ -553,6 +554,37 @@ a { text-decoration: none; color: inherit; }
   margin-right: 5px;
 }
 .n-iconbtn-sm:hover { color: var(--n-crit); border-color: var(--n-crit); }
+
+/* `.n-iconbtn-x` — tombolIKON-SAJA (tanpa teks) untuk konteks sempit tempat
+   teks tidak menambah informasi: tutup di header modal/drawer, dan tombol
+   "coba lagi" di dalam pesan error. Bentuk persegi 28px (tinggi ± sama
+   `.btn-mini` sebelumnya, jadi tinggi header tidak bergeser), ghost tanpa
+   border supaya tidak bersaing dengan tombol berlabel di sebelahnya.
+   WAJIB punya `title` + `aria-label` — ikon tidak boleh jadi satu-satunya
+   makna aksi (DESIGN.md §7). Ikon disuntikkan lewat `data-ico="<nama>"`
+   supaya tetap satu sumber ikon (`_ICO`), bukan SVG yang disalin. */
+.n-iconbtn-x {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--n-r-sm);
+  background: transparent;
+  color: var(--n-text-muted);
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
+}
+.n-iconbtn-x:hover {
+  color: var(--n-crit);
+  border-color: var(--n-border-subtle);
+  background: var(--n-surface-2);
+}
+.n-iconbtn-x svg { width: 16px; height: 16px; }
 .n-iconbtn .ico, .n-iconbtn-sm .ico { display: block; flex: 0 0 auto; }
 .n-iconbtn svg { width: 18px; height: 18px; }
 .n-iconbtn-sm svg { width: 15px; height: 15px; }

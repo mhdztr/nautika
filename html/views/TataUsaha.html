@@ -45,7 +45,7 @@
 
   <!-- ── FORM INPUT MINGGUAN (POPUP, BACKLOG A) ───── -->
   <div id="tu-form-section" class="content-section">
-    <button type="button" class="btn-primary" onclick="tuOpenForm()">＋ Input Laporan Mingguan</button>
+    <button type="button" class="btn-primary" onclick="tuOpenForm()">Input Laporan Mingguan</button>
   </div>
 
   <!-- ── MODAL — INPUT LAPORAN MINGGUAN ───────────── -->
@@ -61,10 +61,13 @@
 
         <!-- Periode -->
         <div class="form-grp">
-          <label for="tu-periode">Periode</label>
-          <input type="text" id="tu-periode" placeholder="YYYY-MM-WW (contoh: 2026-09-W03)"
-                 maxlength="12" autocomplete="off">
-          <div class="n-form-hint" id="tu-periode-hint">Periode saat ini: —</div>
+          <label for="tu-periode-tahun">Periode</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <select id="tu-periode-tahun"><option value="">Tahun</option></select>
+            <select id="tu-periode-bulan"><option value="">Bulan</option></select>
+            <select id="tu-periode-minggu"><option value="">Minggu Ke-</option></select>
+          </div>
+          <div class="n-form-hint" id="tu-periode-hint">Periode: —</div>
         </div>
 
         <!-- Pagu row (terkunci: mengikuti laporan sebelumnya) -->

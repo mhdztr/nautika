@@ -1,12 +1,12 @@
 /**
  * services/EvidenceService.js
- * Modul lampiran (evidence) generik — dipakai pertama oleh modul Perawatan (Fase 9).
+ * Modul lampiran (evidence) generik — upload dari form (pertama dipakai modul
+ * Perawatan, Fase 9), preview dari modal "Lihat" riwayat di semua modul divisi.
  *
  * Fungsi publik (google.script.run):
  *   evidence_upload(token, params)         — upload file langsung (base64)
  *   evidence_uploadFromLink(token, params) — salin file dari link Google Drive
  *   evidence_list(token, refSheet, refRowId)
- *   evidence_listBatch(token, refSheet, refRowIds)
  *
  * Aturan (PRD §11 + ARCHITECTURE §6):
  *   - Lampiran per-item: satu baris tujuan bisa punya banyak lampiran.
@@ -432,50 +432,6 @@ function evidence_list(token, refSheet, refRowId) {
     return { success: true, data: data };
   } catch (e) {
     Logger.log('[evidence_list] ' + e.message);
-    return { success: false, error: e.message };
-  }
-}
-
-/**
- * Ambil lampiran untuk banyak baris sekaligus (dipakai tabel riwayat).
- * @returns {{success:boolean, data:Object<string, Array>}} map RefRowID → daftar lampiran
- */
-function evidence_listBatch(token, refSheet, refRowIds) {
-  try {
-    var session = _evRequireSession(token);
-    var ids = refRowIds || [];
-    if (!ids.length) return { success: true, data: {} };
-
-    var idSet = {};
-    ids.forEach(function (id) { idSet[String(id)] = true; });
-
-    // Scope: hanya baris milik divisi session (kecuali privileged)
-    var allowed = {};
-    if (_evIsPrivileged(session)) {
-      ids.forEach(function (id) { allowed[String(id)] = true; });
-    } else {
-      var targetRows = sheetToObjects(openTransaksiSheet(refSheet));
-      targetRows.forEach(function (r) {
-        var rid = String(r['RowID']);
-        if (idSet[rid] && String(r['DivisiID']) === String(session.divisiId || '')) {
-          allowed[rid] = true;
-        }
-      });
-    }
-
-    var evRows = sheetToObjects(openTransaksiSheet(SHEET_TX.EVIDENCE));
-    var out = {};
-    evRows.forEach(function (r) {
-      if (String(r['RefSheet']) !== String(refSheet)) return;
-      var rid = String(r['RefRowID']);
-      if (!allowed[rid]) return;
-      if (!out[rid]) out[rid] = [];
-      out[rid].push(_evNormalize(r));
-    });
-
-    return { success: true, data: out };
-  } catch (e) {
-    Logger.log('[evidence_listBatch] ' + e.message);
     return { success: false, error: e.message };
   }
 }

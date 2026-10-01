@@ -234,6 +234,12 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: 0.05em;
 }
 .n-list-head > div:last-child, .n-list-delcell { text-align: right; }
+.n-list-delcell {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
 .n-list-row { margin-bottom: 10px; }
 .n-list-row input,
 .n-list-row select {
@@ -265,15 +271,22 @@ a { text-decoration: none; color: inherit; }
 }
 .n-list-add:hover { border-color: var(--n-primary); background: rgba(43,54,116,0.06); }
 .n-list-del {
-  padding: 6px 10px;
+  box-sizing: border-box;
+  width: 45px;
+  min-height: 34px;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--n-border-subtle);
   border-radius: var(--n-r-sm);
-  background: none;
+  background: var(--n-surface-2);
   color: var(--n-text-muted);
-  font-size: 0.78rem;
   cursor: pointer;
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
 }
-.n-list-del:hover { color: var(--n-crit); border-color: var(--n-crit); }
+.n-list-del:hover { color: var(--n-crit); border-color: var(--n-crit); background: var(--n-surface-1); }
 .n-derive-val {
   font-size: 1.25rem;
   font-weight: 700;
@@ -378,8 +391,18 @@ a { text-decoration: none; color: inherit; }
 .attach-chip b { font-weight: 600; letter-spacing: 0.03em; }
 .attach-chip button {
   background: none; border: 0; cursor: pointer; color: var(--n-text-muted); font-size: 0.9rem; line-height: 1; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px;
+  transition: color 0.14s, background 0.14s;
 }
-.attach-chip button:hover { color: var(--n-crit); }
+.attach-chip button:hover { color: var(--n-crit); background: var(--n-surface-hover); }
+.attach-chip button:focus-visible,
+.n-list-del:focus-visible,
+.n-iconbtn:focus-visible,
+.n-iconbtn-sm:focus-visible {
+  outline: 2px solid var(--n-primary);
+  outline-offset: 2px;
+}
 .attach-retry {
   display: inline-flex; gap: 8px; align-items: center; margin-top: 6px;
   background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; border-radius: var(--n-r-sm);
@@ -470,6 +493,73 @@ a { text-decoration: none; color: inherit; }
   margin-right: 5px;
 }
 .btn-mini:hover { background: var(--n-primary-light); }
+
+/* ── IKON BUTTON (DESIGN.md §7) ───────────────────────────
+   Satu bahasa ikon untuk seluruh situs: outline SVG 24-grid, stroke
+   `currentColor`, tanpa warna/gradien/dekorasi (§1). Dipakai untuk
+   (a) mikro-aksi yang kalau ditulis jadi sempit/crowded — terutama "hapus
+   baris" di baris input berulang, dan (b) tombol BERLABEL lewat `.n-has-ico`
+   (ikon + teks), supaya aksi berulang dikenali sekilas.
+
+   `.n-iconbtn`    — di baris form: kotak 45px, TINGGI PERSIS dengan kotak
+                     input di sebelahnya (0.9375rem x 1.55 + padding 20px +
+                     border 2px = ~45px), jadi rata horizontal tanpa perlu
+                     hacks. Pakai `margin-bottom` 0 karena baris form memakai
+                     `align-items:end` dan `.form-grp` punya band hint 26px.
+   `.n-iconbtn-sm` — versi kecil untuk sel aksi tabel (28px), tetap sebaris
+                     dengan `.btn-sm` di sebelahnya.
+   `.n-has-ico`    — tombol berlabel + ikon. Ikon disisipkan sebagai
+                     `inline-block` (BUKAN mengubah `display` tombol jadi flex):
+                     model layout tombol yang sudah ada tetap utuh, jadi tinggi
+                     tombol tidak bergeser. `vertical-align` optically
+                     memusatkan ikon terhadap teks, dan `nowrap` menjaga agar
+                     teks ikon+tetap satu baris. */
+.n-iconbtn,
+.n-iconbtn-sm {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  color: var(--n-text-muted);
+  transition: color 0.14s, border-color 0.14s, background 0.14s;
+}
+.n-has-ico { white-space: nowrap; }
+.n-has-ico > svg.ico {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.18em;
+  margin-right: 0.45em;
+}
+.n-iconbtn {
+  width: 45px;
+  height: 45px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: var(--n-surface-2);
+}
+.n-iconbtn:hover { color: var(--n-crit); border-color: var(--n-crit); background: var(--n-surface-1); }
+.n-iconbtn-sm {
+  /* Box model sama persis dengan `.btn-sm` (pill, padding 4px) supaya tinggi
+     ikon otomatis sama dengan tinggi tombol teks di sel aksi tabel — tanpa
+     angka px yang bisa menyimpang. */
+  padding: 4px 6px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-pill);
+  background: var(--n-surface-2);
+  margin-right: 5px;
+}
+.n-iconbtn-sm:hover { color: var(--n-crit); border-color: var(--n-crit); }
+.n-iconbtn .ico, .n-iconbtn-sm .ico { display: block; flex: 0 0 auto; }
+.n-iconbtn svg { width: 18px; height: 18px; }
+.n-iconbtn-sm svg { width: 15px; height: 15px; }
+/* Ikon pada tombol berlabel mengikuti font-size tombol (em), bukan ukuran
+   tetap, supaya tinggi line-box tombol tidak pernah berubah hanya karena
+   ikon disisipkan. */
+.n-has-ico svg { width: 1.05em; height: 1.05em; }
 
 /* ============================================================
    INLINE MESSAGES
@@ -823,6 +913,42 @@ a { text-decoration: none; color: inherit; }
 }
 .n-table tr:last-child td { border-bottom: none; }
 .n-table tbody tr:hover td { background: var(--n-surface-hover); }
+
+/* ── RIWAYAT DIVISI (seragam lintas modul) ──────────────────
+   Seluruh tabel riwayat modul memakai satu set gaya ini lewat _histBadge() /
+   _histActions() / _histRender() di Script_Main.html, supaya bentuk, badge
+   status, dan aksi Lihat/Revisi/Anulir identik di semua divisi. */
+
+/* Badge status baris riwayat — warna dari token tema, bukan hex inline. */
+.status-badge.aktif       { background: var(--n-primary-light); color: var(--n-primary); }
+.status-badge.ditimpa     { background: var(--n-surface-2);      color: var(--n-text-secondary); }
+.status-badge.dianulir    { background: #FEF2F2;                  color: var(--n-crit); }
+.status-badge.siap        { background: #ECFDF5;                  color: var(--n-ok); }
+.status-badge.tidak-siap  { background: #FEF2F2;                  color: var(--n-crit); }
+.status-badge.baseline    { background: #FEF3C7;                  color: #92400E; }
+
+/* Aksi baris riwayat: Lihat → Revisi → Anulir (urutan tetap, destruktif terakhir). */
+.btn-mini.btn-danger { color: var(--n-crit); border-color: var(--n-crit); }
+.btn-mini.btn-danger:hover { background: #FEF2F2; }
+.hist-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Entri non-aktif + komentar anulir inline (ARCHITECTURE.md §5, PRD §7.4). */
+.n-table tbody tr.hist-row-void td { background: #FEF2F2; }
+.n-table tbody tr.hist-row-ditampa td { opacity: 0.6; }
+.hist-void-note td {
+  padding-top: 0;
+  border-bottom: 1px solid #FECACA;
+  color: var(--n-crit);
+  font-size: 0.8125rem;
+}
+.hist-empty { padding: 20px 24px; color: var(--n-text-muted); font-size: 0.875rem; }
+
+/* Judul bagian "Lampiran" di modal Lihat + aksi kelola opsional. */
+.hist-section-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px;
+}
+.hist-section-hd .btn-mini { margin-right: 0; }
 
 .btn-sm {
   padding: 4px 11px;

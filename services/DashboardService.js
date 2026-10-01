@@ -33,6 +33,77 @@ function _dashVersion() {
   }
 }
 
+/**
+ * Agregat sebaran per Wilayah Management (WPP) untuk peta choropleth Ikhtisar.
+ *
+ * Sumber data (hanya yang punya kolom `WPPCode`):
+ *   - TX_OperasiLaut  → KII_Ditangkap, KIA_Ditangkap, RumponDitertibkan
+ *   - TX_OperasiUdara → KII, KIA, CakupanWilayah_NM2
+ * `TX_Pemantauan` TIDAK punya kolom WPPCode (lihat DATA_SCHEMA.md), jadi jenis
+ * Pemantauan tidak bisa dipetakan — tidak dihitung di sini.
+ *
+ * Nama wilayah memakai konstanta `WPP_NRI` (bukan sheet master `WPP`) supaya
+ * label di panel ranking identik dengan properti `name` pada geometri
+ * wpp_final.geojson yang dipakai layer peta.
+ *
+ * @param {Array} lautYtd  baris TX_OperasiLaut dalam rentang YTD
+ * @param {Array} udaraYtd baris TX_OperasiUdara dalam rentang YTD
+ * @return {{metrics: Array, rows: Object, tanpaWpp: number}}
+ */
+function _dashWppMap(lautYtd, udaraYtd) {
+  var rows = {};
+  var tanpaWpp = 0;
+
+  function bucket(code) {
+    var k = String(code == null ? '' : code).trim();
+    if (!k) return null;
+    if (!rows[k]) rows[k] = { kode: k, nama: '', kii: 0, kia: 0, rump: 0, cakupan: 0, laporan: 0 };
+    return rows[k];
+  }
+
+  (lautYtd || []).forEach(function (r) {
+    var b = bucket(r['WPPCode']);
+    if (!b) { tanpaWpp++; return; }
+    b.kii     += Number(r['KII_Ditangkap']) || 0;
+    b.kia     += Number(r['KIA_Ditangkap']) || 0;
+    b.rump    += Number(r['RumponDitertibkan']) || 0;
+    b.laporan += 1;
+  });
+
+  (udaraYtd || []).forEach(function (r) {
+    var b = bucket(r['WPPCode']);
+    if (!b) { tanpaWpp++; return; }
+    b.kii     += Number(r['KII']) || 0;
+    b.kia     += Number(r['KIA']) || 0;
+    b.cakupan += Number(r['CakupanWilayah_NM2']) || 0;
+    b.laporan += 1;
+  });
+
+  var nama = {};
+  try {
+    WPP_NRI.forEach(function (w) { nama[String(w.WPPCode)] = String(w.NamaWilayah); });
+  } catch (e) { /* konstanta tak terbaca -> pakai kode saja */ }
+
+  Object.keys(rows).forEach(function (k) {
+    var b = rows[k];
+    b.nama = nama[k] || ('WPP ' + k);
+    // Aktivitas = KII + KIA + rumpon (satu angka pembanding antar-WPP).
+    b.aktivitas = b.kii + b.kia + b.rump;
+  });
+
+  return {
+    metrics: [
+      { key: 'aktivitas', label: 'Aktivitas', unit: 'unit' },
+      { key: 'kii',        label: 'KII',      unit: 'unit' },
+      { key: 'kia',        label: 'KIA',      unit: 'unit' },
+      { key: 'rump',       label: 'Rumpon',   unit: 'unit' },
+      { key: 'cakupan',    label: 'Cakupan',  unit: 'NM\u00B2' }
+    ],
+    rows: rows,
+    tanpaWpp: tanpaWpp
+  };
+}
+
 function dashboard_getOverview(token, filter) {
   var CACHE_TTL = 300; // detik
   try {
@@ -310,6 +381,7 @@ title: 'Operasi Kapal Pengawas dan Pesawat',
       headline: headline,
       divisi: divisi,
       paguTotal: paguTotal,
+      wppMap: _dashWppMap(lautYtd, udaraYtd),
       charts: {
         trendMonths: months,
         realisasi: { sp2d: realis, akrual: akru },

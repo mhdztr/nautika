@@ -1316,7 +1316,12 @@ a { text-decoration: none; color: inherit; }
 .div-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
+  /* Kartu hanya setinggi isinya (Fase 14). Sebelumnya `grid-auto-rows: 1fr`
+     memaksa tiap kartu jadi setinggi kartu tertinggi di barisnya, sehingga
+     kartu berisi 1–2 metrik catalogues hole kosong 118–150px di dalam kartu
+     (total 684px di 9 kartu). `align-items: start` menghentikan peregangan;
+     tinggi baris tetap mengikuti kartu tertinggi di baris itu. */
+  align-items: start;
   gap: 16px;
 }
 .div-card {
@@ -1503,6 +1508,11 @@ a { text-decoration: none; color: inherit; }
 }
 @media (max-width: 900px) {
   .chart-grid-2 { grid-template-columns: 1fr; }
+  /* Grid kartu divisi tidak punya breakpoint sama sekali (bug lama) — di
+     500px kartunya cuma ~150px. Hanya grid Ikhtisar yang dikecilkan di sini;
+     `#pk-kpi` (Profil Kapal) dibiarkan apa adanya agar tidak mengubah
+     tata letak yang sudah diverifikasi. */
+  #ov-div-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ============================================================
@@ -1813,6 +1823,175 @@ a { text-decoration: none; color: inherit; }
   flex: 0 0 12px;
   border-radius: 3px;
   border: 1px solid rgba(43,54,116,0.18);
+}
+
+/* ── PETA CHOROPLETH IKHTISAR (Fase 14) ───────────────────────
+   Peta hero langsung di bawah KPI Utama: focal point lewat ukuran
+   (bukan gradient/blob — DESIGN §1). Legenda & status memakai pola
+   yang sama dengan peta Operasi supaya konsisten. */
+.ov-map-cell { padding-bottom: 14px; }
+.ov-map-wrap { position: relative; }
+#ov-map {
+  height: 420px;
+  width: 100%;
+  border-radius: var(--n-r-md);
+  overflow: hidden;
+  background: var(--n-surface-2, #EFF1F6);
+  border: 1px solid var(--n-border-subtle);
+}
+.ov-map-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 450;
+  padding: 10px 12px;
+  border-radius: var(--n-r-sm);
+  background: rgba(255,255,255,0.94);
+  box-shadow: var(--n-shadow-card);
+  font-size: 0.6875rem;
+  color: var(--n-text-secondary);
+  line-height: 1.45;
+  pointer-events: none;
+}
+.ov-map-legend-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--n-text-primary);
+}
+.ov-map-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ov-map-legend-row i {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(43,54,116,0.18);
+}
+/* Chip pengalih metrik — tombol sungguhan (bukan span dekoratif). */
+.ov-map-chip {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--n-text-secondary);
+  background: var(--n-surface-1);
+  border: 1px solid var(--n-border-subtle);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.ov-map-chip:hover { border-color: var(--n-primary); color: var(--n-text-primary); }
+.ov-map-chip:focus-visible {
+  outline: 2px solid var(--n-primary);
+  outline-offset: 2px;
+}
+.ov-map-chip.is-on {
+  background: var(--n-primary);
+  border-color: var(--n-primary);
+  color: #fff;
+}
+/* Panel ranking WPP — baris hover menyorot poligon di peta. */
+.ov-map-rank { margin-top: 12px; }
+.ov-map-rank-hd {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--n-text-secondary);
+  margin-bottom: 6px;
+}
+.ov-map-rank-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.ov-map-rank-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'no nm' 'bar bar' 'val val';
+  gap: 2px 6px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--n-border-subtle);
+  border-radius: var(--n-r-sm);
+  background: var(--n-surface-1);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.ov-map-rank-row:hover,
+.ov-map-rank-row:focus-visible {
+  border-color: var(--n-primary);
+  background: var(--n-surface-2, #F7F8FC);
+  outline: none;
+}
+.ov-map-rank-no {
+  grid-area: no;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--n-primary);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: rgba(43,54,116,0.1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ov-map-rank-nm {
+  grid-area: nm;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--n-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-map-rank-bar {
+  grid-area: bar;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(43,54,116,0.1);
+  overflow: hidden;
+  margin-top: 3px;
+}
+.ov-map-rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--n-primary);
+}
+.ov-map-rank-val {
+  grid-area: val;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--n-text-primary);
+  margin-top: 3px;
+}
+.ov-map-rank-empty,
+.ov-map-rank-note {
+  font-size: 0.6875rem;
+  color: var(--n-text-muted);
+  line-height: 1.5;
+}
+.ov-map-rank-note { margin-top: 8px; }
+
+/* Peta & ranking — breakpoint.
+   WAJIB diletakkan SESUDAH aturan dasar #ov-map / .ov-map-rank-list di atas.
+   Specificity-nya sama (ID / class), jadi aturan dasar yang ditulis belakangan
+   menang — media query yang diletakkan sebelum aturan dasar akan mati diam-diam
+   (sudah pernah terjadi: tinggi peta tetap 420px di 768px). */
+@media (max-width: 900px) {
+  #ov-map { height: 340px; }
+  .ov-map-rank-list { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  #ov-map { height: 280px; }
+  .ov-map-rank-list { grid-template-columns: repeat(2, 1fr); }
+  #ov-div-grid { grid-template-columns: 1fr; }
 }
 
 </style>

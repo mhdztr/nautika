@@ -746,6 +746,7 @@ function _reloadOnFilterChange() {
 // ── VIEW CONTENT ──────────────────────────────────────────
 function _renderViewContent(viewId) {
   _chartTeardownAll(); // destroy instance chart lama sebelum DOM direbuild (Fase 8)
+  _ovMapDestroy();     // peta Ikhtisar menempel container yang akan hilang (Fase 14)
   var el = document.getElementById('page-content');
   if (viewId === 'overview')    { _renderOverview(el);    return; }
   if (viewId === 'tata-usaha')  { _renderTataUsaha(el);   return; }
@@ -799,6 +800,28 @@ function _renderOverview(el) {
         _kpiHeadline('Hari Operasi Kapal & Pesawat', '\u2014', 'hari', 'Realisasi periode ini') +
         _kpiHeadline('Armada Siap Operasi', '\u2014', 'kapal', 'Dari total armada aktif') +
         _kpiHeadline('Divisi Melapor Minggu Ini', '\u2014', '/ 7', 'Berdasarkan laporan masuk') +
+      '</div>' +
+    '</div>';
+
+  // ── 2b. Peta choropleth per WPP (Fase 14 — di atas seluruh chart) ──
+  // Peta penuh lebar jadi orientasi utama; panel ranking WPP di bawahnya.
+  // Geometri TIDAK diunduh ulang: dipakai cache bersama `_opsGetGeoData()`
+  // yang sama dengan peta Operasi (§8.1 — load sekali per sesi).
+  html +=
+    '<div class="content-section">' +
+      '<div class="content-section-hd">Sebaran Wilayah Management</div>' +
+      '<div class="chart-cell ov-map-cell">' +
+        '<div class="chart-cell-hd">' +
+          '<div>' +
+            '<div class="chart-cell-title" id="ov-map-title">Aktivitas</div>' +
+            '<div class="chart-cell-sub" id="ov-map-sub">Kumulatif Jan s/d bulan terpilih</div>' +
+          '</div>' +
+          '<div class="chart-cell-chips ov-map-chips" id="ov-map-metrics" role="group" aria-label="Pilih metrik peta"></div>' +
+        '</div>' +
+        '<div class="ov-map-wrap">' +
+          '<div id="ov-map" role="img" aria-label="Peta sebaran per Wilayah Management"></div>' +
+        '</div>' +
+        '<div class="ov-map-rank" id="ov-map-rank"></div>' +
       '</div>' +
     '</div>';
 
@@ -1007,6 +1030,9 @@ function _ovRenderData(d) {
         'laporan yang masuk akan ditampilkan sebagai kartu ringkas per divisi di sini.</div>';
     }
   }
+
+  // Peta WPP (Fase 14): dimuat setelah kartu agar tidak menahan render kartu.
+  _ovMapLoad(d.wppMap);
 
   if (d.charts) {
     var labels = d.charts.trendMonths || [];
@@ -1582,6 +1608,310 @@ function _ovCardFoot(metrics, stack, dots) {
     '</div>';
   }
   return '';
+}
+
+// ===========================================================================
+// PETA CHOROPLETH WPP — IKHTISAR (Fase 14)
+// ===========================================================================
+// Peta di Ikhtisar memakai geometri yang PERSIS sama dengan peta Operasi, lewat
+// `_opsGetGeoData()` — jadi tidak ada unduhan 10 MB kedua di sesi ini (PRD §8.1).
+// Yang membedakan: 5 metrik yang bisa dipilih user, panel ranking WPP, dan
+// skala intensitas yang menyesuaikan nilai metrik terpilih (bukan bucket tetap
+// seperti peta Operasi, karena Cakupan NM² vs KII punya orde besaran beda jauh).
+//
+// Peta ini READ-ONLY (PRD §5.1): klik WPP tidak memfilter tabel mana pun,
+// hanya menyorot + memfokuskan kamera.
+var _OV_MAP = {
+  metric: 'aktivitas',
+  data: null,      // payload wppMap dari server
+  map: null,
+  layer: null
+};
+
+// Ramp 1 hue navy, sama dengan peta Operasi (§8.1: gradasi intensitas satu
+// warna, bukan traffic-light). Hex, bukan var(): Leaflet menulis fill sebagai
+// ATRIBUT SVG.
+var _OV_MAP_RAMP = ['#E4E7F2', '#A9B0D0', '#6B76A8', '#2B3674'];
+var _OV_MAP_RAMP_LINE = 'rgba(43,54,116,0.45)';
+
+// Deskripsi metrik di bawah judul (data provenance, bukan hiasan).
+var _OV_MAP_META = {
+  aktivitas: 'KII + KIA + rumpon · Operasi Laut & Udara · kumulatif Jan s/d bulan terpilih',
+  kii:        'Operasi Laut & Udara · kumulatif Jan s/d bulan terpilih',
+  kia:        'Operasi Laut & Udara · kumulatif Jan s/d bulan terpilih',
+  rump:       'Operasi Laut · kumulatif Jan s/d bulan terpilih',
+  cakupan:    'Operasi Udara · kumulatif Jan s/d bulan terpilih'
+};
+
+function _ovMapMetricDef(key) {
+  var m = _OV_MAP.data && _OV_MAP.data.metrics ? _OV_MAP.data.metrics : [];
+  for (var i = 0; i < m.length; i++) if (m[i].key === key) return m[i];
+  return null;
+}
+
+// Ambil nilai satu metrik untuk satu kode WPP (aman terhadap kode spasi).
+function _ovMapVal(kode) {
+  var rows = _OV_MAP.data && _OV_MAP.data.rows;
+  if (!rows) return 0;
+  var b = rows[kode];
+  if (b === undefined) b = rows[String(kode == null ? '' : kode).trim()];
+  if (!b) return 0;
+  return Number(b[_OV_MAP.metric]) || 0;
+}
+
+function _ovMapName(kode) {
+  var rows = _OV_MAP.data && _OV_MAP.data.rows;
+  var b = rows && (rows[kode] || rows[String(kode == null ? '' : kode).trim()]);
+  return b && b.nama ? b.nama : ('WPP ' + kode);
+}
+
+// ── Skala 4 bucket adaptif per metrik ────────────────────
+// Bucket tetap milik peta Operasi (0 / 1-5 / 6-15 / >15) tidak bisa dipakai di
+// sini: Cakupan bisa ratusan, KII bisa satuan. Ambang dihitung dari nilai
+// tertinggi pada metrik aktif supaya gradasi tetap terbaca untuk semua metrik.
+// 3 ambang → 4 bucket: 0, 1–s0, s0+1–s1, ≥ s1+1. Bucket teratas terbuka
+// (label '≥') supaya tidak ada warna tanpa labelnya.
+function _ovMapScale() {
+  var rows = _OV_MAP.data && _OV_MAP.data.rows;
+  var max = 0;
+  if (rows) {
+    Object.keys(rows).forEach(function (k) {
+      var v = Number(rows[k][_OV_MAP.metric]) || 0;
+      if (v > max) max = v;
+    });
+  }
+  var s = [1, 2, 3].map(function (i) { return Math.ceil(max * i / 4); });
+  // Buka bucket agar tidak ada dua anak tangga bernilai sama (mis. max=1).
+  for (var i = 1; i < s.length; i++) if (s[i] <= s[i - 1]) s[i] = s[i - 1] + 1;
+  var def = _ovMapMetricDef(_OV_MAP.metric);
+  var unit = def && def.unit ? ' ' + def.unit : '';
+  var labels = [
+    '0',
+    '1–' + s[0] + unit,
+    (s[0] + 1) + '–' + s[1] + unit,
+    '≥ ' + (s[1] + 1) + unit
+  ];
+  return { max: max, labels: labels, fill: function (v) {
+    var n = Number(v) || 0;
+    if (n <= 0) return _OV_MAP_RAMP[0];
+    if (n <= s[0]) return _OV_MAP_RAMP[1];
+    if (n <= s[1]) return _OV_MAP_RAMP[2];
+    return _OV_MAP_RAMP[3];
+  } };
+}
+
+// ── Chip pengalih metrik ────────────────────────────────
+function _ovMapRenderChips() {
+  var host = document.getElementById('ov-map-metrics');
+  if (!host) return;
+  var metrics = (_OV_MAP.data && _OV_MAP.data.metrics) || [];
+  host.innerHTML = metrics.map(function (m) {
+    var on = m.key === _OV_MAP.metric;
+    return '<button type="button" class="ov-map-chip' + (on ? ' is-on' : '') + '"' +
+      ' data-ov-metric="' + m.key + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+      m.label + '</button>';
+  }).join('');
+  host.querySelectorAll('[data-ov-metric]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-ov-metric');
+      if (!k || k === _OV_MAP.metric) return;
+      _OV_MAP.metric = k;
+      _ovMapRenderChips();
+      _ovMapPaint();
+      _ovMapRenderRank();
+    });
+  });
+
+  var def = _ovMapMetricDef(_OV_MAP.metric);
+  var title = document.getElementById('ov-map-title');
+  var sub = document.getElementById('ov-map-sub');
+  if (title && def) title.textContent = def.label + (def.unit ? ' (' + def.unit + ')' : '');
+  if (sub) sub.textContent = _OV_MAP_META[_OV_MAP.metric] || '';
+}
+
+// ── Legenda skala (dibuat dari JS, polunya sama dengan peta Operasi) ──
+function _ovMapLegend(scale) {
+  var host = document.getElementById('ov-map');
+  if (!host) return;
+  var old = host.querySelector('.ov-map-legend');
+  if (old) old.remove();
+  var el = document.createElement('div');
+  el.className = 'ov-map-legend';
+  var html = '<div class="ov-map-legend-title">Skala intensitas</div>';
+  scale.labels.forEach(function (lb, i) {
+    html += '<div class="ov-map-legend-row"><i style="background:' + _OV_MAP_RAMP[i] + '"></i>' + lb + '</div>';
+  });
+  el.innerHTML = html;
+  host.appendChild(el);
+}
+
+// ── Layer choropleth ────────────────────────────────────
+function _ovMapPaint() {
+  var host = document.getElementById('ov-map');
+  if (!host || !_OV_MAP.layer) return;
+  var scale = _ovMapScale();
+  _OV_MAP.layer.setStyle(function (f) {
+    return { fillColor: scale.fill(_ovMapVal(f.properties.wppnri)) };
+  });
+  // Label metrik datang dari server. Kalau kunci metrik lokal tidak ada di
+  // daftar itu (deploy versi berbeda), _ovMapMetricDef() null — tanpa guard di
+  // sini satu TypeError menggagalkan seluruh paint + legenda.
+  var def = _ovMapMetricDef(_OV_MAP.metric);
+  var defLabel = def && def.label ? def.label : '';
+  _OV_MAP.layer.eachLayer(function (l) {
+    var kode = l.feature && l.feature.properties ? l.feature.properties.wppnri : '';
+    l.setTooltipContent('<strong>' + _ovMapName(kode) + '</strong><br>' +
+      defLabel + ': ' + _ovMapVal(kode));
+  });
+  _ovMapLegend(scale);
+}
+
+// Panel ranking: 5 WPP teratas untuk metrik aktif, tersinkron dengan hover peta.
+function _ovMapRenderRank() {
+  var host = document.getElementById('ov-map-rank');
+  if (!host) return;
+  var rows = _OV_MAP.data && _OV_MAP.data.rows;
+  if (!rows || !Object.keys(rows).length) {
+    host.innerHTML = '<div class="ov-map-rank-empty">Belum ada laporan pada periode ini.</div>';
+    return;
+  }
+  var def = _ovMapMetricDef(_OV_MAP.metric);
+  var list = Object.keys(rows).map(function (k) {
+    return { kode: k, nama: rows[k].nama || ('WPP ' + k), val: Number(rows[k][_OV_MAP.metric]) || 0 };
+  }).sort(function (a, b) { return b.val - a.val; }).slice(0, 5);
+  var max = list.length ? list[0].val : 0;
+
+  var hd = '<div class="ov-map-rank-hd">5 WPP teratas · ' + (def ? def.label : '') + '</div>';
+  hd += '<div class="ov-map-rank-list">' + list.map(function (r, i) {
+    var w = max > 0 ? Math.max(2, Math.round(r.val / max * 100)) : 0;
+    return '<div class="ov-map-rank-row" data-ov-kode="' + r.kode + '" tabindex="0" role="button" ' +
+      'aria-label="' + r.nama + ', ' + r.val + '">' +
+      '<span class="ov-map-rank-no">' + (i + 1) + '</span>' +
+      '<span class="ov-map-rank-nm">' + r.nama + '</span>' +
+      '<span class="ov-map-rank-bar"><i style="width:' + w + '%"></i></span>' +
+      '<span class="ov-map-rank-val">' + r.val + '</span></div>';
+  }).join('') + '</div>';
+
+  var tw = _OV_MAP.data.tanpaWpp;
+  if (tw) {
+    hd += '<div class="ov-map-rank-note">' + tw + ' baris laporan tidak mencantumkan WPP ' +
+      'dan tidak dipetakan.</div>';
+  }
+  host.innerHTML = hd;
+
+  host.querySelectorAll('[data-ov-kode]').forEach(function (el) {
+    var kode = el.getAttribute('data-ov-kode');
+    var focus = function () { _ovMapFocus(kode); };
+    el.addEventListener('mouseenter', focus);
+    el.addEventListener('focus', focus);
+    el.addEventListener('click', function () { _ovMapZoom(kode); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _ovMapZoom(kode); }
+    });
+  });
+}
+
+function _ovMapFindLayer(kode) {
+  var found = null;
+  if (!_OV_MAP.layer) return null;
+  _OV_MAP.layer.eachLayer(function (l) {
+    if (found) return;
+    var p = l.feature && l.feature.properties;
+    if (p && String(p.wppnri).trim() === String(kode).trim()) found = l;
+  });
+  return found;
+}
+
+function _ovMapFocus(kode) {
+  var l = _ovMapFindLayer(kode);
+  if (!l || !_OV_MAP.layer) return;
+  _OV_MAP.layer.eachLayer(function (x) {
+    x.setStyle({ weight: String(x.feature.properties.wppnri).trim() === String(kode).trim() ? 2.5 : 1 });
+  });
+  if (l.bringToFront) l.bringToFront();
+}
+
+function _ovMapZoom(kode) {
+  var l = _ovMapFindLayer(kode);
+  if (!l || !_OV_MAP.map) return;
+  try {
+    _OV_MAP.map.fitBounds(l.getBounds(), { padding: [28, 28], maxZoom: 7, animate: true });
+  } catch (e) { /* geometri tidak valid — biarkan tampilan apa adanya */ }
+}
+
+// ── Inisialisasi map (lazy, sekali per masuk view) ───────
+function _ovMapInit() {
+  var host = document.getElementById('ov-map');
+  if (!host) return;
+  if (_OV_MAP.map) { try { _OV_MAP.map.invalidateSize(); } catch (e) {} return; }
+  if (typeof L === 'undefined' || !L.map) return;
+
+  _OV_MAP.map = L.map('ov-map', {
+    zoomControl: true,
+    scrollWheelZoom: false, center: [-2.5489, 118.0149], zoom: 5
+  });
+  // Basemap memakai key CARTO_API_KEY yang sudah ada (Script Property,
+  // dibaca utils_getCartoKey) — sama persis dengan peta Operasi Laut/Udara.
+  // Tidak ada key atau variabel terpisah untuk Ikhtisar. `attributionControl`
+  // sengaja ON: OSM/CARTO mewajibkan atribusi tampil, dan legenda kita ada di
+  // pojok kiri sedangkan baris atribusi Leaflet di kanan, jadi tidak tumpang.
+  _ensureCartoKey(function (key) {
+    if (!_OV_MAP.map) return;                 // pindah tab sebelum key tiba
+    L.tileLayer(_cartoTileUrl(key), {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      subdomains: 'abcd', maxZoom: 20
+    }).addTo(_OV_MAP.map);
+  });
+
+  _ovMapLoadGeo();
+}
+
+// Pemuatan geometri dipisah dari pembuatan map supaya tombol "coba lagi"
+// benar-benar mengulang fetch. Kalau retry diarahkan ke _ovMapInit(), map sudah
+// ada sehingga fungsi itu return di baris guard — retry jadi tidak melakukan
+// apa-apa tanpa pesan apa pun.
+function _ovMapLoadGeo() {
+  if (!_OV_MAP.map) return;                   // pindah tab saat unduhan berjalan
+  _opsMapStatus('ov-map', 'loading');
+  _opsGetGeoData(function (geoData, err) {
+    if (!_OV_MAP.map) return;
+    if (err) { _opsMapStatus('ov-map', 'error', err, _ovMapLoadGeo); return; }
+    var scale = _ovMapScale();
+    _OV_MAP.layer = L.geoJSON(geoData, {
+      style: function (f) {
+        return {
+          fillColor: scale.fill(_ovMapVal(f.properties.wppnri)),
+          fillOpacity: 0.85, weight: 1, opacity: 1, color: _OV_MAP_RAMP_LINE
+        };
+      },
+      onEachFeature: function (feature, layer) {
+        var kode = feature.properties.wppnri;
+        layer.bindTooltip('<strong>' + _ovMapName(kode) + '</strong><br>' +
+          (_ovMapMetricDef(_OV_MAP.metric) ? _ovMapMetricDef(_OV_MAP.metric).label : '') +
+          ': ' + _ovMapVal(kode), { sticky: true });
+      }
+    }).addTo(_OV_MAP.map);
+    _opsMapStatus('ov-map', null);
+    _ovMapLegend(scale);
+  });
+}
+
+// Teardown saat pindah tab — map Leaflet yang menempel ke container yang sudah
+// dihapus akan tampil kosong.
+function _ovMapDestroy() {
+  if (_OV_MAP.map) { try { _OV_MAP.map.remove(); } catch (e) {} }
+  _OV_MAP.map = null;
+  _OV_MAP.layer = null;
+}
+
+// Dipanggil setelah payload overview tiba.
+function _ovMapLoad(payload) {
+  _ovMapDestroy();
+  if (!payload) return;
+  _OV_MAP.data = payload;
+  _ovMapRenderChips();
+  _ovMapRenderRank();
+  _ovMapInit();
 }
 
 // ── APPROVAL MANAGEMENT ───────────────────────────────────

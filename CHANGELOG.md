@@ -1,3 +1,153 @@
+## [Open Issue — Sebelum Fase 15] — Pendaftar Tertahan di Layar "Menunggu Persetujuan" Setelah Di-ACC Superadmin
+
+**Tanggal**: 7 Oktober 2026
+**Status**: **BELUM SELESAI / OPEN ISSUE (Dalam Investigasi & Perbaikan Sebelum Melangkah ke Fase 15)**
+
+**Laporan User**:
+> "oiya sebelum itu, masukkan masalah ini ke fase juga atau changelog lah atau apa, ini masalah yang belum ter solve, dimana saya sudah acc dengan akun superadmin tetapi user yang sign up masih berada di waiting page dengan keterangan menunggu persetujuan padahal sudah saya acc. Nah masukkan ke md md yang relevan bahwa ini masalah yang belum selesai dan dimasukkan sebelum fase 15"
+
+### Bagian 1 — Deskripsi Masalah & Bukti Kasus
+
+1. **Gejala**:
+   - Pendaftar (contoh kasus: nama `Zakki Ramadhan Thoriq Mohammad`, email `muhammad.ztrr@gmail.com`, posisi dilamar: `Staf`) telah menyelesaikan pendaftaran akun baru dan diarahkan ke layar Menunggu Persetujuan (`#v-pending`).
+   - Administrator telah login menggunakan akun Superadmin dan melakukan persetujuan (ACC).
+   - Namun, pada layar pendaftar, status tidak pernah bertransisi ke banner persetujuan hijau ("Akun Anda Berhasil Disetujui") dan tombol Sign In tidak muncul; antarmuka tetap menampilkan kartu pendaftaran dengan status badge *"Menunggu Persetujuan"* serta teks polling *"● Memeriksa status persetujuan secara otomatis..."*.
+2. **Konteks & Bukti Layar**:
+   - Layar pendaftar menampilkan ringkasan registrasi yang valid (Nama, Email, Jabatan: Staf, Status: Menunggu Persetujuan, Tombol: Halaman Masuk & Daftar Baru).
+   - Polling berkala `_startPendingStatusPolling` (interval 8 detik) terus berjalan namun tidak pernah menerima payload `{ status: 'APPROVED' }`.
+
+### Bagian 2 — Analisis Akar Masalah (Root Cause Diagnosis)
+
+Investigasi kode menemukan 5 faktor penyebab kritis:
+
+1. **Konflik Otoritas Approval: Superadmin Terblokir dari Antrean Staf (`services/AuthService.js`)**:
+   - Pada saat registrasi, pelamar jabatan `STAF` di-routing oleh `_routeApproval(roleDilamar, divisiId)` ke `ROLE.KADIV` jika divisi memiliki Kadiv aktif.
+   - Pada `auth_decideApproval(params)`:
+     ```javascript
+     } else if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
+       if (String(q['RoutedTo']) !== ROLE.SUPERADMIN) {
+         return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
+       }
+     }
+     ```
+   - **Dampak Fatal**: Ketika Superadmin mencoba menyetujui entri approval Staf yang `RoutedTo`-nya bernilai `KADIV`, server menolaknya mentah-mentah dengan pesan error *"Anda tidak berwenang memutuskan permintaan ini."* Akibatnya operasi update ke sheet `Users` tidak pernah dieksekusi, dan akun tetap berstatus `PENDING` di spreadsheet!
+   - **Koreksi Arsitektural**: Superadmin adalah pemegang otoritas absolut (superuser) dan harus memiliki hak veto override untuk menyetujui/menolak permohonan pendaftaran apa pun terlepas dari nilai `RoutedTo`.
+2. **Inkonsistensi Jalur ACC via Admin Panel vs Antrean Approval (`services/AdminService.js`)**:
+   - Jika Superadmin meng-ACC pendaftar melalui menu *Admin Panel > Pengguna* via `admin_updateUser`, status di sheet `Users` diubah menjadi `APPROVED`.
+   - Namun fungsi ini **tidak memperbarui entri di sheet `Approval_Queue`**, sehingga antrean tetap berada pada status `PENDING`.
+3. **Lookup Email Sensitif Kapitalisasi (Case-Sensitive Exact Match) di `SheetAccess.js`**:
+   - `auth_checkRegistrationStatus` mencari record menggunakan `findRowByField(usersSheet, 'Email', email)`.
+   - `findRowByField` membandingkan dengan `String(data[i][colIdx]) === String(value)`.
+   - Jika email di baris sheet tersimpan dengan variasi kapitalisasi (misal `Muhammad.ztrr@gmail.com`), sedangkan parameter pencarian di-lowercase (`muhammad.ztrr@gmail.com`), baris tidak ditemukan dan lookup gagal.
+4. **Buffer Tulis Google Apps Script & Ketiadaan `SpreadsheetApp.flush()`**:
+   - Fungsi `updateRowCells` di `data/SheetAccess.js` tidak memanggil `SpreadsheetApp.flush()`.
+   - Pada Google Apps Script, instance terpisah yang melayani panggilan unauthenticated dari pendaftar dapat membaca data snapshot lama (stale cache) jika perubahan belum di-commit secara fisik.
+5. **Silent RPC Error Handler pada Polling Klien (`html/Script_Main.html`)**:
+   - `_startPendingStatusPolling` menggunakan `.withFailureHandler(function () {})` tanpa logging konsol, sehingga bila terjadi error jaringan atau kesalahan skrip dari backend, tidak ada indikasi yang tampak di konsol pengembang browser.
+
+### Bagian 3 — Rencana Tindakan Perbaikan (Sebelum Fase 15)
+
+Masalah ini didokumentasikan sebagai **Blocker Utama sebelum implementasi Fase 15**, dengan rencana perbaikan:
+1. Longgarkan pengecekan otorisasi di `auth_decideApproval` agar Superadmin selalu berhak memutuskan antrean pendaftaran apapun.
+2. Sinkronkan status di `Approval_Queue` ketika Superadmin mengubah status user lewat `admin_updateUser`.
+3. Terapkan case-insensitive & trimmed matching pada pembacaan email di `auth_checkRegistrationStatus`.
+4. Tambahkan `SpreadsheetApp.flush()` setelah pembaruan status pengguna/antrean.
+5. Lengkapi handler polling dengan logging diagnostik di konsol.
+
+---
+
+## [Roadmap — Fase 15] — Perancangan Spesifikasi Arsitektur Systemwide Live-Sync & Real-Time Data (No-Refresh)
+
+**Tanggal**: 7 Oktober 2026
+**Status**: Spesifikasi teknis, arsitektur, dan mitigasi risiko telah dirancang dan didokumentasikan di `PHASES.md` (§Fase 15a & 15b), `ARCHITECTURE.md` (§12), dan `PRD.md` (§12). Menunggu konfirmasi user sebelum implementasi kode.
+
+**Permintaan user**: "Ok, tambahkan fitur ini pada fase dulu, buat detailnya yang jelas, masukkan ke md md itu, intinya dibuat plan detail for next phase, terserah mau satu fase atau dipecah jika ingin lebih aman, yang penting detail, dan AI bisa membaca dan mengimplementasikannya kedepannya"
+
+### Bagian 1 — Dekomposisi Fase & Ruang Lingkup
+
+Fase 15 dipecah menjadi dua sub-fase independen dan berurutan untuk menjamin keselamatan data, efisiensi kuota, dan kemudahan verifikasi:
+
+1. **Fase 15a — Fondasi Backend Version-State & Client Heartbeat Engine:**
+   - Endpoint server `app_getSyncState(token)` yang membaca `DASH_TX_VERSION` murni dari `CacheService` RAM (zero-sheet-read, < 50ms).
+   - Client Heartbeat Engine 35 detik dengan wrapper `_silentRun(fn)` (tanpa menyalakan `#filter-busy`).
+   - Tab Visibility Guard: pause saat tab tidak aktif (`hidden`), sinkronisasi instan saat tab dibuka kembali (*sync-on-focus*).
+   - Form Modal Guard: menunda reload data jika pengguna sedang membuka modal form input/revisi atau sedang mengetik, sehingga tidak ada input yang terinterupsi/hilang.
+   - Indikator status live non-intrusive di header/footer patuh `DESIGN.md` §1.
+2. **Fase 15b — Modular Silent Reloaders & Auto-Sync Transaksi Site-Wide:**
+   - Registry `_SYNC_RELOADERS` untuk 14 modul (Overview, 9 Divisi, Kegiatan, Riwayat Laporan, Master Data, Kelola Akun).
+   - Preservasi scroll position dan filter periode global saat silent reload berjalan.
+   - Peta Leaflet (Operasi & Ikhtisar) memperbarui data in-place tanpa mengunduh ulang GeoJSON 10MB atau me-reset viewport/zoom.
+   - Uji multi-user/multi-tab: submit data di satu sesi otomatis tampil di sesi lain dalam tempo ≤ 35 detik tanpa me-refresh halaman peramban (F5).
+
+---
+
+## [Fase 14 — Auth & Real-Time] — Auto-Detection Status Persetujuan Registrasi & Auto-Refresh Tanpa Reload
+
+**Tanggal**: 7 Oktober 2026
+**Status**: Implementasi selesai & terverifikasi lokal (`node --check` seluruh file backend dan client 100% valid, uji unit dan integrasi DOM virtual berhasil). Verifikasi runtime GAS menunggu user. Tidak ada `clasp push` (agen tidak melakukan deploy — `AGENTS.md` §5b).
+
+**Permintaan user**:
+1. "Ubah logika agar semuanya tidak terbatas atau hanya berbasis pada refresh, jadi data akan tetap diperbarui meskipun tidak refresh, hal seperti membaca notif saja perlu refresh dan lain lain, silakan evaluasi."
+2. "Ini juga akan mengarah ke sistem sign up, saya mau, dia tuh setelah sign up jika memang masih membuka sign up page dan sudah di acc oleh atasan, akan ada notifikasi di atasnya muncul, bahwa akun anda sudah diterima berhasil dibuat dkk, lalu ada perintah untuk sign in dan bisa di klik tombol sign in nya untuk mengarah ke sign in"
+
+### Bagian 1 — Akar Masalah & Kebutuhan
+
+1. **Pendaftar Harus Me-refresh Manual untuk Mengetahui Akun Telah Di-ACC:**
+   - Sebelumnya, setelah menyelesaikan verifikasi OTP dan registrasi (`_regSubmitRegister`), sistem langsung mengalihkan user ke form login kosong dengan pesan flash sesaat.
+   - Pendaftar yang menunggu akunnya disetujui atasan/administrator tidak memiliki feedback real-time; jika atasan menyetujui akun saat pendaftar membuka layar pending, pendaftar tidak tahu sampai mencoba login ulang atau me-refresh.
+   - Tidak ada endpoint unauthenticated yang aman untuk memeriksa status akun pendaftar (`PENDING`/`APPROVED`/`REJECTED`) secara periodik.
+2. **Ketergantungan pada Refresh Manual untuk Data Global (Notifikasi, Approvals, Status Shell):**
+   - Saat menandai satu notifikasi dibaca (`_ntfMarkRead`), fungsi hanya me-reload daftar notifikasi tetapi tidak memanggil `_applyShellStatus()`, sehingga badge unread di sidebar tetap tidak berkurang sampai refresh manual.
+   - Ketika ada notifikasi baru masuk (misal permintaan approval baru untuk Kadiv/Direktur, atau peringatan laporan mingguan), angka badge dan status shell tidak pernah terbarui tanpa refresh halaman.
+   - Sesi pendaftar yang login sebelum disetujui tidak dibersihkan saat akun di-ACC/ditolak.
+
+### Bagian 2 — Solusi & Perubahan Teknis
+
+1. **Endpoint Status Pendaftaran Server (`services/AuthService.js`):**
+   - Ditambahkan endpoint publik `auth_checkRegistrationStatus(params)` yang menerima `{ email, userId }`.
+   - Endpoint mencari data akun di sheet `Users` (dan `Approval_Queue` bila status `REJECTED` untuk mengambil alasan penolakan).
+   - Mengembalikan `{ status, nama, email, approvedAt, alasanReject }` secara aman tanpa memerlukan token sesi dan tanpa membocorkan hash password.
+   - `auth_register` diperkaya mengembalikan data profil lengkap pendaftar (`userId`, `nama`, `email`, `role`, `divisiId`).
+   - `auth_decideApproval` memanggil `_revokeUserSessions(q['UserID'])` untuk memastikan sesi lama pendaftar dicabut secara bersih saat persetujuan/penolakan diputuskan.
+2. **Auto-Detection & Banner Persetujuan Registrasi (`html/Index.html`, `html/Style.html`, `html/Script_Main.html`):**
+   - Pada `_regSubmitRegister`: form di-reset, data pendaftar disimpan di `sessionStorage` (`NAUTIKA_PENDING_REG`), tampilan beralih ke layar `Menunggu Persetujuan` (`#v-pending`) dengan rincian nama, email, jabatan, serta indikator status live pulse.
+   - Polling berkala `_startPendingStatusPolling` (interval 8 detik) memeriksa status ke server secara otomatis.
+   - Saat akun disetujui (`status === 'APPROVED'`):
+     - Polling dihentikan dan data pending di `sessionStorage` dibersihkan.
+     - Ditampilkan banner notifikasi hijau solid (`#ECFDF5`, border `#10B981`, teks `#065F46`, tombol `.btn-primary` `#2B3674`) di bagian atas kartu: *"Akun Anda Berhasil Disetujui!"* disertai pesan bahwa pendaftaran telah disetujui dan akun telah aktif.
+     - Dilengkapi tombol interaktif **"Masuk ke Akun (Sign In)"** yang dapat langsung diklik.
+     - Klik tombol memanggil `_pendingGoToLogin(email)` yang langsung mengarahkan ke form login (`#v-login`), mengisi otomatis email pendaftar ke input email, dan memfokuskan kursor ke input password.
+   - Saat pendaftaran ditolak (`status === 'REJECTED'`): banner merah (`#FEF2F2`, border `#EF4444`) menampilkan alasan penolakan dan tombol "Daftar Ulang" (`_pendingGoToRegister`).
+   - Jika pendaftar me-refresh halaman saat masih pending, sesi pending dipulihkan dari `sessionStorage` dan polling dilanjutkan secara otomatis.
+3. **Pembaruan Notifikasi Seketika & Heartbeat Aplikasi Tanpa Reload:**
+   - `_ntfMarkRead(notifId)` kini langsung memanggil `_applyShellStatus()` segera setelah penandaan dibaca berhasil, sehingga badge unread sidebar langsung berkurang seketika.
+   - Ditambahkan flag `_SILENT_RPC` dan fungsi pembungkus `_silentRun(fn)` agar pemanggilan server di latar belakang tidak menyalakan spinner busy `#filter-busy`.
+   - Diimplementasikan `_startAppHeartbeat()` (interval 25 detik) saat user login:
+     - Memperbarui badge notifikasi dan strip pengingat mingguan (`_applyShellStatus()`).
+     - Jika user sedang membuka modul notifikasi, me-reload daftar notifikasi (`_ntfReload()`).
+     - Jika approver sedang membuka overview atau panel kelola akun, me-refresh antrean approval (`_refreshApprovalPanels()`).
+   - Ditambahkan listener `visibilitychange` dan `focus`: saat user kembali ke tab browser Nautika, status shell dan pendaftaran langsung diperbarui tanpa menunggu timer.
+   - Diperbarui `_routeTo(viewId)`: memanggil `_applyShellStatus()` pada setiap pergantian rute.
+   - Diperbarui `doApprove` dan modal tolak: langsung memanggil `_applyShellStatus()` setelah keputusan disimpan.
+4. **Kepatuhan Desain (`DESIGN.md` §1):**
+   - Banner persetujuan menggunakan warna semantik solid (`#10B981` success, `#EF4444` critical, `#2B3674` primary) tanpa gradient blob/mesh, tanpa shadow berlapis, dan tanpa copywriting filler.
+
+### Bagian 3 — Verifikasi
+
+- `node --check`: Seluruh file backend (`services/*.js`, `utils/*.js`, `data/*.js`, `Setup.js`, `Code.js`) dan skrip client `html/Script_Main.html` lolos sintaks 100%.
+- Unit test Node VM:
+  1. `auth_checkRegistrationStatus` parameter kosong -> ditolak dengan error jelas.
+  2. `auth_checkRegistrationStatus` status `PENDING` -> berhasil mengembalikan status dan identitas.
+  3. `auth_checkRegistrationStatus` status `APPROVED` -> berhasil mengembalikan status dan tanggal persetujuan.
+  4. `auth_checkRegistrationStatus` status `REJECTED` -> berhasil membaca dan mengembalikan alasan penolakan dari antrean.
+  5. `auth_checkRegistrationStatus` user tidak terdaftar -> ditolak dengan status error.
+- Integrasi DOM client:
+  1. Auto-polling mendeteksi `APPROVED` dan merender banner persetujuan dengan benar.
+  2. Tombol "Masuk ke Akun (Sign In)" aktif dan memicu `_pendingGoToLogin(email)`, mengisi input email, dan menampilkan view login.
+  3. Heartbeat berkala memicu `notifikasi_getRingkasan` dan memperbarui badge unread sidebar secara otomatis.
+
+---
+
 ## [Fase 14 — Perbaikan] — Peta Ikhtisar Grey Box / Tidak Muncul Sebelum Buka Modul Lain (Loader Leaflet On-Demand Shared)
 
 **Tanggal**: 7 Oktober 2026

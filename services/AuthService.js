@@ -7,6 +7,7 @@
  *   auth_requestOtp(params)   -> tahap 1: validasi penuh + kirim kode OTP
  *   auth_verifyOtp(params)    -> tahap 2: kode benar -> pendingToken sekali pakai
  *   auth_register(params)     -> tahap 3: WAJIB pendingToken, baru tulis akun
+ *   auth_checkRegistrationStatus(params) -> cek status akun pendaftar (real-time tanpa reload)
  *   auth_login(params)
  *   auth_logout(token)
  *   auth_getSessionInfo(token)
@@ -186,6 +187,10 @@ function auth_register(params) {
         success: true,
         data: {
           userId: userId,
+          nama: nama,
+          email: email,
+          role: roleDilamar,
+          divisiId: divisiId,
           message: 'Registrasi berhasil. Akun Anda sedang menunggu persetujuan.'
         }
       };
@@ -193,6 +198,73 @@ function auth_register(params) {
   } catch (e) {
     Logger.log('[auth_register] ' + e.message);
     return { success: false, error: 'Terjadi kesalahan saat registrasi: ' + e.message };
+  }
+}
+
+/**
+ * Memeriksa status pendaftaran akun (PENDING, APPROVED, REJECTED) tanpa autentikasi sesi.
+ * Digunakan oleh klien pendaftar untuk auto-polling status persetujuan secara real-time
+ * sehingga notifikasi penerimaan dan tombol sign-in dapat muncul langsung tanpa reload.
+ *
+ * @param {Object} params - { email: string, userId?: string }
+ * @returns {Object} { success: boolean, data?: Object, error?: string }
+ */
+function auth_checkRegistrationStatus(params) {
+  try {
+    var email = (params && params.email || '').trim().toLowerCase();
+    var userId = (params && params.userId || '').trim();
+
+    if (!email && !userId) {
+      return { success: false, error: 'Email atau User ID wajib disertakan.' };
+    }
+
+    var usersSheet = openMasterSheet(SHEET_MASTER.USERS);
+    var userRow = null;
+    if (userId) {
+      userRow = findRowByField(usersSheet, 'UserID', userId);
+    }
+    if (!userRow && email) {
+      userRow = findRowByField(usersSheet, 'Email', email);
+    }
+
+    if (!userRow) {
+      return { success: false, error: 'Data pendaftaran tidak ditemukan.' };
+    }
+
+    var status = String(userRow.obj['Status'] || '');
+    var nama = String(userRow.obj['Nama'] || '');
+    var userEmail = String(userRow.obj['Email'] || email);
+    var uId = String(userRow.obj['UserID'] || userId);
+
+    var resData = {
+      status: status,
+      userId: uId,
+      email: userEmail,
+      nama: nama
+    };
+
+    if (status === USER_STATUS.APPROVED) {
+      resData.approvedAt = userRow.obj['ApprovedAt'] || null;
+      return { success: true, data: resData };
+    }
+
+    if (status === USER_STATUS.REJECTED) {
+      try {
+        var queueSheet = openLogSheet(SHEET_LOG.APPROVAL_QUEUE);
+        var qRow = findRowByField(queueSheet, 'UserID', uId);
+        if (qRow && qRow.obj['AlasanReject']) {
+          resData.alasanReject = String(qRow.obj['AlasanReject']);
+        }
+      } catch (qe) {
+        // abaikan error log queue
+      }
+      return { success: true, data: resData };
+    }
+
+    return { success: true, data: resData };
+  } catch (e) {
+    Logger.log('[auth_checkRegistrationStatus] ' + e.message);
+    return { success: false, error: 'Gagal memeriksa status: ' + e.message };
   }
 }
 
@@ -684,6 +756,9 @@ function auth_decideApproval(params) {
         ? 'Registrasi Anda telah disetujui. Silakan login kembali untuk mengakses sistem.'
         : 'Registrasi Anda ditolak. Alasan: ' + alasan + '. Anda dapat mendaftar akun baru.';
       _notify(q['UserID'], 'APPROVAL_REQUEST', pesanNotif);
+
+      // Cabut sesi aktif lama registrant (jika ada sesi cached saat PENDING)
+      _revokeUserSessions(q['UserID']);
 
       return { success: true, data: { message: 'Keputusan berhasil disimpan.' } };
     });

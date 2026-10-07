@@ -253,8 +253,14 @@ Jenis chart yang dipakai sesuai konteks data (detail per modul & tipe chart di `
 - **Concurrency**: pakai locking (`LockService`) saat menulis ke sheet transaksi supaya tidak ada race condition saat beberapa user submit bersamaan.
 - **Validasi sisi server**: semua kalkulasi (persentase, sisa, akumulasi) dihitung di server (Apps Script), bukan di klien, supaya tidak bisa dimanipulasi dan konsisten lintas user.
 - **Desain**: mengikuti `DESIGN.md` — SaaS pastel, palet warna terbatas, tanpa elemen dekoratif berlebih (anti AI-slop, lihat negative prompt di `DESIGN.md`).
+- **Sinkronisasi Data Real-Time & Arsitektur Tanpa Refresh (Systemwide No-Refresh)**:
+  - Aplikasi beroperasi sebagai Single Page Application (SPA) dengan sinkronisasi langsung (*live-sync*). Pengguna tidak perlu me-refresh browser (F5) untuk melihat data transaksi baru, perubahan status approval, atau notifikasi baru.
+  - Mekanisme sinkronisasi wajib **ramah kuota Google Apps Script** (pemeriksaan berkala berbasis versi cache tanpa scan spreadsheet berulang).
+  - Mekanisme sinkronisasi wajib memiliki **Form Guard** (tidak boleh menginterupsi, me-reset, atau menghilangkan input pengguna yang sedang membuka modal form pelaporan).
+  - Mekanisme sinkronisasi wajib memiliki **Tab Visibility Guard** (otomatis pause saat tab di latar belakang untuk menghemat sumber daya, dan melakukan sinkronisasi instan saat tab dibuka kembali).
 
 ## 13. Asumsi & Item Terbuka
 
 - Beberapa nilai di sumber data infografis Agustus 2026 ambigu (contoh: target hari operasi "Kapal Pusat" kosong; kategori "34 Kapal" di Hasil Riksa Operasi tanpa label jelas). Ini akan diklarifikasi manual ke PIC masing-masing divisi saat desain form final — tidak menghambat pembangunan struktur data karena field-nya tetap didefinisikan generik.
 - Data historis sebelum sistem ini berjalan **tidak dimigrasikan otomatis** — YTD dihitung dari titik sistem mulai dipakai, kecuali ada keputusan lain untuk input data backlog secara manual.
+- **Item Terbuka (Bug Pendaftaran — Blocker Sebelum Fase 15)**: Akun pendaftar (terutama jabatan Staf) yang telah di-ACC Superadmin masih tertahan di layar menunggu persetujuan karena validasi routing antrean di `auth_decideApproval` yang membatasi kewenangan Superadmin atas permohonan Staf serta ketiadaan sinkronisasi dengan `admin_updateUser`. Masalah ini wajib diselesaikan sebelum masuk ke Fase 15.

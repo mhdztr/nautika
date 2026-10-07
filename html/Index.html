@@ -56,6 +56,7 @@
     <div class="auth-card">
       <div class="auth-brand">Nautika</div>
       <h1 class="auth-title">Daftar Akun Baru</h1>
+      <div id="register-banner-host"></div>
       <div id="register-msg" class="n-msg"></div>
       <form id="form-register" onsubmit="handleRegister(event)">
         <div class="form-grp">
@@ -122,12 +123,20 @@
     <div class="auth-card">
       <div class="auth-brand">Nautika</div>
       <h1 class="auth-title">Menunggu Persetujuan</h1>
+      <div id="pending-banner-host"></div>
       <div class="n-info-static">
         Akun Anda sedang dalam proses verifikasi oleh administrator.
-        Silakan cek kembali setelah mendapat konfirmasi.
+        Sistem secara otomatis mendeteksi status persetujuan saat halaman ini tetap terbuka.
       </div>
       <div id="pending-info"></div>
-      <button class="btn-ghost" onclick="handleLogout()" style="margin-top:20px;">Keluar</button>
+      <div id="pending-live-status" class="pending-live-status">
+        <span class="pending-pulse-dot"></span>
+        <span>Memeriksa status persetujuan secara otomatis…</span>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button type="button" class="btn-ghost" onclick="showAuthView('login')">Halaman Masuk</button>
+        <button type="button" class="btn-ghost" onclick="_pendingCancelOrNew()" style="color:var(--n-text-muted);">Daftar Baru</button>
+      </div>
     </div>
   </div>
 

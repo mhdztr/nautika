@@ -255,6 +255,29 @@ Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek u
 - **Status**: selesai & terverifikasi lokal. Menunggu `clasp push` + verifikasi visual runtime oleh user (agen tidak deploy — `AGENTS.md` §5b).
 - Detail: `CHANGELOG.md` `[Fase 14 — Ikhtisar] — Visualisasi Dinamis & Grid Sejajar Ikhtisar`.
 
+#### Fase 14 — Auto-Detection Status Persetujuan Registrasi & Auto-Refresh Tanpa Reload
+
+- **Permintaan user (7 Oktober 2026)**:
+  1. "Ubah logika agar semuanya tidak terbatas atau hanya berbasis pada refresh, jadi data akan tetap diperbarui meskipun tidak refresh, hal seperti membaca notif saja perlu refresh dan lain lain, silakan evaluasi."
+  2. "Ini juga akan mengarah ke sistem sign up, saya mau, dia tuh setelah sign up jika memang masih membuka sign up page dan sudah di acc oleh atasan, akan ada notifikasi di atasnya muncul, bahwa akun anda sudah diterima berhasil dibuat dkk, lalu ada perintah untuk sign in dan bisa di klik tombol sign in nya untuk mengarah ke sign in"
+- **Solusi & Keputusan Teknis**:
+  - **Endpoint Baru Server**: `auth_checkRegistrationStatus(params)` di `services/AuthService.js` yang menerima `{ email, userId }`, membaca `Users` (dan `Approval_Queue` bila tolak), mengembalikan `{ status, nama, email, approvedAt, alasanReject }` tanpa autentikasi sesi dan tanpa membocorkan hash password.
+  - **Sesi Revocation**: `auth_decideApproval` memanggil `_revokeUserSessions(userId)` untuk membersihkan sesi lama pendaftar secara otomatis.
+  - **Client Registration Flow**:
+    - Saat registrasi berhasil (`_regSubmitRegister`), form di-reset, data disimpan di `sessionStorage` (`NAUTIKA_PENDING_REG`), tampilan diarahkan ke `#v-pending` dengan ringkasan lengkap dan status indikator live pulse.
+    - Polling berkala `_startPendingStatusPolling` (interval 8s) mengecek status persetujuan secara real-time.
+    - Ketika status berubah menjadi `APPROVED`: polling berhenti, data pending di session dibersihkan, banner hijau solid (`#ECFDF5`, border `#10B981`, teks `#065F46`, tombol `.btn-primary`) muncul di atas kartu dengan teks persetujuan dan tombol "Masuk ke Akun (Sign In)".
+    - Klik tombol memanggil `_pendingGoToLogin(email)` yang langsung membawa ke `#v-login`, mengisi email pendaftar, dan memfokuskan field password.
+    - Ketika status `REJECTED`: banner penolakan merah (`#FEF2F2`, border `#EF4444`) muncul dengan alasan dan tombol "Daftar Ulang".
+  - **Immediate Update Notifikasi & Heartbeat Tanpa Reload**:
+    - `_ntfMarkRead(notifId)` kini memanggil `_applyShellStatus()` seketika setelah server sukses menandai dibaca sehingga badge sidebar langsung berkurang tanpa perlu refresh.
+    - Diterapkan `_SILENT_RPC` dan wrapper `_silentRun(fn)` agar call background tidak memicu spinner `#filter-busy`.
+    - Diterapkan `_startAppHeartbeat()` (interval 25s) dan listener `visibilitychange`/`focus`: secara periodik memperbarui badge unread, strip reminder mingguan, dan antrean approval approver jika sedang membuka overview atau panel kelola akun.
+    - `_routeTo(viewId)` memanggil `_applyShellStatus()` setiap kali user berpindah halaman.
+- **Verifikasi**: `node --check` seluruh file backend dan client lolos 100%, pengujian unit testing dan integrasi DOM virtual berhasil (status detection pending, approved, rejected, email pre-fill, badge update, banner display).
+- **Status**: Selesai & terverifikasi lokal. Menunggu `clasp push` + verifikasi runtime oleh user (agen tidak deploy — `AGENTS.md` §5b).
+- Detail: `CHANGELOG.md` `[Fase 14 — Auth & Real-Time] — Auto-Detection Status Persetujuan Registrasi & Auto-Refresh Tanpa Reload`.
+
 #### Fase 14 — Item 1: Input Periode Seragam (Dropdown) di Semua Form
 
 
@@ -363,6 +386,103 @@ Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek u
 - **Verifikasi**: `verify.sh` OK · `selftest.js` **112 pass / 0 fail** (+25 uji, helper server & renderer client dijalankan di `vm`, bukan hanya regex) · `nulltest.js` 12 ok · `node --check` client & `services/TataUsahaService.js` bersih.
 - **Tidak diubah**: tidak ada kolom spreadsheet baru (menghitung dari data yang sudah ada lebih murah daripada migrasi sheet dan tidak memberi informasi baru); validasi `tataUsaha_revisi` yang tidak mewajibkan Catatan Revisi Pagu **sengaja tidak** disentuh — memperbaikinya akan menolak revisi lama yang sah dan perlu keputusan terpisah; tidak ada verifikasi visual/browser (tidak tersedia di environment ini).
 - Detail: `CHANGELOG.md` `[Fase 14 — Pagu] — JUMLAH REVISI PAGU di bawah baris Pagu (form TU + modal revisi)`.
+
+#### Fase 14 — Open Issue (Blocker Sebelum Fase 15): Akun Sudah Di-ACC Superadmin Namun Pendaftar Tertahan di Layar "Menunggu Persetujuan"
+
+- **Status**: **BELUM SELESAI / OPEN ISSUE (Sedang Diinvestigasi & Wajib Diselesaikan Sebelum Masuk Fase 15)**.
+- **Laporan User (7 Oktober 2026)**: Superadmin sudah menyetujui (ACC) akun pendaftar, tetapi di layar pendaftar (`#v-pending`) status tetap tertahan pada *"Menunggu Persetujuan"* dengan indikator *"Memeriksa status persetujuan secara otomatis..."* dan banner persetujuan tidak pernah muncul.
+- **Bukti & Skenario Kasus**:
+  - Pendaftar: Zakki Ramadhan Thoriq Mohammad (`muhammad.ztrr@gmail.com`).
+  - Jabatan Dilamar: **Staf** (`ROLE.STAF`).
+  - Tampilan Klien: Halaman Menunggu Persetujuan (`#v-pending`) tetap aktif dengan badge status kuning, tombol "Halaman Masuk" dan "Daftar Baru", tanpa auto-redirect atau banner sukses.
+- **Akar Masalah yang Teridentifikasi**:
+  1. **Konflik Kewenangan Approval Superadmin pada Entri Staf (`services/AuthService.js` §`auth_decideApproval`)**:
+     - Sesuai aturan routing `_routeApproval`, pendaftar jabatan Staf diarahkan (`RoutedTo`) ke `ROLE.KADIV` (Kepala Divisi terkait).
+     - Di `auth_decideApproval` baris 719-723, terdapat validasi keras:
+       ```javascript
+       } else if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
+         if (String(q['RoutedTo']) !== ROLE.SUPERADMIN) {
+           return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
+         }
+       }
+       ```
+     - Jika Superadmin mencoba meng-ACC pendaftar staf yang `RoutedTo`-nya adalah `KADIV`, server menolak dengan error `Anda tidak berwenang memutuskan permintaan ini.` Akibatnya penulisan status ke sheet `Users` **gagal dieksekusi**, sehingga akun tetap berstatus `PENDING` di database!
+     - Superadmin sebagai pemegang hak administratif tertinggi seharusnya memiliki hak override (veto) untuk menyetujui atau menolak permohonan antrean apa pun (`KADIV` maupun `STAF`).
+  2. **Approval via Menu Admin Panel Tidak Mensinkronkan `Approval_Queue` (`services/AdminService.js` §`admin_updateUser`)**:
+     - Jika Superadmin meng-ACC via tab Pengguna di Admin Panel (`admin_updateUser`), status di sheet `Users` diubah menjadi `APPROVED`, namun entri di sheet `Approval_Queue` tidak ikut di-update. Hal ini menimbulkan inkonsistensi data antar sheet.
+  3. **Sensitivitas Huruf (Case-Sensitivity) pada Lookup Email (`services/AuthService.js` §`auth_checkRegistrationStatus`)**:
+     - `auth_checkRegistrationStatus` mencari baris dengan `findRowByField(usersSheet, 'Email', email)`. Fungsi `findRowByField` melakukan perbandingan persis `===`. Jika email pendaftar di spreadsheet memiliki variasi huruf kapital (misal `Muhammad.ztrr@gmail.com`), sementara request mengirim `muhammad.ztrr@gmail.com`, baris tidak ditemukan (`userRow = null`) dan mengembalikan error `'Data pendaftaran tidak ditemukan.'`.
+  4. **Ketiadaan `SpreadsheetApp.flush()` pada Operasi Tulis**:
+     - Operasi update baris akun (`updateRowCells`) tidak memanggil `SpreadsheetApp.flush()`. Dalam lingkungan multi-request Google Apps Script, pembacaan sheet dari request polling pendaftar (unauthenticated) dapat membaca data stale sebelum buffer commit spreadsheet dieksekusi oleh GAS.
+  5. **Silent RPC Error Silencing di Client Polling (`html/Script_Main.html`)**:
+     - Fungsi `_startPendingStatusPolling` membungkus pemanggilan RPC dengan `withFailureHandler` kosong tanpa logging console, sehingga bila terjadi error jaringan atau penolakan server, tidak ada informasi diagnostik yang terlihat.
+- **Rencana Tindakan Perbaikan (Sebelum Fase 15)**:
+  - [ ] Perbaiki `auth_decideApproval` di `services/AuthService.js`: Izinkan Superadmin memutuskan semua entri permohonan registrasi tanpa dibatasi oleh `q['RoutedTo']`.
+  - [ ] Sinkronisasi `admin_updateUser` di `services/AdminService.js` agar memperbarui `Approval_Queue` saat status user diubah menjadi `APPROVED`/`REJECTED`.
+  - [ ] Buat pencarian email di `auth_checkRegistrationStatus` case-insensitive dan trimmed.
+  - [ ] Tambahkan `SpreadsheetApp.flush()` setelah pembaruan status pendaftaran dan queue.
+  - [ ] Tambahkan diagnostic log console pada `_startPendingStatusPolling` di `html/Script_Main.html`.
+  - [ ] Uji verifikasi alur ACC Superadmin untuk pelamar Staf dan Kadiv.
+
+---
+
+### Fase 15 — Arsitektur Systemwide Live-Sync & Real-Time Data (No-Refresh)
+
+Arsitektur sinkronisasi data real-time menyeluruh (*systemwide*) agar seluruh modul divisi, tabel riwayat, KPI card, dan Executive Overview otomatis terbarui tanpa mewajibkan pengguna me-refresh halaman browser (F5), dengan proteksi nol interupsi input (*Form Modal Guard*) dan nol pemborosan kuota GAS (*Cache-Driven Version Sync*).
+
+Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, modular, dan dapat diverifikasi secara aman:
+
+#### Fase 15a — Fondasi Backend Version-State & Client Heartbeat Engine
+- **Status**: **Belum Mulai** (menunggu konfirmasi user untuk dieksekusi).
+- **Dependensi**: Fase 14 Selesai.
+- **Tujuan**: Membangun kanal komunikasi sinkronisasi ringan antara server dan client yang efisien tanpa membaca spreadsheet secara berulang (*zero-sheet-read*).
+- **Ruang Lingkup Teknis**:
+  1. **Endpoint Server `app_getSyncState(token)`**:
+     - Lokasi: `services/DashboardService.js` / `services/AuthService.js`.
+     - Memeriksa sesi via `_requireSession(token)`.
+     - Membaca `DASH_TX_VERSION` dari `CacheService` (dinaikkan setiap tulis oleh `bumpTxVersion()` di `SheetAccess.js`).
+     - Membaca jumlah unread notifikasi user dan jumlah antrean approval (bila user adalah approver: `SUPERADMIN`/`DIREKTUR`/`KADIV`).
+     - Mengembalikan payload ringkas: `{ success: true, data: { txVersion: number, unreadNotif: number, queueCount: number, serverTime: string } }`.
+     - **Constraint**: Beban kueri spreadsheet = 0; waktu respons server < 50ms.
+  2. **Client Heartbeat Engine Terpadu**:
+     - Lokasi: `html/Script_Main.html`.
+     - Timer periodik 35 detik di latar belakang dengan wrapper `_silentRun(fn)` (tanpa menyalakan `#filter-busy`).
+     - **Tab Visibility Guard**: Otomatis pause saat `document.visibilityState === 'hidden'`. Begitu tab aktif kembali (`visibilitychange` atau window `focus`), memicu 1 kali sinkronisasi instan (*sync-on-focus*).
+     - State tracking: menyimpan `APP_SYNC = { lastTxVersion, inFlight: false, deferredReload: false }`.
+  3. **Form Modal Guard (Anti-Interupsi Input Pengguna)**:
+     - Helper `_isFormActive()`: mendeteksi apakah ada modal dialog terbuka (`.n-modal:not(.n-hidden)`), drawer aktif, atau input teks sedang menerima fokus kursor.
+     - Jika ada aktivitas input saat `txVersion` server berubah, **tunda (defer) reload data** sampai modal ditutup atau disubmit. Input pengguna dijamin 100% aman dan tidak terhapus.
+  4. **Status Indikator Live (UI Bersih & Patuh `DESIGN.md` §1)**:
+     - Indikator halus non-intrusive di header/footer samping filter periode: status sinkronisasi ("Sinkron") dengan titik status semantik, tanpa animasi berlebihan, tanpa gradient blob.
+- **Kriteria Verifikasi**:
+  - `node --check` bersih.
+  - Unit test Node VM: endpoint mengembalikan data versi yang benar dari cache; client heartbeat memicu callback tanpa error; Form Guard berhasil menahan reload saat modal aktif.
+
+#### Fase 15b — Modular Silent Reloaders & Auto-Sync Transaksi Site-Wide
+- **Status**: **Belum Mulai** (bergantung pada Fase 15a).
+- **Dependensi**: Fase 15a Selesai.
+- **Tujuan**: Menerapkan fungsi *silent reload* ke seluruh modul data (Overview, 9 Divisi, Kegiatan, Riwayat Laporan, Master Data) saat ada transaksi baru terdeteksi.
+- **Ruang Lingkup Teknis**:
+  1. **Registry Silent Reloader Modular (`_SYNC_RELOADERS`)**:
+     - Setiap modul mendaftarkan fungsi pembaruan datanya:
+       - `overview`: `_ovLoadData()` (KPI baris atas, visualisasi penindakan, grid divisi, peta WPP).
+       - `tata-usaha`: reload KPI Pagu/Realisasi + tabel riwayat TU.
+       - `operasi-laut` & `operasi-udara`: reload KPI hari operasi, rincian tangkapan/inspeksi, dan riwayat. **Peta WPP Leaflet tidak di-reload dari nol** (tetap memakai instance map yang ada dan layer diperbarui in-place).
+       - `perawatan`: reload sub-modul aktif (Kesiapan, Docking, atau Item Pekerjaan).
+       - `logistik`: reload sub-modul aktif (Amunisi, BBM, atau Personil) + sisa stok.
+       - `pengawakan`: reload sub-modul aktif (Komposisi AKN atau Kegiatan Personel).
+       - `intelijen` & `pemantauan`: reload KPI kejadian/pemantauan + tabel riwayat.
+       - `kegiatan`: reload feed kegiatan direktorat.
+       - `riwayat`: reload feed agregasi lintas modul.
+       - `master-data` & `kelola-akun`: reload tabel data master.
+  2. **Preservasi State & Scroll**:
+     - Mempertahankan posisi scroll tabel (`scrollTop`) saat baris baru dimasukkan.
+     - Mempertahankan filter periode global aktif (tidak boleh ter-reset ke bulan default).
+     - Menghindari flicker: komponen yang tidak berubah nilai tidak me-reset DOM secara kasar.
+- **Kriteria Verifikasi (Definition of Done)**:
+  - Uji Multi-User / Multi-Tab: User A submit laporan di modul Operasi Laut -> User B yang sedang membuka layar Operasi Laut melihat data baru muncul dalam 35 detik tanpa menekan F5.
+  - Uji Keamanan Input: User B sedang mengetik rincian form saat User A submit -> form User B tetap utuh, kursor tidak mental, dan data baru tersinkron begitu form ditutup.
+  - `verify.sh`, `selftest.js`, dan `nulltest.js` lolos 100%.
 
 ---
 

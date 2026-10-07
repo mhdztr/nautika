@@ -635,6 +635,104 @@ a { text-decoration: none; color: inherit; }
 .info-row .lbl { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--n-text-muted); }
 .info-row .val { font-weight: 500; color: var(--n-text-primary); }
 
+/* ── NOTIFIKASI PERSETUJUAN PENDAFTARAN REAL-TIME ── */
+.n-banner-approved {
+  background: #ECFDF5;
+  border: 1px solid #10B981;
+  border-radius: var(--n-r-md, 12px);
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+.n-banner-approved-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #065F46;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.n-banner-approved-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 0.75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.n-banner-approved-text {
+  font-size: 0.85rem;
+  color: #047857;
+  line-height: 1.45;
+  margin: 0 0 14px 0;
+}
+.n-banner-approved-actions {
+  display: flex;
+  gap: 8px;
+}
+.n-banner-approved-actions .btn-primary {
+  width: 100%;
+  text-align: center;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+}
+
+/* Banner Penolakan */
+.n-banner-rejected {
+  background: #FEF2F2;
+  border: 1px solid #EF4444;
+  border-radius: var(--n-r-md, 12px);
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+.n-banner-rejected-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #991B1B;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.n-banner-rejected-text {
+  font-size: 0.85rem;
+  color: #B91C1C;
+  line-height: 1.45;
+  margin: 0 0 14px 0;
+}
+
+/* Status Live Polling di Layar Pending */
+.pending-live-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--n-text-muted);
+  margin-top: 14px;
+}
+.pending-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--n-primary);
+  display: inline-block;
+  opacity: 0.8;
+  animation: pendingPulse 2s ease-in-out infinite;
+}
+@keyframes pendingPulse {
+  0% { transform: scale(0.9); opacity: 0.4; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.4; }
+}
+
 /* ============================================================
    APP LAYOUT — sidebar fixed + scrollable main
    ============================================================ */

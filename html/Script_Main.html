@@ -70,6 +70,16 @@ function _syncBusy() {
     _BUSY_WATCHDOG = null;
   }
 }
+var _SILENT_RPC = false;
+function _silentRun(fn) {
+  _SILENT_RPC = true;
+  try {
+    fn();
+  } finally {
+    setTimeout(function () { _SILENT_RPC = false; }, 50);
+  }
+}
+
 (function () {
   try {
     var g = window.google && google.script && google.script.run;
@@ -79,6 +89,9 @@ function _syncBusy() {
     if (g.__nBusyPatched) return;
     g.__nBusyPatched = true;
     g.withSuccessHandler = function (h) {
+      if (_SILENT_RPC) {
+        return oWsh.call(this, h);
+      }
       _busyInc();
       return oWsh.call(this, function (res) {
         try { return h ? h(res) : res; }
@@ -86,6 +99,9 @@ function _syncBusy() {
       });
     };
     g.withFailureHandler = function (h) {
+      if (_SILENT_RPC) {
+        return oWfh.call(this, h);
+      }
       return oWfh.call(this, function (err) {
         try { return h ? h(err) : err; }
         finally { _busyDec(); }
@@ -214,10 +230,12 @@ document.addEventListener('DOMContentLoaded', function () {
             APP.token = savedToken;
             APP.user  = res.data;
             if (res.data.status === 'APPROVED') {
+              _stopPendingStatusPolling();
               _initApp();
             } else {
               _renderPendingInfo(res.data);
               _showAuthView('pending');
+              _startPendingStatusPolling(res.data);
             }
           } else {
             try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
@@ -236,7 +254,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   } else {
     _doneLoading();
-    _showAuthView('login');
+    // Cek apakah ada pendaftaran pending yang sedang dipantau di sesi ini
+    var restoredPending = false;
+    try {
+      var rawPending = sessionStorage.getItem('NAUTIKA_PENDING_REG');
+      if (rawPending) {
+        var pData = JSON.parse(rawPending);
+        if (pData && (pData.email || pData.userId)) {
+          _renderPendingInfo(pData);
+          _showAuthView('pending');
+          _startPendingStatusPolling(pData);
+          restoredPending = true;
+        }
+      }
+    } catch (e) {}
+    if (!restoredPending) {
+      _showAuthView('login');
+    }
   }
 });
 
@@ -257,6 +291,159 @@ function _showAuthView(name) {
 
 function showAuthView(name) { _showAuthView(name); } // public alias for inline onclick
 
+// State polling status pendaftaran (real-time tanpa refresh)
+var _pendingPollTimer = null;
+var _lastPendingPayload = null;
+
+function _clearPendingBanners() {
+  var pHost = document.getElementById('pending-banner-host');
+  if (pHost) pHost.innerHTML = '';
+  var rHost = document.getElementById('register-banner-host');
+  if (rHost) rHost.innerHTML = '';
+}
+
+function _startPendingStatusPolling(payload) {
+  if (!payload || (!payload.email && !payload.userId)) return;
+  _lastPendingPayload = payload;
+  _stopPendingStatusPolling();
+
+  function checkOnce() {
+    if (!_lastPendingPayload) return;
+    _silentRun(function () {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.success || !res.data) return;
+          var st = res.data.status;
+          if (st === 'APPROVED') {
+            _stopPendingStatusPolling();
+            _onRegistrationApproved(res.data);
+          } else if (st === 'REJECTED') {
+            _stopPendingStatusPolling();
+            _onRegistrationRejected(res.data);
+          }
+        })
+        .withFailureHandler(function () {
+          // silent: kegagalan sesaat tidak menghentikan polling berkala
+        })
+        .auth_checkRegistrationStatus({
+          email: _lastPendingPayload.email,
+          userId: _lastPendingPayload.userId
+        });
+    });
+  }
+
+  // Cek segera + interval setiap 8 detik
+  checkOnce();
+  _pendingPollTimer = setInterval(checkOnce, 8000);
+}
+
+function _stopPendingStatusPolling() {
+  if (_pendingPollTimer) {
+    clearInterval(_pendingPollTimer);
+    _pendingPollTimer = null;
+  }
+}
+
+function _onRegistrationApproved(data) {
+  var email = data.email || (_lastPendingPayload && _lastPendingPayload.email) || '';
+  var nama  = data.nama  || (_lastPendingPayload && _lastPendingPayload.nama)  || 'Pengguna';
+
+  try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
+
+  var bannerHtml =
+    '<div class="n-banner-approved" role="alert">' +
+      '<div class="n-banner-approved-head">' +
+        '<span class="n-banner-approved-icon">&#10003;</span>' +
+        '<span>Akun Anda Berhasil Disetujui!</span>' +
+      '</div>' +
+      '<p class="n-banner-approved-text">' +
+        'Pendaftaran akun atas nama <b>' + _esc(nama) + '</b> telah diterima dan disetujui oleh atasan/administrator. ' +
+        'Akun Anda kini aktif. Silakan masuk untuk mengakses sistem Nautika.' +
+      '</p>' +
+      '<div class="n-banner-approved-actions">' +
+        '<button type="button" class="btn-primary" onclick="_pendingGoToLogin(\'' + _esc(email) + '\')">' +
+          'Masuk ke Akun (Sign In)' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+
+  var pHost = document.getElementById('pending-banner-host');
+  if (pHost) pHost.innerHTML = bannerHtml;
+  var rHost = document.getElementById('register-banner-host');
+  if (rHost) rHost.innerHTML = bannerHtml;
+
+  var liveEl = document.getElementById('pending-live-status');
+  if (liveEl) {
+    liveEl.innerHTML = '<span style="color:var(--n-status-success);font-weight:600;">Status: Akun Aktif &amp; Disetujui</span>';
+  }
+}
+
+function _onRegistrationRejected(data) {
+  var email  = data.email || (_lastPendingPayload && _lastPendingPayload.email) || '';
+  var alasan = data.alasanReject || 'Pendaftaran tidak memenuhi kriteria verifikasi.';
+
+  try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
+
+  var bannerHtml =
+    '<div class="n-banner-rejected" role="alert">' +
+      '<div class="n-banner-rejected-head">' +
+        '<span>Pendaftaran Belum Disetujui</span>' +
+      '</div>' +
+      '<p class="n-banner-rejected-text">' +
+        'Permintaan pendaftaran akun ditolak. Alasan: <b>' + _esc(alasan) + '</b>. ' +
+        'Anda dapat melakukan pendaftaran ulang dengan data yang benar.' +
+      '</p>' +
+      '<div class="n-banner-approved-actions">' +
+        '<button type="button" class="btn-primary" onclick="_pendingGoToRegister(\'' + _esc(email) + '\')">' +
+          'Daftar Ulang' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+
+  var pHost = document.getElementById('pending-banner-host');
+  if (pHost) pHost.innerHTML = bannerHtml;
+  var rHost = document.getElementById('register-banner-host');
+  if (rHost) rHost.innerHTML = bannerHtml;
+
+  var liveEl = document.getElementById('pending-live-status');
+  if (liveEl) {
+    liveEl.innerHTML = '<span style="color:var(--n-status-critical);font-weight:600;">Status: Pendaftaran Ditolak</span>';
+  }
+}
+
+function _pendingGoToLogin(email) {
+  _showAuthView('login');
+  var emailInput = document.getElementById('login-email');
+  if (emailInput && email) {
+    emailInput.value = email;
+  }
+  var pwdInput = document.getElementById('login-password');
+  if (pwdInput) {
+    pwdInput.value = '';
+    pwdInput.focus();
+  }
+  _msg('login-msg', 'success', 'Akun Anda telah aktif. Masukkan password Anda untuk masuk.');
+}
+
+function _pendingGoToRegister(email) {
+  _showAuthView('register');
+  _regResetOtp();
+  var emailInput = document.getElementById('reg-email');
+  if (emailInput && email) {
+    emailInput.value = email;
+  }
+  _clearPendingBanners();
+}
+
+function _pendingCancelOrNew() {
+  _stopPendingStatusPolling();
+  _lastPendingPayload = null;
+  try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
+  _clearPendingBanners();
+  _showAuthView('register');
+  _regResetOtp();
+}
+
 function _renderPendingInfo(user) {
   var el = document.getElementById('pending-info');
   if (!el) return;
@@ -267,6 +454,10 @@ function _renderPendingInfo(user) {
     '<div class="info-row"><span class="lbl">Status</span>' +
       '<span class="val"><span class="badge badge-warn">Menunggu Persetujuan</span></span>' +
     '</div>';
+  var liveEl = document.getElementById('pending-live-status');
+  if (liveEl) {
+    liveEl.innerHTML = '<span class="pending-pulse-dot"></span><span>Memeriksa status persetujuan secara otomatis…</span>';
+  }
 }
 
 // ── AUTH HANDLERS ─────────────────────────────────────────
@@ -283,10 +474,12 @@ function handleLogin(e) {
       APP.user  = res.data.user;
       sessionStorage.setItem(TOKEN_KEY, APP.token);
       if (res.data.user.status === 'APPROVED') {
+        _stopPendingStatusPolling();
         _initApp();
       } else {
         _renderPendingInfo(res.data.user);
         _showAuthView('pending');
+        _startPendingStatusPolling(res.data.user);
       }
     })
     .withFailureHandler(function () {
@@ -437,6 +630,17 @@ function _regSubmitRegister() {
   var inOtp = step && !step.classList.contains('n-hidden');
   var btn = document.getElementById(inOtp ? 'btn-otp-verify' : 'btn-register');
   _setLoading(btn, true);
+
+  var payload = {
+    nama:         document.getElementById('reg-nama').value,
+    email:        document.getElementById('reg-email').value,
+    nip:          document.getElementById('reg-nip').value,
+    password:     document.getElementById('reg-password').value,
+    divisiId:     document.getElementById('reg-divisi').value,
+    roleDilamar:  document.getElementById('reg-role').value,
+    pendingToken: REG.pendingToken
+  };
+
   google.script.run
     .withSuccessHandler(function (res) {
       _setLoading(btn, false);
@@ -452,28 +656,38 @@ function _regSubmitRegister() {
           : ' Perbaiki data Anda lalu masukkan kode yang sama untuk melanjutkan.'));
         return;
       }
+      var registeredUser = {
+        userId:   (res.data && res.data.userId) || '',
+        nama:     (res.data && res.data.nama) || payload.nama,
+        email:    (res.data && res.data.email) || payload.email,
+        nip:      payload.nip,
+        role:     (res.data && res.data.role) || payload.roleDilamar,
+        divisiId: (res.data && res.data.divisiId) || payload.divisiId
+      };
+      try {
+        sessionStorage.setItem('NAUTIKA_PENDING_REG', JSON.stringify(registeredUser));
+      } catch (e) {}
+
       document.getElementById('form-register').reset();
       _regResetOtp();
-      _showAuthView('login');
-      _msg('login-msg', 'success',
-        'Pendaftaran berhasil. Akun menunggu persetujuan administrator.');
+      _clearPendingBanners();
+      _renderPendingInfo(registeredUser);
+      _showAuthView('pending');
+      _startPendingStatusPolling(registeredUser);
     })
     .withFailureHandler(function () {
       _setLoading(btn, false);
       _msg('register-msg', 'error', 'Terjadi kesalahan koneksi. Coba lagi.');
     })
-    .auth_register({
-      nama:         document.getElementById('reg-nama').value,
-      email:        document.getElementById('reg-email').value,
-      nip:          document.getElementById('reg-nip').value,
-      password:     document.getElementById('reg-password').value,
-      divisiId:     document.getElementById('reg-divisi').value,
-      roleDilamar:  document.getElementById('reg-role').value,
-      pendingToken: REG.pendingToken
-    });
+    .auth_register(payload);
 }
 
 function handleLogout() {
+  if (_appHeartbeatTimer) {
+    clearInterval(_appHeartbeatTimer);
+    _appHeartbeatTimer = null;
+  }
+  _stopPendingStatusPolling();
   if (APP.token) google.script.run.auth_logout(APP.token);
   APP.token = null;
   APP.user  = null;
@@ -587,6 +801,7 @@ function _initApp() {
   var hash = (window.location.hash || '').replace('#', '') || 'overview';
   _routeTo(hash);
   _applyShellStatus(); // badge notifikasi + strip "divisi belum melapor" (Fase 13)
+  _startAppHeartbeat();
   window.addEventListener('hashchange', function () {
     _routeTo((window.location.hash || '').replace('#', ''));
   });
@@ -644,6 +859,7 @@ function _routeTo(viewId) {
   _updateActiveNav(viewId);
   _renderPageHeader(viewId);
   _renderViewContent(viewId);
+  _applyShellStatus();
 }
 
 function _routeProfil() {
@@ -2288,6 +2504,7 @@ function doApprove(queueId) {
       if (!res || !res.success) { _appMsg('error', (res && res.error) || 'Terjadi kesalahan.'); return; }
       _appMsg('success', 'Registrasi berhasil disetujui.');
       _loadApprovals();
+      _applyShellStatus();
     })
     .withFailureHandler(function () { _appMsg('error', 'Terjadi kesalahan. Coba lagi.'); })
     .auth_decideApproval({ token: APP.token, queueId: queueId, approve: true, alasan: '' });
@@ -2315,6 +2532,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!res || !res.success) { _appMsg('error', (res && res.error) || 'Terjadi kesalahan.'); return; }
         _appMsg('success', 'Registrasi berhasil ditolak.');
         _loadApprovals();
+        _applyShellStatus();
       })
       .withFailureHandler(function () {
         closeRejectModal();
@@ -3686,6 +3904,7 @@ function _ntfMarkRead(notifId) {
     .withSuccessHandler(function (res) {
       if (!res.success) { _msg('ntf-msg', 'error', res.error); return; }
       _ntfReload();
+      _applyShellStatus();
     })
     .withFailureHandler(function (err) { _msg('ntf-msg', 'error', _failOrLogout(err) || 'Terjadi kesalahan. Coba lagi.'); })
     .notifikasi_markRead(APP.token, notifId);
@@ -3737,6 +3956,71 @@ function _renderReminderStrip(info) {
   strip.innerHTML = '<strong>' + _esc(info.label) + '</strong> belum melapor untuk minggu ini. ' +
     'Lengkapi laporan mingguan Anda sebelum akhir pekan.';
   strip.classList.remove('n-hidden');
+}
+
+// ── APP HEARTBEAT (Auto-refresh tanpa reload) ─────────────
+var _appHeartbeatTimer = null;
+var _lastHeartbeatTick = 0;
+
+function _runHeartbeatTick() {
+  if (!APP.token || !APP.user) return;
+  var now = Date.now();
+  if (now - _lastHeartbeatTick < 10000) return; // minimal tenggang 10 detik
+  _lastHeartbeatTick = now;
+
+  _silentRun(function () {
+    // 1. Selalu perbarui badge notifikasi & strip pengingat mingguan
+    _applyShellStatus();
+
+    // 2. Jika user sedang di halaman notifikasi, reload list
+    if (APP.currentView === 'notifikasi') {
+      _ntfReload();
+    }
+
+    // 3. Jika approver dan sedang membuka overview atau panel kelola akun / drawer terbuka
+    var isApprover = (APP.user.role === 'SUPERADMIN' || APP.user.role === 'DIREKTUR' || APP.user.role === 'KADIV');
+    if (isApprover) {
+      var drawer = document.getElementById('approval-drawer');
+      var drawerOpen = drawer && !drawer.classList.contains('n-hidden');
+      if (drawerOpen || APP.currentView === 'kelola-akun' || APP.currentView === 'overview') {
+        _refreshApprovalPanels();
+      }
+    }
+  });
+}
+
+function _startAppHeartbeat() {
+  if (_appHeartbeatTimer) clearInterval(_appHeartbeatTimer);
+  _appHeartbeatTimer = setInterval(function () {
+    var isVisible = (typeof document !== 'undefined' && document.visibilityState)
+      ? (document.visibilityState === 'visible')
+      : true;
+    if (isVisible) {
+      _runHeartbeatTick();
+    }
+  }, 25000);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      if (APP.token) {
+        _runHeartbeatTick();
+      } else if (_lastPendingPayload) {
+        _startPendingStatusPolling(_lastPendingPayload);
+      }
+    }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', function () {
+    if (APP.token) {
+      _runHeartbeatTick();
+    } else if (_lastPendingPayload) {
+      _startPendingStatusPolling(_lastPendingPayload);
+    }
+  });
 }
 
 // ── UTILITIES ─────────────────────────────────────────────

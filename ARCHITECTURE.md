@@ -238,3 +238,35 @@ Contoh: `Nautika_Evidence/Perawatan/2026-08/Docking-KP-Orca04/repair-list.pdf`
 - **Validasi registrasi punya satu sumber**: `_otpValidasiPendaftaran()` dipakai `auth_requestOtp` **dan** `auth_register`, sehingga pesan error di tahap OTP sama persis dengan tahap akhir — tidak mungkin ada data yang lolos tahap 1 tapi ditolak tahap 2 tanpa alasan yang jelas.
 - **Keunikan ganda**: `Email` unik per akun yang bisa dipakai (lihat status), dan `NIP` unik. Pengecualian NIP: pemilik akun `REJECTED` dengan email yang sama boleh mendaftar ulang memakai NIP-nya sendiri.
 - **Sesi & pencabutan** (Fase 13): token sesi disimpan di `CacheService` dengan TTL 6 jam dan **tidak bisa di-enumerate**, jadi Superadmin tidak dapat menghapus token milik user tertentu secara langsung. Karena itu setiap perubahan akun (status/role/divisi) dan reset password menandai `revoked_<UserID>` (TTL 12 jam > TTL sesi) di cache yang sama; `_requireSession()` memverifikasi marker tersebut sehingga token lama langsung ditolak dan user diminta login ulang (marker dibersihkan saat login berhasil). Efek samping yang diinginkan: `status`/`role`/`divisi` yang tersimpan di cache sesi tidak pernah "usang" lebih lama dari satu siklus login.
+- **Auto-polling status persetujuan & heartbeat aplikasi (Fase 14 Polish)**: `auth_checkRegistrationStatus` memeriksa status akun pendaftar (`PENDING`/`APPROVED`/`REJECTED`) tanpa autentikasi sesi dan tanpa membocorkan `PasswordHash`. Klien di layar pending menjalankan polling berkala (8s) dan langsung memunculkan banner notifikasi persetujuan + tombol Masuk ke Akun (Sign In) begitu akun di-ACC oleh atasan. Klien yang sudah masuk menjalankan heartbeat (25s) serta event `visibilitychange`/`focus` untuk memperbarui badge notifikasi, reminder strip, dan antrean approval secara otomatis tanpa reload halaman.
+- **Catatan Masalah Terbuka (Persetujuan Pendaftar Staf oleh Superadmin — Sebelum Fase 15)**: Terdapat ketidakselarasan pada `auth_decideApproval` di mana Superadmin ditolak saat memutuskan permohonan Staf (`q['RoutedTo'] === 'KADIV'`), mengakibatkan permohonan yang di-ACC Superadmin tidak ter-update di sheet `Users`. Aturan RBAC akan diselaraskan agar Superadmin memiliki hak veto penuh pada seluruh antrean registrasi sebelum implementasi Fase 15.
+
+## 12. Arsitektur Live-Sync Systemwide Tanpa Refresh (No-Refresh Architecture)
+
+Nautika mengadopsi arsitektur SPA yang responsif secara real-time tanpa memaksa user me-refresh peramban (F5). Karena Google Apps Script (GAS) tidak mendukung persistent connection seperti WebSocket/SSE, live-sync dibangun menggunakan pola **Cache-Driven Lightweight Versioning**.
+
+### 12.1 Mekanisme Cache Versioning Server-Side
+- Setiap operasi tulis data transaksi (submit, revisi, anulir) di seluruh sheet `TX_*` memicu `bumpTxVersion()` di `data/SheetAccess.js`.
+- Fungsi `bumpTxVersion()` menaikkan integer `DASH_TX_VERSION` di `CacheService.getScriptCache()`.
+- Server menyediakan endpoint hemat-sumberdaya: `app_getSyncState(token)`:
+  - **Zero-Sheet-Read**: Endpoint ini **tidak membaca sheet sama sekali**; hanya membaca integer `DASH_TX_VERSION`, jumlah unread notifikasi user, dan jumlah approval queue (jika approver) dari cache RAM.
+  - Waktu eksekusi: < 50ms, konsumsi kuota kueri Google Sheets: 0.
+
+### 12.2 Siklus Heartbeat Client-Side
+- Client menjalankan heartbeat rutin setiap **35 detik** menggunakan fungsi pembungkus `_silentRun(fn)` (agar tidak memicu animasi busy spinner `#filter-busy`).
+- **Tab Visibility Guard**: Jika tab browser berstatus `hidden` (diminimize atau pindah tab), heartbeat di-pause untuk mencegah zombie polling dan pengurasan kuota. Begitu tab kembali `visible` (`visibilitychange`/`focus`), client langsung melakukan 1 kali sinkronisasi instan (*sync-on-focus*).
+- Jika `serverTxVersion > clientLastTxVersion`:
+  - Terjadi mutasi data oleh pengguna lain.
+  - Client memicu *silent reload* pada modul yang sedang aktif dibuka.
+  - `clientLastTxVersion` disinkronkan ke nilai terbaru.
+
+### 12.3 Form Modal Guard (Anti-Interupsi Input)
+- Sebelum silent reload modul dijalankan, client memeriksa apakah ada modal form atau drawer interaktif yang sedang terbuka (`document.querySelector('.n-modal:not(.n-hidden)')` atau flag form input aktif).
+- **Aturan Tegas**: Jika ada form yang sedang terbuka atau user sedang mengetik, silent reload modul **wajib ditunda (deferred)** sampai form selesai disimpan atau ditutup secara manual oleh user. Tidak ada ketikan pengguna yang boleh hilang atau ter-reset akibat auto-refresh.
+
+### 12.4 Modular Silent Reloaders
+Setiap modul memiliki fungsi reloader non-destruktif yang terdaftar di registry `_SYNC_RELOADERS`:
+- `overview`: me-reload data agregasi `_ovLoadData()`.
+- Modul divisi (Tata Usaha, Operasi Laut, Operasi Udara, Intelijen, Pemantauan, Perawatan, Logistik, Pengawakan, Kegiatan, Riwayat): me-reload KPI card dan tabel riwayat tanpa me-reset filter periode global dan tanpa merusak state peta Leaflet.
+- Peta Leaflet (Operasi & Ikhtisar): tidak mengunduh ulang GeoJSON 10MB; hanya memperbarui layer data intensitas/choropleth dan memanggil `invalidateSize()`.
+

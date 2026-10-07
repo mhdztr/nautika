@@ -201,7 +201,7 @@ Ini **bukan** dimulainya Fase 14. Ini permintaan user di tengah masa jeda antar-
 ### Fase 14 — QA & Polish
 Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek ulang seluruh UI terhadap negative prompt desain. Perbaiki bug/inkonsistensi yang ditemukan.
 
-> **Berjalan (item 1–6 selesai + perbaikan peta WPP + penghitung revisi pagu TU + peta sebaran Ikhtisar — belum selesai sebagai fase).** Item 1: konsistensi input periode seluruh form. Item 2: ikon aksi. Item 3: audit geometri list + RBAC Revisi. Item 4: tombol ikon-saja + audit ikon. Item 5: popup berhasil setelah submit + loading lebih terlihat. Item 6: kapal pengawas wajib di Operasi Laut/Udara + enum `Kapal.JenisKapal` (lihat blok di bawah). Perbaikan peta: batas WPPNRI tidak muncul di Operasi. Perbaikan pagu: jumlah revisi pagu di bawah baris Pagu TU. Peta Ikhtisar: choropleth sebaran WPP di Executive Overview + kartu divisi bebas whitespace (lihat blok di bawah). Definition of Done per modul (`AGENTS.md` §6) **masih belum** dikerjakan. Catatan: revisi Opsi/revisi transaksi yang masuk 28 Sep 2026 dicatat di blok **Fase 12** di atas karena masih merupakan perbaikan atas pekerjaan yang sudah berjalan — **bukan** dimulainya Fase 14. Classifier yang sama berlaku untuk blok **Perubahan Lintas Fase (OTP + NIP)** di atas: itu perubahan atas persetujuan user di tengah Fase 13, **bukan** Fase 14.
+> **Berjalan (item 1–6 selesai + perbaikan peta WPP + penghitung revisi pagu TU + peta sebaran Ikhtisar + penyelarasan visualisasi Ikhtisar — belum selesai sebagai fase).** Item 1: konsistensi input periode seluruh form. Item 2: ikon aksi. Item 3: audit geometri list + RBAC Revisi. Item 4: tombol ikon-saja + audit ikon. Item 5: popup berhasil setelah submit + loading lebih terlihat. Item 6: kapal pengawas wajib di Operasi Laut/Udara + enum `Kapal.JenisKapal` (lihat blok di bawah). Perbaikan peta: batas WPPNRI tidak muncul di Operasi. Perbaikan pagu: jumlah revisi pagu di bawah baris Pagu TU. Peta Ikhtisar: choropleth sebaran WPP di Executive Overview + kartu divisi bebas whitespace. Penyelarasan visualisasi Ikhtisar: Komposisi Penindakan & Kapal Teraktif terpusat seimbang, standarisasi 3 metrik per kartu divisi dengan status badge semantik dan micro progress bar, visual stack footer bermakna untuk semua kartu divisi. Definition of Done per modul (`AGENTS.md` §6) **masih belum** dikerjakan. Catatan: revisi Opsi/revisi transaksi yang masuk 28 Sep 2026 dicatat di blok **Fase 12** di atas karena masih merupakan perbaikan atas pekerjaan yang sudah berjalan — **bukan** dimulainya Fase 14. Classifier yang sama berlaku untuk blok **Perubahan Lintas Fase (OTP + NIP)** di atas: itu perubahan atas persetujuan user di tengah Fase 13, **bukan** Fase 14.
 
 #### Fase 14 — Peta Sebaran WPP di Ikhtisar + Kartu Divisi Tanpa Whitespace
 
@@ -216,10 +216,47 @@ Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek u
   1. **Skala peta**: 4 ambang untuk 4 warna ramp membuat nilai tertinggi jatuh ke `_OV_MAP_RAMP[4]` yang tidak ada → satu WPP terwarnai `undefined` dan hilang dari legenda.
   2. **Urutan CSS**: breakpoint `#ov-map`/`.ov-map-rank-list` ditulis **sebelum** aturan dasarnya, dan specificity-nya sama → aturan dasar yang belakangan menang, jadi **breakpoint mati diam-diam** (peta tetap 420px di 768px, ranking tetap 5 kolom). Media query dipindah ke akhir file.
 - **Verifikasi**: `verify.sh` OK (95 endpoint), `selftest.js` **130 pass / 0 fail** (bertambah **16** regression test: agregasi & trim `WPPCode`, baris tanpa WPP, input null, skala & batas ramp, legenda semua metrik, satuan metrik, urutan markup, pemakaian cache geometri bersama, status + retry, teardown, kontrak kunci metrik client↔server, guard `_ovMapPaint`, urutan media query, anti-`grid-auto-rows`, breakpoint `#ov-div-grid`), `nulltest.js` 12/12, `node --check` client & server bersih, `git diff --check` bersih. Probe geometri: 0 lubang di 1440/768/600px, peta 420/340/280px, ranking 5/3/2 kolom, tanpa overflow horizontal.
-- **Status**: selesai & terverifikasi lokal. Menunggu `clasp push` + verifikasi visual oleh user (agent tidak deploy — `AGENTS.md` §5b).
-- Detail: `CHANGELOG.md` `[Fase 14 — Ikhtisar] — Peta Sebaran WPP + Kartu Divisi Tanpa Whitespace`.
+#### Fase 14 — Perbaikan: Peta Ikhtisar Grey Box / Hilang Sebelum Masuk Modul Lain
+
+- **Permintaan user (7 Oktober 2026)**: "Peta di ikhtisar sering hilang, seringkali perlu ke menu lain baru kembali ke ikhtisar agar muncul, leafletnya ya yangga muncul entirely, grey box".
+- **Akar masalah**:
+  1. `_ovMapInit()` mengasumsikan Leaflet (`L`) sudah ada di `window.L`. Pada pembukaan awal atau refresh aplikasi, view mendarat di Ikhtisar sebelum modul Operasi pernah dibuka. Karena loader on-demand Leaflet (`_loadLeaflet`) sebelumnya hanya ada di modul Operasi, `_ovMapInit()` menemukan `typeof L === 'undefined'` lalu langsung `return` diam-diam. Akibatnya container `#ov-map` tetap menjadi kotak abu-abu (grey box) kosong. Begitu user mengunjungi modul Operasi lalu kembali ke Ikhtisar, barulah Leaflet terunduh dan peta bisa muncul.
+  2. Template markup `#ov-map` di `_renderOverview` tidak membawa spinner loading awal, sehingga saat GAS RPC `dashboard_getOverview()` berlangsung (1–2s), peta tampak mati/kosong.
+- **Solusi & Perubahan**:
+  1. Loader on-demand `_loadLeaflet` dijadikan utilitas geospasial bersama (shared) di atas `_OV_MAP` dengan antrean callback hoist-safe dan idempoten.
+  2. `_ovMapInit()` membungkus pembuatan map di dalam callback `_loadLeaflet(function() { ... })` sehingga jika Leaflet belum siap, inisialisasi menunggu hingga CDN terunduh.
+  3. `_renderOverview(el)` langsung memicu `_loadLeaflet()` secara paralel dengan request data server agar script Leaflet sudah selesai diunduh saat respons tiba.
+  4. Template HTML `#ov-map` diberi initial status spinner overlay ("Memuat peta WPP…").
+  5. `#ov-map` di `Style.html` diberi `position: relative;` dan ditambahkan listener `window.addEventListener('resize')` untuk `invalidateSize()`.
+- **Verifikasi**: `verify.sh` OK (95 endpoint), `nulltest.js` 12/12 pass, `selftest.js` **140 pass / 0 fail** (+1 regression test Leaflet loader di Ikhtisar), `node --check` client & server bersih.
+- **Status**: selesai & terverifikasi lokal. Menunggu `clasp push` + verifikasi visual runtime oleh user.
+- Detail: `CHANGELOG.md` `[Fase 14 — Perbaikan] — Peta Ikhtisar Grey Box / Tidak Muncul Sebelum Buka Modul Lain`.
+
+#### Fase 14 — Visualisasi Dinamis & Grid Sejajar Ikhtisar (Multi-Span 6 Kolom, Non-Monoton Tanpa Gauge)
+
+- **Permintaan user (7 Oktober 2026)**:
+  1. "Buat visualisasi pada ikhtisar lebih menarik, lebih sejajar, lebih sesuai, dan lebih ter highlight..." + penengahan widget Status & Penindakan (Komposisi Penindakan).
+  2. "Tidak sejajar ini, dan saya mau ditambahkan visualisasinya, tidak hanya progress bar semua, dibuat variatif tapi tetap relevan dengan apa yang ditampilkan, jangan pakai gauge tapi tetap explore untuk visualisasi, banyak yang bisa dikembangkan. dan ingat, semua kalau emang bentuk card harus sejajar, saya juga tidak mau masing-masing satu, mungkin ada yang memakan 2 grid card gitu jadi menyesuaikan dan tidak kaku. Chart juga harus bervariasi dimana-mana dan tetap bagus. Ingat, DINAMIS, tidak kaku."
+- **Solusi & Keputusan Desain (Patuh `DESIGN.md` §1 & §6)**:
+  - **Grid Dinamis 6 Kolom (`#ov-div-grid`)**: Tidak lagi rigid 3 kolom seragam. Grid memakai 6 kolom responsif dengan dense row-flow dan `align-items: stretch` sehingga kartu dalam satu baris ditarik setinggi kartu tertinggi (sejajar sempurna, tanpa anak tangga).
+  - **Multi-Span Menyesuaikan Konten**:
+    - Baris 1: Tata Usaha (span 4 — layout wide 2 kolom: metrik di kiri, grouped column bar bulanan di kanan) + Cakupan Laporan (span 2 — chip status melapor 7 divisi). Total 6 kolom.
+    - Baris 2: Operasi Laut & Udara (span 2 — grouped columns KII vs KIA) + Perawatan (span 2 — donut kesiapan armada 3 segmen) + Intelijen (span 2 — ranked horizontal bars aktivitas). Total 6 kolom.
+    - Baris 3: Pemantauan (span 2 — dual-line sparkline penerbitan bulanan SKAT vs User) + Logistik (span 4 — layout wide: metrik di kiri, vertical column bars stok amunisi top-5 di kanan). Total 6 kolom.
+    - Baris 4: Pengawakan (span 3 — waffle chart 40 sel proporsi penempatan AKN) + Kegiatan Pendukung (span 3 — calendar heatmap strip bulanan). Total 6 kolom.
+  - **Variasi Visual (Tanpa Gauge & Anti-Monoton)**:
+    - Menghilangkan kesan "semua progress bar". Tiap kartu memiliki representasi grafis spesifik: grouped columns (`_vzCols`), donut proportion (`_vzDonut`), ranked horizontal bars (`_vzHbars`), dual-line trends (`_vzLine`), waffle grid (`_vzWaffle`), calendar heatmap cells (`_vzHeat`), status chips (`_vzChips`).
+    - KPI Realisasi SP2D diganti dari gauge cincin menjadi sparkline tren bulanan (mematuhi `DESIGN.md` §6.1 yang melarang gauge).
+  - **Chart Konteks Asimetris (`.chart-grid-asym`)**:
+    - Zona tren & kapasitas: Realisasi Anggaran (span 7) vs Hari Operasi Armada (span 5).
+    - Zona penindakan: Komposisi Penindakan (span 5) vs Kapal Pengawas Teraktif (span 7).
+    - Pola asimetris 7:5 dan 5:7 memecah kesan kaku "kotak simetris kembar" sekaligus memberi ruang lebih lega bagi chart tren & peringkat.
+- **Verifikasi**: `verify.sh` OK (95 endpoint), `nulltest.js` 12/12 pass, `selftest.js` **139 pass / 0 fail** (bertambah 5 test: waffle alokasi 40 sel, kolom adaptif anti-tabrakan, dispatch `_vzRender`, kepatuhan baris penuh 6 kolom, anti-gauge & breakpoint media query), probe render Chromium headless di 1280px dan 820px terbukti rata, sejajar, dan bebas celah.
+- **Status**: selesai & terverifikasi lokal. Menunggu `clasp push` + verifikasi visual runtime oleh user (agen tidak deploy — `AGENTS.md` §5b).
+- Detail: `CHANGELOG.md` `[Fase 14 — Ikhtisar] — Visualisasi Dinamis & Grid Sejajar Ikhtisar`.
 
 #### Fase 14 — Item 1: Input Periode Seragam (Dropdown) di Semua Form
+
 
 - **Permintaan user (30 Sep 2026)**: "Input periode di semua form pastikan pakai dropdown, saya lihat di TU masih ketik manual, semua harus sama."
 - **Temuan audit**: 12 dari 13 form pelaporan sudah memakai tiga dropdown `Tahun`/`Bulan`/`Minggu Ke-` (Operasi Laut & Udara, Intelijen, Pemantauan, Perawatan ×3, Logistik ×3, Pengawasan ×2). **Tata Usaha** (`html/views/TataUsaha.html`) adalah satu-satunya yang masih memakai `<input type="text" id="tu-periode" placeholder="YYYY-MM-WW …">` — sumber error format yang berulang.

@@ -944,13 +944,20 @@ a { text-decoration: none; color: inherit; }
   background: var(--n-surface-1);
   border-radius: var(--n-r-lg);
   box-shadow: var(--n-shadow-card);
-  padding: 20px 24px;
+  padding: 18px 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+  min-height: 124px;
+  box-sizing: border-box;
 }
-.kpi-main { min-width: 0; }
+.kpi-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 .kpi-vis {
   flex-shrink: 0;
   display: flex;
@@ -1328,39 +1335,62 @@ a { text-decoration: none; color: inherit; }
   background: var(--n-surface-1);
   border-radius: var(--n-r-lg);
   box-shadow: var(--n-shadow-card);
-  padding: 16px 18px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 .div-card-title {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 700;
   font-size: 0.875rem;
   color: var(--n-text-primary);
-  margin-bottom: 10px;
-  padding-bottom: 9px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--n-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.div-card-metrics { flex: 1 0 auto; }
+.div-card-metrics {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.div-metric-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--n-border-subtle);
+}
+.div-metric-row:last-child {
+  border-bottom: none;
+}
 .div-metric {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  padding: 6px 0;
-  font-size: 0.88rem;
+  align-items: center;
+  min-height: 28px;
+  gap: 10px;
 }
-.div-metric + .div-metric {
-  border-top: 1px solid var(--n-border-subtle);
+.div-metric-lbl {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--n-text-secondary);
+  line-height: 1.3;
 }
-.div-metric-lbl { color: var(--n-text-secondary); }
+.div-metric-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
 .div-metric-val {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-weight: 600;
-  font-size: 1.02rem;
+  font-weight: 700;
+  font-size: 1.05rem;
   color: var(--n-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 .div-metric-val.muted {
   font-weight: 400;
@@ -1368,12 +1398,55 @@ a { text-decoration: none; color: inherit; }
   font-family: 'Poppins', sans-serif;
   font-size: 0.88rem;
 }
-.div-metric:first-child .div-metric-val.hero {
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+.div-metric-unit {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--n-text-muted);
+  margin-left: 2px;
 }
+.div-metric-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--n-r-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.div-metric-badge.ok {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid rgba(16,185,129,0.25);
+}
+.div-metric-badge.warn {
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid rgba(245,158,11,0.25);
+}
+.div-metric-badge.crit {
+  background: #FEF2F2;
+  color: #B91C1C;
+  border: 1px solid rgba(239,68,68,0.25);
+}
+.div-metric-badge.info {
+  background: var(--n-primary-light);
+  color: var(--n-primary);
+}
+.div-micro-bar {
+  height: 5px;
+  background: var(--n-surface-2);
+  border-radius: var(--n-r-pill);
+  overflow: hidden;
+  margin-top: 5px;
+}
+.div-micro-bar-fill {
+  height: 100%;
+  border-radius: var(--n-r-pill);
+  background: var(--n-primary);
+  transition: width 0.3s;
+}
+.div-micro-bar-fill.warn { background: var(--n-warn); }
+.div-micro-bar-fill.crit { background: var(--n-crit); }
 /* Footer visual kartu — mengisi ruang kosong di sisa tinggi kartu */
 .div-card-foot {
   margin-top: auto;
@@ -1382,21 +1455,21 @@ a { text-decoration: none; color: inherit; }
 }
 .div-card-foot-cap {
   font-family: 'Poppins', sans-serif;
-  font-size: 0.66rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--n-text-muted);
   margin-bottom: 8px;
 }
-.div-card-foot-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.div-card-foot-dots { display: flex; flex-wrap: wrap; gap: 8px; }
 .div-card-foot-note {
   font-size: 0.75rem;
   color: var(--n-text-muted);
   line-height: 1.5;
 }
 .div-card-foot .ov-bars { margin-top: 2px; }
-.div-card-foot .stk-wrap { margin-top: 8px; }
+.div-card-foot .stk-wrap { margin-top: 6px; }
 
 /* ============================================================
    HORIZONTAL PROGRESS BAR — pengganti gauge (DESIGN.md §6)
@@ -1508,11 +1581,8 @@ a { text-decoration: none; color: inherit; }
 }
 @media (max-width: 900px) {
   .chart-grid-2 { grid-template-columns: 1fr; }
-  /* Grid kartu divisi tidak punya breakpoint sama sekali (bug lama) — di
-     500px kartunya cuma ~150px. Hanya grid Ikhtisar yang dikecilkan di sini;
-     `#pk-kpi` (Profil Kapal) dibiarkan apa adanya agar tidak mengubah
-     tata letak yang sudah diverifikasi. */
-  #ov-div-grid { grid-template-columns: repeat(2, 1fr); }
+  /* grid kartu divisi: breakpoint tablet/ponsel ada di blok akhir file
+     (harus SESUDAH aturan dasar #ov-div-grid 6 kolom). */
 }
 
 /* ============================================================
@@ -1602,7 +1672,7 @@ a { text-decoration: none; color: inherit; }
 .ov-bars {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
 .bar-line {
   display: grid;
@@ -1610,8 +1680,28 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
   gap: 12px;
 }
+.bar-line.has-rank {
+  grid-template-columns: 24px minmax(100px, 1.4fr) 2fr auto;
+}
+.bar-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--n-surface-2);
+  color: var(--n-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bar-rank.top {
+  background: var(--n-primary);
+  color: #FFFFFF;
+}
 .bar-line-lbl {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--n-text-primary);
   overflow: hidden;
@@ -1629,40 +1719,76 @@ a { text-decoration: none; color: inherit; }
   border-radius: 99px;
 }
 .bar-line-val {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--n-text-primary);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+}
+.bar-line-unit {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--n-text-muted);
+  margin-left: 2px;
+}
+
+/* Status & Penindakan container */
+#ov-chart-penindakan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 240px;
+}
+#ov-chart-teraktif {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  min-height: 240px;
+  padding: 10px 16px;
+  box-sizing: border-box;
 }
 
 /* Plot donut + legenda (sel chart) */
 .ov-plot {
   display: flex;
   align-items: center;
-  gap: 26px;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 36px;
+  width: 100%;
+  height: 100%;
+  padding: 10px 16px;
+  box-sizing: border-box;
 }
 .ov-plot-legend {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  min-width: 0;
+  gap: 10px;
+  min-width: 220px;
 }
 .legend-row {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  grid-template-columns: 10px minmax(110px, 1fr) auto auto;
   align-items: center;
-  gap: 9px;
-  font-size: 0.78rem;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: var(--n-r-sm);
+  transition: background 0.15s ease;
+}
+.legend-row:hover {
+  background: var(--n-surface-hover);
 }
 .legend-row i {
   width: 10px;
   height: 10px;
   border-radius: 3px;
   display: inline-block;
+  flex-shrink: 0;
 }
 .legend-lbl {
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--n-text-primary);
   overflow: hidden;
@@ -1670,22 +1796,31 @@ a { text-decoration: none; color: inherit; }
   white-space: nowrap;
 }
 .legend-val {
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--n-text-primary);
   font-variant-numeric: tabular-nums;
+  min-width: 22px;
+  text-align: right;
 }
 .legend-pct {
   font-size: 0.72rem;
-  color: var(--n-text-muted);
+  font-weight: 600;
+  color: var(--n-text-secondary);
+  background: var(--n-surface-2);
+  border-radius: 99px;
+  padding: 2px 7px;
+  min-width: 38px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  min-width: 40px;
-  text-align: right;
 }
 .ov-plot-bars {
   height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 10px;
 }
 
 
@@ -1832,6 +1967,7 @@ a { text-decoration: none; color: inherit; }
 .ov-map-cell { padding-bottom: 14px; }
 .ov-map-wrap { position: relative; }
 #ov-map {
+  position: relative;
   height: 420px;
   width: 100%;
   border-radius: var(--n-r-md);
@@ -1979,19 +2115,210 @@ a { text-decoration: none; color: inherit; }
 }
 .ov-map-rank-note { margin-top: 8px; }
 
+/* ============================================================
+   IKHTISAR — grid kartu divisi dinamis (Fase 14)
+   6 kolom; tiap kartu memilih lebar (.s2/.s3/.s4/.s6) sehingga baris
+   penuh (4+2, 2+2+2, 2+4, 3+3) dan kartu lebar bisa memakan 2 sel.
+   Berbeda dari `.div-grid` dasar (align-items:start — tetap dipakai
+   Profil Kapal `#pk-kpi`), grid Ikhtisar MEMANJANGKAN kartu satu baris
+   sampai sama tinggi; ruang sisa diisi area visual (.vz, flex:1) yang
+   memusatkan isinya, jadi tidak ada lubang kosong.
+   ============================================================ */
+#ov-div-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  align-items: stretch;
+}
+#ov-div-grid > .s2 { grid-column: span 2; }
+#ov-div-grid > .s3 { grid-column: span 3; }
+#ov-div-grid > .s4 { grid-column: span 4; }
+#ov-div-grid > .s6 { grid-column: span 6; }
+
+.div-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.div-card-body > .div-card-metrics { flex: 0 0 auto; }
+.div-card.wide .div-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.div-card.wide .div-card-body > .div-card-metrics { justify-content: space-between; }
+.div-card.wide .div-card-metrics .div-metric-row { flex: 1 1 0; display: flex; flex-direction: column; justify-content: center; }
+
+/* Area visual kartu */
+.vz {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--n-border-subtle);
+}
+.div-card.wide .vz {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  padding-left: 24px;
+  border-left: 1px solid var(--n-border-subtle);
+}
+.vz > .div-card-foot-cap { margin-bottom: 10px; }
+.vz-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+.vz-empty {
+  text-align: center;
+  color: var(--n-text-muted);
+  font-size: 0.78rem;
+  padding: 16px 0;
+}
+.vz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--n-text-secondary);
+}
+.vz-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.vz-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+.vz-legend b { color: var(--n-text-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Kolom vertikal */
+.vz-cols { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 130px; }
+.vz-bars { flex: 1 1 auto; display: flex; align-items: stretch; gap: 8px; min-height: 100px; }
+.vz-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.vz-col-bars { flex: 1 1 auto; display: flex; align-items: stretch; justify-content: center; gap: 3px; }
+.vz-bar-wrap { position: relative; flex: 1 1 0; max-width: 34px; }
+.vz-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  border-radius: 4px 4px 0 0;
+}
+.vz-bar-val {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--n-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vz-col-lbl {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(0,0,0,0.12);
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--n-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Donut + legenda */
+.vz-donut { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px 18px; }
+.vz-donut-legend { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.vz-donut-legend .legend-row { padding: 4px 6px; gap: 8px; grid-template-columns: 10px minmax(60px, 1fr) auto auto; }
+
+/* Batang horizontal */
+.vz-hbars { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
+.vz-hbars .ov-bars { flex: 1 1 auto; justify-content: space-evenly; gap: 12px; }
+.vz-hbars .bar-line { grid-template-columns: minmax(92px, 1.7fr) 1.3fr auto; }
+.vz-hbars .bar-line-track { height: 12px; }
+
+/* Garis */
+.vz-line { display: flex; flex-direction: column; flex: 1 1 auto; }
+.vz-line-plot { position: relative; flex: 1 1 auto; min-height: 100px; }
+.vz-line-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vz-line-x { display: grid; margin-top: 4px; font-size: 0.66rem; font-weight: 600; color: var(--n-text-muted); text-align: center; }
+
+/* Waffle */
+.vz-waffle { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; }
+.vz-waffle i { display: block; height: 16px; border-radius: 3px; }
+
+/* Heat strip */
+.vz-heat { display: grid; gap: 4px; }
+.vz-heat-cell {
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.vz-heat-cell.zero { background: var(--n-surface-2); border: 1px solid var(--n-border-subtle); box-sizing: border-box; }
+.vz-heat-lbl { margin-top: 5px; text-align: center; font-size: 0.66rem; font-weight: 600; color: var(--n-text-muted); }
+
+/* Chip status */
+.vz-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.vz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: var(--n-r-pill);
+  background: var(--n-surface-2);
+  border: 1px solid var(--n-border-subtle);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--n-text-muted);
+}
+.vz-chip i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgba(43,54,116,0.35); box-sizing: border-box; }
+.vz-chip.on { color: var(--n-text-primary); background: var(--n-primary-light); }
+.vz-chip.on i { background: var(--n-primary); border-color: var(--n-primary); }
+
+/* Grid chart asimetris (12 kolom) — 7/5 dan 5/7, bukan dua kotak sama besar */
+.chart-grid-asym {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.chart-grid-asym > .cs-5 { grid-column: span 5; }
+.chart-grid-asym > .cs-7 { grid-column: span 7; }
+
 /* Peta & ranking — breakpoint.
    WAJIB diletakkan SESUDAH aturan dasar #ov-map / .ov-map-rank-list di atas.
    Specificity-nya sama (ID / class), jadi aturan dasar yang ditulis belakangan
    menang — media query yang diletakkan sebelum aturan dasar akan mati diam-diam
-   (sudah pernah terjadi: tinggi peta tetap 420px di 768px). */
+   (sudah pernah terjadi: tinggi peta tetap 420px di 768px). Berlaku juga untuk
+   #ov-div-grid dan .chart-grid-asym di atas. */
+@media (max-width: 1100px) {
+  .div-card.wide .div-card-body { grid-template-columns: 1fr; gap: 0; }
+  .div-card.wide .vz { margin-top: 12px; padding: 12px 0 0; border-left: none; border-top: 1px solid var(--n-border-subtle); }
+}
 @media (max-width: 900px) {
   #ov-map { height: 340px; }
   .ov-map-rank-list { grid-template-columns: repeat(3, 1fr); }
+  #ov-div-grid { grid-template-columns: repeat(2, 1fr); }
+  #ov-div-grid > .s3, #ov-div-grid > .s4, #ov-div-grid > .s6 { grid-column: span 2; }
+  #ov-div-grid > .s2 { grid-column: span 1; }
+  /* 5 kartu s2 → ganjil di 2 kolom: Pemantauan (anak ke-6, urutan dijaga test
+     'layout kartu divisi') mengisi lebar penuh supaya tidak ada lubang. */
+  #ov-div-grid > .s2:nth-child(6) { grid-column: span 2; }
+  .chart-grid-asym > .cs-5, .chart-grid-asym > .cs-7 { grid-column: span 12; }
 }
 @media (max-width: 600px) {
   #ov-map { height: 280px; }
   .ov-map-rank-list { grid-template-columns: repeat(2, 1fr); }
   #ov-div-grid { grid-template-columns: 1fr; }
+  #ov-div-grid > .s2, #ov-div-grid > .s3, #ov-div-grid > .s4, #ov-div-grid > .s6,
+  #ov-div-grid > .s2:nth-child(6) { grid-column: span 1; }
 }
 
 </style>

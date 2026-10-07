@@ -1,3 +1,103 @@
+## [Fase 14 — Perbaikan] — Peta Ikhtisar Grey Box / Tidak Muncul Sebelum Buka Modul Lain (Loader Leaflet On-Demand Shared)
+
+**Tanggal**: 7 Oktober 2026
+**Status**: Implementasi selesai & terverifikasi lokal (`verify.sh` OK — 95 endpoint, `selftest.js` 140 pass / 0 fail, `nulltest.js` 12/12 pass, `node --check` client & server bersih). Verifikasi visual & runtime GAS menunggu user. Tidak ada `clasp push` (agen tidak melakukan deploy — `AGENTS.md` §5b).
+
+**Permintaan user**: "Peta di ikhtisar sering hilang, seringkali perlu ke menu lain baru kembali ke ikhtisar agar muncul, leafletnya ya yangga muncul entirely, grey box"
+
+### Bagian 1 — Akar Masalah
+
+1. **`_ovMapInit()` mengasumsikan Leaflet (`L`) sudah ada di memori global (`window.L`):**
+   - Di `html/Script_Main.html`, loader on-demand Leaflet (`_loadLeaflet`) sebelumnya hanya dideklarasikan dan dipanggil di modul Operasi Laut & Udara (baris 5256).
+   - Saat aplikasi pertama kali dimuat atau di-refresh, halaman default adalah **Ikhtisar** (`overview`). Pustaka CDN Leaflet belum pernah diunduh.
+   - Fungsi `_ovMapInit()` memiliki guard `if (typeof L === 'undefined' || !L.map) return;`. Akibatnya, pada load pertama fungsi langsung `return` diam-diam tanpa memuat Leaflet.
+   - Elemen `#ov-map` tetap menjadi `div` kosong setinggi 420px dengan latar belakang `var(--n-surface-2)` (tampak sebagai **kotak abu-abu / grey box**).
+   - Ketika user membuka menu lain yang memuat peta (seperti Operasi Laut), modul tersebut memanggil `_loadLeaflet()`, sehingga Leaflet terunduh dan menempel di `window.L`. Saat user kembali ke Ikhtisar, barulah peta berhasil terinisialisasi.
+2. **Tidak ada status loading awal pada elemen `#ov-map` di template HTML Ikhtisar:**
+   - Saat request `dashboard_getOverview()` sedang berjalan (1–2 detik di GAS), `#ov-map` kosong melompong tanpa indikator loading, memperkuat impresi visual bahwa peta "hilang".
+3. **Ukuran container Leaflet belum disinkronkan saat resize jendela:**
+   - Tidak ada event listener window resize yang memicu `invalidateSize()`, sehingga jika orientasi atau viewport berubah, tile Leaflet bisa terdistorsi atau terpotong.
+
+### Bagian 2 — Solusi & Perubahan Teknis
+
+1. **Integrasi Loader Leaflet Terpadu (`_loadLeaflet` Shared):**
+   - Variabel `_LEAFLET_LOADED`, `_leafletQueue`, dan fungsi `_loadLeaflet(cb)` dipindahkan ke blok utilitas geospasial bersama (sebelum `_OV_MAP`) sehingga tersedia secara hoist-safe untuk seluruh modul (Ikhtisar, Operasi Laut, dan Operasi Udara).
+   - Duplikasi deklarasi di baris 5256 dibersihkan dan diganti referensi ke loader bersama.
+   - `_loadLeaflet` dibuat idempoten dengan guard `document.getElementById('leaflet-js')` dan mendukung preloading tanpa callback.
+2. **Perbaikan `_ovMapInit()` di Ikhtisar:**
+   - `_ovMapInit()` kini membungkus inisialisasi di dalam `_loadLeaflet(function() { ... })`. Jika Leaflet belum siap, ia menunggu hingga script CDN selesai diunduh.
+   - Jika kontainer sudah pernah memiliki `_leaflet_id` yang tertinggal saat navigasi cepat, ID dibersihkan sebelum `L.map('ov-map')` dibuat untuk mencegah exception `Map container is already initialized`.
+   - Ditambahkan pemanggilan `invalidateSize()` bertenggang waktu 200ms setelah pembuatan peta dan 150ms setelah penambahan layer GeoJSON.
+3. **Preload Leaflet & Initial Loading Indicator di Template Ikhtisar:**
+   - Di dalam `_renderOverview(el)`, fungsi `_loadLeaflet()` dipanggil segera secara paralel dengan request `_ovLoadData()`, sehingga script Leaflet sudah selesai di-fetch sebelum respons data server tiba.
+   - Template markup `#ov-map` di `_renderOverview` kini membawa markup spinner awal `.ops-map-status` ("Memuat peta WPP…"). Pengguna tidak pernah disajikan kotak abu-abu mati.
+4. **CSS `#ov-map` & Window Resize Handler:**
+   - `#ov-map` di `html/Style.html` diberi `position: relative;` agar overlay loading terkurung rapi di dalam batas kontainer peta.
+   - Ditambahkan listener `window.addEventListener('resize')` (dengan typeof guard untuk kompatibilitas Node VM) yang otomatis memanggil `invalidateSize()` pada `_OV_MAP.map`, `opsLautMap`, dan `opsUdaraMap`.
+
+### Bagian 3 — Verifikasi
+
+- `verify.sh`: **VERIFY OK** (95 endpoint terdefinisi).
+- `nulltest.js`: **12/12 pass** (aman dari TypeError dan context VM).
+- `selftest.js`: **140 pass / 0 fail** (bertambah 1 regression test baru: `peta WPP: loader Leaflet on-demand terpasang di Ikhtisar (anti grey box)`).
+- `node --check`: Seluruh file service backend dan skrip client `html/Script_Main.html` lolos uji sintaksis.
+
+---
+
+## [Fase 14 — Ikhtisar] — Visualisasi Dinamis & Grid Sejajar Ikhtisar (Multi-Span 6 Kolom, Non-Monoton Tanpa Gauge)
+
+**Tanggal**: 7 Oktober 2026
+**Status**: Implementasi selesai & terverifikasi lokal (`verify.sh` OK — 95 endpoint, `selftest.js` 139 pass / 0 fail, `nulltest.js` 12/12 pass, `node --check` client & server bersih). Verifikasi visual render headless Chromium (1280px & 820px) terbukti sejajar rata dan tanpa celah kosong. Verifikasi runtime GAS menunggu user. Tidak ada `clasp push` (agen tidak melakukan deploy — `AGENTS.md` §5b).
+
+**Permintaan user**:
+1. "Buat visualisasi pada ikhtisar lebih menarik, lebih sejajar, lebih sesuai, dan lebih ter highlight..." + penengahan widget Status & Penindakan (Komposisi Penindakan).
+2. "Tidak sejajar ini, dan saya mau ditambahkan visualisasinya, tidak hanya progress bar semua, dibuat variatif tapi tetap relevan dengan apa yang ditampilkan, jangan pakai gauge tapi tetap explore untuk visualisasi, banyak yang bisa dikembangkan. dan ingat, semua kalau emang bentuk card harus sejajar, saya juga tidak mau masing-masing satu, mungkin ada yang memakan 2 grid card gitu jadi menyesuaikan dan tidak kaku. Chart juga harus bervariasi dimana-mana dan tetap bagus. Ingat, DINAMIS, tidak kaku."
+
+### Bagian 1 — Grid 6 Kolom Dinamis & Multi-Span Kartu Divisi
+
+- **Akar masalah visual**: Grid 3 kolom seragam memaksa seluruh kartu berukuran identik (1:1:1), padahal modul tertentu memiliki data historis/agregat kaya (mis. TU dan Logistik) yang membutuhkan ruang horizontal lebih leluasa, sementara modul lain ringkas (mis. Cakupan Laporan). Selain itu, kartu dengan isi visual berbeda menghasilkan tinggi berundak-undak jika tidak ditarik rata.
+- **Solusi Grid Dinamis**:
+  - `#ov-div-grid` diubah menjadi sistem grid **6 kolom** dengan `grid-auto-flow: row dense` dan `align-items: stretch`. Setiap kartu dalam satu baris ditarik sama tinggi dengan kartu tertinggi di baris tersebut.
+  - Setiap kartu memiliki pembagian lebar (`span`) dari server yang mengisi penuh 6 kolom per baris:
+    - **Baris 1 (Span 4 + 2 = 6)**: Tata Usaha (span 4 — layout split horizontal `.wide`: metrik di kiri, grouped column bars bulanan di kanan) berdampingan dengan Cakupan Laporan (span 2 — chip status melapor 7 divisi).
+    - **Baris 2 (Span 2 + 2 + 2 = 6)**: Operasi Laut & Udara (span 2 — grouped bars KII vs KIA) + Perawatan (span 2 — donut kesiapan 3 segmen) + Intelijen (span 2 — ranked horizontal bars aktivitas).
+    - **Baris 3 (Span 2 + 4 = 6)**: Pemantauan (span 2 — dual-line sparkline tren penerbitan bulanan) + Logistik (span 4 — layout split horizontal `.wide`: metrik di kiri, vertical column bars stok amunisi top-5 di kanan).
+    - **Baris 4 (Span 3 + 3 = 6)**: Pengawakan (span 3 — waffle chart 40 sel proporsi penempatan AKN) + Kegiatan Pendukung (span 3 — calendar heatmap strip bulanan).
+  - Area visual (`.vz`) menggunakan `flex: 1 1 auto; justify-content: center;` sehingga di kartu mana pun, konten visual berada di tengah vertikal dan mengisi sisa tinggi kartu secara simetris, menghapus celah kosong.
+  - Kartu lebar (`.wide`, span >= 4) menggunakan layout grid 2 kolom (`minmax(0, 5fr) minmax(0, 6fr)`) dengan pemisah garis vertikal subtle, menyebarkan 3 metrik di sisi kiri dan grafik batang di sisi kanan secara seimbang.
+
+### Bagian 2 — Variasi Visual Grafis (Tanpa Gauge & Anti-Monoton)
+
+Sesuai arahan *"tidak hanya progress bar semua, dibuat variatif tapi tetap relevan, jangan pakai gauge"*:
+1. **Grouped Column Bars (`_vzCols`)**: Dipakai pada Tata Usaha (SP2D vs Akrual per bulan YTD) dan Operasi (Ditangkap vs Dipantau KII vs KIA). Tinggi batang dibatasi maksimal 80% untuk memberi ruang label nilai di atas batang; jika bulan > 6 nilai dialihkan ke tooltip (`title`) agar angka tidak saling bertabrakan.
+2. **Vertical Column Bars Stok (`_vzCols` fmt num)**: Dipakai pada Logistik untuk perbandingan stok amunisi 5 jenis teratas, dengan angka disederhanakan (`50 rb`, `47,8 rb`, dsb.) dan nilai penuh di tooltip.
+3. **Donut Kesiapan Armada (`_vzDonut`)**: Dipakai pada Perawatan untuk menampilkan proporsi armada Siap, Tidak Siap, dan Docking dalam satu lingkaran ringkas (116px) disertai legenda status berangka.
+4. **Ranked Horizontal Bars (`_vzHbars`)**: Dipakai pada Intelijen untuk menampilkan peringkat aktivitas (Nota Dinas, Pelanggaran Tx, Kawasan Terpantau) secara horizontal.
+5. **Dual-Line Sparkline Trend (`_vzLine`)**: Dipakai pada Pemantauan untuk memperlihatkan tren penerbitan SKAT vs Username akun per bulan secara halus dengan area fill di bawah garis.
+6. **Waffle Grid Chart (`_vzWaffle`)**: Dipakai pada Pengawakan untuk memvisualisasikan komposisi personel AKN (POA vs Non-POA vs Lainnya) dalam matriks 10×4 (40 sel) menggunakan metode sisa terbesar (*largest remainder*).
+7. **Calendar Heatmap Strip (`_vzHeat`)**: Dipakai pada Kegiatan Pendukung untuk menampilkan intensitas kegiatan per bulan dengan gradasi saturasi navy dan angka di dalam sel.
+8. **Status Chips (`_vzChips`)**: Dipakai pada Cakupan Laporan untuk 7 divisi dengan pill status interaktif.
+9. **Penghapusan Gauge**: KPI utama Realisasi SP2D di zona atas diganti dari gauge cincin menjadi sparkline tren bulanan, 100% mematuhi aturan [DESIGN.md](file:///home/pinefeast/Projects/nautika/DESIGN.md) §6.1.
+
+### Bagian 3 — Chart Konteks Asimetris (12 Kolom)
+
+- Zona tren dan konteks diubah dari grid 2 kolom simetris 1fr:1fr menjadi **grid asimetris 12 kolom (`.chart-grid-asym`)**:
+  - Tren Realisasi Anggaran (span 7) vs Hari Operasi Armada (span 5).
+  - Komposisi Penindakan (span 5) vs Kapal Pengawas Teraktif (span 7).
+- Pola 7:5 dan 5:7 memecah kesan kaku antar seksi, sekaligus memberikan ruang proporsional: grafik tren yang padat data mendapat porsi lebih luas (span 7), sementara donut dan bar ringkas mendapat span 5 yang pas.
+
+### Bagian 4 — Perbaikan Bug & Inkonsistensi Terkait
+- Perawatan: Logic badge kesiapan sebelumnya membandingkan `siap >= tidakSiap` sehingga 33% tampil badge "Optimal" (hijau). Dikoreksi menjadi evaluasi persentase nyata: `>= 75%` Optimal (`ok`), `>= 50%` Cukup (`warn`), `< 50%` Perlu Perhatian (`warn`), sehingga badge dan progress bar kini sinkron.
+- Breakpoint Responsif: Tablet (max-width 900px) mengonversi grid menjadi 2 kolom dengan aturan khusus kartu Pemantauan mengisi 2 kolom penuh (`:nth-child(6)`) untuk menghindari slot ganjil kosong; ponsel (max-width 600px) otomatis 1 kolom penuh.
+
+### Bagian 5 — Verifikasi
+- `verify.sh`: **VERIFY OK** (95 endpoint terdefinisi).
+- `nulltest.js`: **12/12 pass** (semua parameter null/kosong tertangani dengan aman).
+- `selftest.js`: **139 pass / 0 fail** (bertambah 5 regression test untuk logika visual baru dan grid dinamis).
+- Probe Visual Headless Chromium: tangkapan layar 1280px dan 820px terverifikasi rapi, garis dasar sejajar rata, dan tanpa lubang whitespace.
+
+---
+
 ## [Fase 14 — Ikhtisar] — Peta Sebaran WPP di Ikhtisar + Kartu Divisi Tanpa Whitespace
 
 **Tanggal**: 2 Oktober 2026

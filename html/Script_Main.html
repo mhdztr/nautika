@@ -819,7 +819,14 @@ function _renderOverview(el) {
           '<div class="chart-cell-chips ov-map-chips" id="ov-map-metrics" role="group" aria-label="Pilih metrik peta"></div>' +
         '</div>' +
         '<div class="ov-map-wrap">' +
-          '<div id="ov-map" role="img" aria-label="Peta sebaran per Wilayah Management"></div>' +
+          '<div id="ov-map" role="img" aria-label="Peta sebaran per Wilayah Management">' +
+            '<div class="ops-map-status">' +
+              '<div class="ops-map-status-inner">' +
+                '<span class="n-spin"></span>' +
+                '<div>Memuat peta WPP\u2026</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="ov-map-rank" id="ov-map-rank"></div>' +
       '</div>' +
@@ -829,8 +836,8 @@ function _renderOverview(el) {
   html +=
     '<div class="content-section">' +
       '<div class="content-section-hd">Tren &amp; Kapasitas</div>' +
-      '<div class="chart-grid-2">' +
-        '<div class="chart-cell">' +
+      '<div class="chart-grid-asym">' +
+        '<div class="chart-cell cs-7">' +
           '<div class="chart-cell-hd">' +
             '<div>' +
               '<div class="chart-cell-title">Realisasi Anggaran (YTD)</div>' +
@@ -843,7 +850,7 @@ function _renderOverview(el) {
           '</div>' +
           '<div class="chart-box"><canvas id="ov-chart-real"></canvas></div>' +
         '</div>' +
-        '<div class="chart-cell">' +
+        '<div class="chart-cell cs-5">' +
           '<div class="chart-cell-hd">' +
             '<div>' +
               '<div class="chart-cell-title">Hari Operasi per Bulan</div>' +
@@ -863,8 +870,8 @@ function _renderOverview(el) {
   html +=
     '<div class="content-section">' +
       '<div class="content-section-hd">Status &amp; Penindakan</div>' +
-      '<div class="chart-grid-2">' +
-        '<div class="chart-cell">' +
+      '<div class="chart-grid-asym">' +
+        '<div class="chart-cell cs-5">' +
           '<div class="chart-cell-hd">' +
             '<div>' +
               '<div class="chart-cell-title">Komposisi Penindakan</div>' +
@@ -873,7 +880,7 @@ function _renderOverview(el) {
           '</div>' +
           '<div class="chart-box" id="ov-chart-penindakan"></div>' +
         '</div>' +
-        '<div class="chart-cell">' +
+        '<div class="chart-cell cs-7">' +
           '<div class="chart-cell-hd">' +
             '<div>' +
               '<div class="chart-cell-title">Kapal Pengawas Teraktif</div>' +
@@ -890,59 +897,60 @@ function _renderOverview(el) {
     '<div class="content-section">' +
       '<div class="content-section-hd">Ringkasan per Divisi</div>' +
       '<div class="div-grid" id="ov-div-grid">' +
+        // Skeleton: urutan & lebar HARUS sama dengan payload server (layoutByTitle)
+        // supaya tidak ada layout shift saat data tiba.
         _divCard('Tata Usaha', [
           { lbl: 'Realisasi SP2D (YTD)',    val: '\u2014', unit: '%',   prog: true },
           { lbl: 'Realisasi Akrual (YTD)',  val: '\u2014', unit: '%',   prog: true },
           { lbl: 'Sisa Pagu SP2D',          val: '\u2014', unit: 'Rp',  prog: false }
-        ]) +
+        ], null, null, { span: 4, loading: true }) +
+        _divCard('Cakupan Laporan', [
+          { lbl: 'Divisi Melapor Minggu Ini', val: '\u2014', unit: '/ 7', prog: true },
+          { lbl: 'Divisi Belum Melapor',      val: '\u2014', unit: 'divisi', prog: false },
+          { lbl: 'Periode Laporan Aktif',     val: '\u2014', unit: '', prog: false }
+        ], null, null, { span: 2, loading: true }) +
         _divCard('Operasi Kapal Pengawas dan Pesawat', [
-          { lbl: 'Hari Operasi Kapal (realisasi)', val: '\u2014', unit: 'hari', prog: false },
-          { lbl: 'Hari Operasi Pesawat (/ 180)',   val: '\u2014', unit: 'hari', prog: false },
-          { lbl: 'Kapal Ditangkap (YTD)',          val: '\u2014', unit: 'unit', prog: false },
-          { lbl: 'Kapal Dipantau (KII/KIA)',       val: '\u2014', unit: 'unit', prog: false },
-          { lbl: 'Cakupan Wilayah',                val: '\u2014', unit: 'NM\u00B2', prog: false }
-        ]) +
+          { lbl: 'Hari Operasi Armada',            val: '\u2014', unit: 'hari', prog: false },
+          { lbl: 'Kapal Ditangkap & Dipantau',     val: '\u2014', unit: 'unit', prog: false },
+          { lbl: 'Cakupan Wilayah Patroli',        val: '\u2014', unit: 'NM\u00B2', prog: false }
+        ], null, null, { span: 2, loading: true }) +
+        _divCard('Perawatan', [
+          { lbl: 'Tingkat Kesiapan Armada', val: '\u2014', unit: '%',    prog: true },
+          { lbl: 'Armada Siap Operasi',     val: '\u2014', unit: 'kapal', prog: false },
+          { lbl: 'Tidak Siap & Docking',    val: '\u2014', unit: 'kapal', prog: false }
+        ], null, null, { span: 2, loading: true }) +
         _divCard('Intelijen', [
-          { lbl: 'Nota Dinas Data Intelijen', val: '\u2014', unit: 'dokumen', prog: false },
-          { lbl: 'Pelanggaran Transmitter',   val: '\u2014', unit: 'kapal',   prog: false },
-          { lbl: 'Kawasan Konservasi Aktif',  val: '\u2014', unit: 'lokasi',  prog: false }
-        ]) +
+          { lbl: 'Nota Dinas Data Intelijen',   val: '\u2014', unit: 'dokumen', prog: false },
+          { lbl: 'Pelanggaran Transmitter',     val: '\u2014', unit: 'kapal',   prog: false },
+          { lbl: 'Kawasan Konservasi Terpantau', val: '\u2014', unit: 'lokasi',  prog: false }
+        ], null, null, { span: 2, loading: true }) +
         _divCard('Pemantauan', [
           { lbl: 'SKAT Diterbitkan (YTD)',    val: '\u2014', unit: 'dokumen', prog: false },
           { lbl: 'Username Diterbitkan (YTD)',val: '\u2014', unit: 'akun',    prog: false },
           { lbl: 'Kapal Kondisi Marabahaya',  val: '\u2014', unit: 'unit',    prog: false }
-        ]) +
-        _divCard('Perawatan', [
-          { lbl: 'Kapal Siap Operasi',   val: '\u2014', unit: 'unit', prog: false },
-          { lbl: 'Kapal Tidak Siap',     val: '\u2014', unit: 'unit', prog: false },
-          { lbl: 'Docking Aktif',        val: '\u2014', unit: 'unit', prog: false }
-        ]) +
+        ], null, null, { span: 2, loading: true }) +
         _divCard('Logistik', [
-          { lbl: 'Realisasi BBM (YTD)',  val: '\u2014', unit: '%',   prog: true  },
-          { lbl: 'Tunggakan BBM',        val: '\u2014', unit: 'item', prog: false },
-          { lbl: 'Stok Amunisi (total)', val: '\u2014', unit: 'butir', prog: false }
-        ]) +
+          { lbl: 'Realisasi BBM (YTD)',    val: '\u2014', unit: '%',    prog: true  },
+          { lbl: 'Tunggakan Tagihan BBM',  val: '\u2014', unit: 'item', prog: false },
+          { lbl: 'Total Stok Amunisi',     val: '\u2014', unit: 'butir', prog: false }
+        ], null, null, { span: 4, loading: true }) +
         _divCard('Pengawakan', [
-          { lbl: 'AKN Keseluruhan',         val: '\u2014', unit: 'orang', prog: false },
-          { lbl: 'AKN POA',                 val: '\u2014', unit: 'orang', prog: false },
+          { lbl: 'Total Personel AKN',      val: '\u2014', unit: 'orang', prog: false },
+          { lbl: 'Awak Kapal (POA)',        val: '\u2014', unit: 'orang', prog: false },
           { lbl: 'Kegiatan Personel (YTD)', val: '\u2014', unit: 'kegiatan', prog: false }
-        ]) +
+        ], null, null, { span: 3, loading: true }) +
         _divCard('Kegiatan Pendukung', [
-          { lbl: 'Kegiatan YTD',            val: '\u2014', unit: 'kegiatan', prog: false },
-          { lbl: 'Kegiatan Periode Ini',    val: '\u2014', unit: 'kegiatan', prog: false },
-          { lbl: 'Terakhir Dicatat',        val: '\u2014', unit: '',         prog: false }
-        ]) +
-        _divCard('Cakupan Laporan', [
-          { lbl: 'Divisi Melapor Minggu Ini', val: '\u2014', unit: '/ 7', prog: true },
-          { lbl: 'Divisi Belum Melapor',      val: '\u2014', unit: 'divisi', prog: false },
-          { lbl: 'Periode Aktif',             val: '\u2014', unit: '', prog: false }
-        ]) +
+          { lbl: 'Kegiatan Terlaksana (YTD)', val: '\u2014', unit: 'kegiatan', prog: false },
+          { lbl: 'Kegiatan Periode Ini',      val: '\u2014', unit: 'kegiatan', prog: false },
+          { lbl: 'Pencatatan Terakhir',       val: '\u2014', unit: '',         prog: false }
+        ], null, null, { span: 3, loading: true }) +
       '</div>' +
     '</div>';
 
   el.innerHTML = html;
   if (isApprover) _loadApprovals();
 
+  _loadLeaflet();    // preload pustaka Leaflet CSS & JS di awal agar siap saat data tiba
   APP_OV.key = null; // selalu isi ulang (server-side cache 300s membuatnya murah)
   _ovLoadData();
 }
@@ -1023,7 +1031,7 @@ function _ovRenderData(d) {
     if (d.divisi && d.divisi.length) {
       grid.innerHTML = d.divisi.map(function (dv) {
         var metrics = dv.metrics.map(function (m) { return _ovMetric(m); });
-        return _divCard(dv.title, metrics, dv.stack, dv.dots);
+        return _divCard(dv.title, metrics, dv.stack, dv.dots, { span: dv.span, viz: dv.viz });
       }).join('');
     } else {
       grid.innerHTML = '<div class="chart-empty">Belum ada ringkasan divisi pada rentang terpilih — ' +
@@ -1052,7 +1060,7 @@ function _ovRenderData(d) {
     var penEl = document.getElementById('ov-chart-penindakan');
     if (penEl) {
       var penSegs = d.charts.penindakan || [];
-      penEl.innerHTML = _ovSegTotal(penSegs) > 0 ? _ovPlotDonut(penSegs, 150)
+      penEl.innerHTML = _ovSegTotal(penSegs) > 0 ? _ovPlotDonut(penSegs, 160, 'KAPAL')
         : '<div class="chart-empty">Belum ada penindakan pada rentang terpilih.</div>';
     }
     var topEl = document.getElementById('ov-chart-teraktif');
@@ -1063,11 +1071,11 @@ function _ovRenderData(d) {
       // tidak ada aktivitas — padahal ada hari operasi yang tidak masuk grafik.
       var tanpaKapal = Number(d.charts.hariTanpaKapal) || 0;
       var catatan = tanpaKapal > 0
-        ? '<div style="font-size:.75rem;color:var(--n-text-muted);margin-top:10px;">' +
-            _idNum(tanpaKapal) + ' hari operasi belum tertaut kapal — revise lapisannya agar masuk grafik.</div>'
+        ? '<div style="font-size:.75rem;color:var(--n-text-muted);margin-top:10px;text-align:center;">' +
+            _idNum(tanpaKapal) + ' hari operasi belum tertaut kapal \u2014 revisi laporannya agar masuk grafik.</div>'
         : '';
       topEl.innerHTML = teraktif.length
-        ? '<div class="ov-plot-bars">' + _ovBars(teraktif) + '</div>' + catatan
+        ? '<div class="ov-plot-bars">' + _ovBars(teraktif, { ranked: true, unit: 'hari' }) + catatan + '</div>'
         : '<div class="chart-empty">Belum ada hari operasi yang tertaut kapal pada periode terpilih.' + catatan + '</div>';
     }
   }
@@ -1083,10 +1091,10 @@ function _ovNum(v, unit) {
 function _ovMetric(m) {
   var v = m.val;
   if (v === null || v === undefined || v === '' || v === '\u2014') {
-    return { lbl: m.lbl, val: '\u2014', unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: null };
+    return { lbl: m.lbl, val: '\u2014', unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: null, badge: m.badge, tone: m.tone };
   }
   var valStr = _ovNum(v, m.unit);
-  return { lbl: m.lbl, val: valStr, unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: v };
+  return { lbl: m.lbl, val: valStr, unit: m.unit, prog: !!m.prog, progMax: m.progMax, stack: m.stack, bars: m.bars, raw: (m.raw !== undefined ? m.raw : v), badge: m.badge, tone: m.tone };
 }
 
 // ── PROFIL KAPAL (DashboardService.js → dashboard_profilKapal) ──
@@ -1402,13 +1410,13 @@ function _ovMiniBars(values, color) {
 }
 
 // Donut komposisi (≤4 irisan) + angka tengah; segmen 0 dilewati, total ≤ 0 → hidden.
-function _ovDonut(segs, size, center) {
+function _ovDonut(segs, size, center, subLabel) {
   var total = _ovSegTotal(segs);
   if (total <= 0) return '';
   size = size || 76;
   var r = (size - 14) / 2;
   var c = 2 * Math.PI * r;
-  var cx = size / 2, cy = size / 2, sw = 12;
+  var cx = size / 2, cy = size / 2, sw = size > 100 ? 15 : 12;
   var off = 0;
   var arcs = segs.filter(function (s) { return (Number(s.val) || 0) > 0; }).map(function (s) {
     var len = (Number(s.val) || 0) / total * c;
@@ -1418,8 +1426,13 @@ function _ovDonut(segs, size, center) {
     off += len + 2;
     return el;
   }).join('');
+  var subText = (subLabel && size > 100) ? (
+    '<text x="' + cx + '" y="' + (cy + 17) + '" text-anchor="middle" font-size="9" font-weight="700" letter-spacing="0.08em" fill="var(--n-text-muted)">' + _esc(subLabel) + '</text>'
+  ) : '';
+  var numY = (subLabel && size > 100) ? (cy - 3) : cy;
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + arcs +
-    '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="' + Math.round(size * 0.24) + '" font-weight="800" fill="var(--n-text-primary)">' + _esc(String(center !== undefined ? center : '')) + '</text>' +
+    '<text x="' + cx + '" y="' + numY + '" text-anchor="middle" dominant-baseline="central" font-size="' + Math.round(size * (subLabel ? 0.22 : 0.24)) + '" font-weight="800" fill="var(--n-text-primary)">' + _esc(String(center !== undefined ? center : '')) + '</text>' +
+    subText +
   '</svg>';
 }
 
@@ -1433,15 +1446,23 @@ function _ovDots(items) {
 }
 
 // Baris batang horizontal (label + track + nilai) — kapal teraktif / stok.
-function _ovBars(items) {
+function _ovBars(items, opt) {
   if (!items || !items.length) return '';
+  opt = opt || {};
   var max = Math.max.apply(null, items.map(function (it) { return Number(it.val) || 0; }).concat([1]));
-  return '<div class="ov-bars">' + items.map(function (it) {
-    var pct = Math.max(2, (Number(it.val) || 0) / max * 100);
-    return '<div class="bar-line">' +
-      '<div class="bar-line-lbl">' + _esc(it.label) + '</div>' +
+  return '<div class="ov-bars">' + items.map(function (it, idx) {
+    var pct = Math.max(3, (Number(it.val) || 0) / max * 100);
+    var rankHtml = opt.ranked ? (
+      '<span class="bar-rank' + (idx === 0 ? ' top' : '') + '">#' + (idx + 1) + '</span>'
+    ) : '';
+    var unitHtml = opt.unit ? (
+      ' <span class="bar-line-unit">' + _esc(opt.unit) + '</span>'
+    ) : '';
+    return '<div class="bar-line' + (opt.ranked ? ' has-rank' : '') + '">' +
+      rankHtml +
+      '<div class="bar-line-lbl" title="' + _esc(it.label) + '">' + _esc(it.label) + '</div>' +
       '<div class="bar-line-track"><div class="bar-line-fill" style="width:' + pct + '%;background:' + _ovTone(it.tone) + ';"></div></div>' +
-      '<div class="bar-line-val">' + _idNum(it.val) + '</div>' +
+      '<div class="bar-line-val">' + _idNum(it.val) + unitHtml + '</div>' +
     '</div>';
   }).join('') + '</div>';
 }
@@ -1451,10 +1472,10 @@ function _ovSegTotal(segs) {
 }
 
 // Plot donut + legenda untuk sel chart (DESIGN §6.3: komposisi → donut ≤4).
-function _ovPlotDonut(segs, size) {
+function _ovPlotDonut(segs, size, subLabel) {
   var total = _ovSegTotal(segs);
   if (total <= 0) return '';
-  var donut = _ovDonut(segs, size || 150, _idNum(total));
+  var donut = _ovDonut(segs, size || 160, _idNum(total), subLabel || 'KAPAL');
   var legend = segs.filter(function (s) { return (Number(s.val) || 0) > 0; }).map(function (s) {
     var pct = Math.round((Number(s.val) || 0) / total * 100);
     return '<div class="legend-row">' +
@@ -1516,35 +1537,232 @@ function _ovMonthLabel(key) {
 // setelah seluruh baris metrik (mis. komposisi AKN).
 function _divCard(title, metrics, stack, dots, opts) {
   opts = opts || {};
+  var span = Number(opts.span) || 0;
   var rows = metrics.map(function(m, idx) {
-    var valHtml = '<span class="div-metric-val' +
-      (m.val === '\u2014' ? ' muted' : (idx === 0 && opts.hero !== false ? ' hero' : '')) + '">' +
-      m.val + (m.unit ? ' <span style="font-size:.75rem;font-weight:400;color:var(--n-text-muted);">' + m.unit + '</span>' : '') +
+    var isMuted = m.val === '\u2014';
+    var badgeHtml = (m.badge && !isMuted) ? (
+      '<span class="div-metric-badge ' + (m.tone || 'info') + '">' + _esc(m.badge) + '</span>'
+    ) : '';
+    var valHtml = '<span class="div-metric-val' + (isMuted ? ' muted' : (idx === 0 && opts.hero ? ' hero' : '')) + '">' +
+      m.val + (m.unit ? ' <span class="div-metric-unit">' + m.unit + '</span>' : '') +
     '</span>';
     var hasRaw = m.raw !== null && m.raw !== undefined && m.raw !== '';
-    var progHtml = (m.prog && m.val !== '\u2014' && hasRaw) ? (
-      '<div class="prog-wrap">' +
-        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' +
-          Math.max(0, Math.min(100, Number(m.raw) || 0)) + '%;"></div></div>' +
-        '<div class="prog-labels"><span>0%</span><span>100%</span></div>' +
+    var progHtml = (m.prog && !isMuted && hasRaw) ? (
+      '<div class="div-micro-bar">' +
+        '<div class="div-micro-bar-fill' + (Number(m.raw) < 50 ? ' warn' : '') + '" style="width:' +
+          Math.max(0, Math.min(100, Number(m.raw) || 0)) + '%;"></div>' +
       '</div>'
     ) : '';
-    var progTargetHtml = (m.progMax && m.val !== '\u2014' && hasRaw) ? (
-      '<div class="prog-wrap">' +
-        '<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:' +
-          Math.max(0, Math.min(100, (Number(m.raw) || 0) / m.progMax * 100)) + '%;"></div></div>' +
-        '<div class="prog-labels"><span>0</span><span>' + m.progMax + '</span></div>' +
+    var progTargetHtml = (m.progMax && !isMuted && hasRaw) ? (
+      '<div class="div-micro-bar">' +
+        '<div class="div-micro-bar-fill" style="width:' +
+          Math.max(0, Math.min(100, (Number(m.raw) || 0) / m.progMax * 100)) + '%;"></div>' +
       '</div>'
     ) : '';
-    var stackHtml = (m.stack && m.val !== '\u2014') ? _ovStackHtml(m.stack) : '';
-    return '<div class="div-metric"><span class="div-metric-lbl">' + m.lbl + '</span>' + valHtml + '</div>' +
-      progHtml + progTargetHtml + stackHtml;
+    var stackHtml = (m.stack && !isMuted) ? _ovStackHtml(m.stack) : '';
+    return '<div class="div-metric-row">' +
+      '<div class="div-metric">' +
+        '<span class="div-metric-lbl">' + _esc(m.lbl) + '</span>' +
+        '<div class="div-metric-right">' + valHtml + badgeHtml + '</div>' +
+      '</div>' +
+      progHtml + progTargetHtml + stackHtml +
+    '</div>';
   }).join('');
-  var foot = (opts.foot === false) ? '' : _ovCardFoot(metrics, stack, dots);
-  return '<div class="div-card">' +
+  // Visual: viz dari server (bentuk bervariasi per kartu) → bila tidak ada
+  // (cache lama / Profil Kapal) jatuh ke footer lama. `loading` = placeholder.
+  var foot;
+  if (opts.foot === false) foot = '';
+  else if (opts.loading) foot = '<div class="vz"><div class="vz-body"><div class="vz-empty">Memuat\u2026</div></div></div>';
+  else if (opts.viz) foot = _vzRender(opts.viz);
+  else foot = _ovCardFoot(metrics, stack, dots);
+  var cls = 'div-card' + (span ? ' s' + span : '') + (span >= 4 ? ' wide' : '');
+  return '<div class="' + cls + '">' +
     '<div class="div-card-title">' + title + '</div>' +
-    '<div class="div-card-metrics">' + rows + '</div>' +
-    foot +
+    '<div class="div-card-body">' +
+      '<div class="div-card-metrics">' + rows + '</div>' +
+      foot +
+    '</div>' +
+  '</div>';
+}
+
+// ===========================================================================
+// VISUAL KARTU DIVISI (Fase 14) — tiap kartu memilih bentuk yang menjawab
+// pertanyaan datanya sendiri (DESIGN §6.1). Semua murni HTML/SVG + token tema;
+// tanpa gauge. Angka detail muncul di tooltip (`title`) bila terlalu padat
+// untuk label langsung, supaya angka tidak saling tabrak.
+// ===========================================================================
+function _ovTrim1(x) { return String(Math.round(x * 10) / 10).replace('.', ','); }
+
+// 1.250.000 → "1,3 jt"; fmt 'rp' selalu dipadatkan, selainnya hanya ≥ 10.000.
+function _ovCompact(n, fmt) {
+  n = Number(n) || 0;
+  var a = Math.abs(n);
+  if (fmt !== 'rp' && a < 10000) return _idNum(n);
+  if (a >= 1e12) return _ovTrim1(n / 1e12) + ' T';
+  if (a >= 1e9)  return _ovTrim1(n / 1e9) + ' M';
+  if (a >= 1e6)  return _ovTrim1(n / 1e6) + ' jt';
+  if (a >= 1e3)  return _ovTrim1(n / 1e3) + ' rb';
+  return _idNum(n);
+}
+
+// '2026-07' → 'Jul'; label lain dikembalikan apa adanya.
+function _ovMonthShort(key) {
+  var m = /^\d{4}-(\d{2})$/.exec(String(key || ''));
+  if (!m) return String(key || '');
+  var i = parseInt(m[1], 10);
+  return (i >= 1 && i <= 12) ? MONTHS[i - 1].slice(0, 3) : String(key);
+}
+
+function _vzLegend(series) {
+  if (!series || series.length < 2) return '';
+  return '<div class="vz-legend">' + series.map(function (s) {
+    return '<span><i style="background:' + _ovTone(s.tone) + ';"></i>' + _esc(s.name) + '</span>';
+  }).join('') + '</div>';
+}
+
+// Kolom vertikal (grouped / tunggal). Batang diposisikan absolut terhadap
+// sel setinggi area visual, jadi mengisi tinggi kartu berapa pun.
+function _vzCols(v) {
+  var series = v.series || [], groups = v.groups || [];
+  var max = 0;
+  groups.forEach(function (g) { (g.vals || []).forEach(function (x) { max = Math.max(max, Number(x) || 0); }); });
+  if (!groups.length || max <= 0) return '';
+  var showVals = groups.length * Math.max(1, series.length) <= 12;
+  var cols = groups.map(function (g) {
+    var glabel = _ovMonthShort(g.label);
+    var bars = (g.vals || []).map(function (x, i) {
+      var n = Number(x) || 0;
+      var h = n > 0 ? Math.max(3, n / max * 80) : 0;
+      var tip = glabel + (series[i] ? ' \u00B7 ' + series[i].name : '') + ': ' + _ovCompact(n, v.fmt);
+      return '<div class="vz-bar-wrap" title="' + _esc(tip) + '">' +
+        (showVals && n > 0 ? '<span class="vz-bar-val" style="bottom:calc(' + h + '% + 3px);">' + _esc(_ovCompact(n, v.fmt)) + '</span>' : '') +
+        '<div class="vz-bar" style="height:' + h + '%;background:' + _ovTone((series[i] || {}).tone) + ';"></div>' +
+      '</div>';
+    }).join('');
+    return '<div class="vz-col"><div class="vz-col-bars">' + bars + '</div>' +
+      '<div class="vz-col-lbl" title="' + _esc(glabel) + '">' + _esc(glabel) + '</div></div>';
+  }).join('');
+  return '<div class="vz-cols"><div class="vz-bars">' + cols + '</div>' + _vzLegend(series) + '</div>';
+}
+
+// Donut proporsi (≤4 irisan) + legenda berangka (label langsung).
+function _vzDonut(v) {
+  var segs = (v.segs || []).filter(function (s) { return (Number(s.val) || 0) > 0; });
+  var total = _ovSegTotal(segs);
+  if (total <= 0) return '';
+  var legend = segs.map(function (s) {
+    var pct = Math.round((Number(s.val) || 0) / total * 100);
+    return '<div class="legend-row"><i style="background:' + _ovTone(s.tone) + ';"></i>' +
+      '<span class="legend-lbl">' + _esc(s.label) + '</span>' +
+      '<span class="legend-val">' + _idNum(s.val) + '</span>' +
+      '<span class="legend-pct">' + pct + '%</span></div>';
+  }).join('');
+  return '<div class="vz-donut">' + _ovDonut(segs, 116, _idNum(total), v.sub || '') +
+    '<div class="vz-donut-legend">' + legend + '</div></div>';
+}
+
+// Batang horizontal berperingkat (label + track + nilai).
+function _vzHbars(v) {
+  var items = (v.items || []).slice().sort(function (a, b) { return (Number(b.val) || 0) - (Number(a.val) || 0); });
+  if (_ovSegTotal(items) <= 0) return '';
+  return '<div class="vz-hbars">' + _ovBars(items) + '</div>';
+}
+
+// Garis multi-seri (maks. 2–3), sumbu 0 di dasar, label bulan di bawah.
+function _vzLine(v) {
+  var labels = v.labels || [], series = v.series || [];
+  var n = labels.length;
+  var max = 0;
+  series.forEach(function (s) { (s.data || []).forEach(function (x) { max = Math.max(max, Number(x) || 0); }); });
+  if (n < 2 || max <= 0) return '';
+  var W = 200, H = 100, padX = 4, padY = 8;
+  var sx = (W - padX * 2) / (n - 1);
+  var paths = series.map(function (s, si) {
+    var pts = (s.data || []).map(function (x, i) {
+      return [padX + i * sx, H - padY - ((Number(x) || 0) / max) * (H - padY * 2)];
+    });
+    var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    var area = si === 0 ? '<path d="' + d + ' L' + (W - padX) + ' ' + (H - padY) + ' L' + padX + ' ' + (H - padY) + ' Z" fill="rgba(43,54,116,0.10)"/>' : '';
+    return area + '<path d="' + d + '" fill="none" stroke="' + _ovTone(s.tone) + '" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>';
+  }).join('');
+  var grid = [0.25, 0.5, 0.75].map(function (f) {
+    var y = padY + (H - padY * 2) * f;
+    return '<line x1="0" x2="' + W + '" y1="' + y + '" y2="' + y + '" stroke="rgba(0,0,0,0.06)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  }).join('');
+  var base = '<line x1="0" x2="' + W + '" y1="' + (H - padY) + '" y2="' + (H - padY) + '" stroke="rgba(0,0,0,0.12)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  var step = n > 8 ? 2 : 1;
+  var xl = labels.map(function (l, i) {
+    return '<span>' + (i % step === 0 ? _esc(_ovMonthShort(l)) : '') + '</span>';
+  }).join('');
+  var peak = series.map(function (s) {
+    return _esc(s.name) + ' maks ' + _ovCompact(Math.max.apply(null, (s.data || [0]).map(Number))) ;
+  }).join(' \u00B7 ');
+  return '<div class="vz-line"><div class="vz-line-plot" title="' + peak + '">' +
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + grid + base + paths + '</svg></div>' +
+    '<div class="vz-line-x" style="grid-template-columns:repeat(' + n + ',1fr);">' + xl + '</div>' +
+    _vzLegend(series) + '</div>';
+}
+
+// Waffle 10×4 = 40 sel; alokasi sisa terbesar supaya jumlah sel selalu 40.
+function _vzWaffle(v) {
+  var segs = (v.segs || []).filter(function (s) { return (Number(s.val) || 0) > 0; });
+  var total = _ovSegTotal(segs);
+  if (total <= 0) return '';
+  var CELLS = 40;
+  var alloc = segs.map(function (s) {
+    var raw = (Number(s.val) || 0) / total * CELLS;
+    return { floor: Math.floor(raw), rem: raw - Math.floor(raw) };
+  });
+  var used = alloc.reduce(function (a, x) { return a + x.floor; }, 0);
+  alloc.map(function (x, i) { return i; })
+    .sort(function (a, b) { return alloc[b].rem - alloc[a].rem; })
+    .slice(0, CELLS - used).forEach(function (i) { alloc[i].floor++; });
+  var cells = '';
+  segs.forEach(function (s, i) {
+    for (var k = 0; k < alloc[i].floor; k++) {
+      cells += '<i style="background:' + _ovTone(s.tone) + ';" title="' + _esc(s.label + ': ' + _idNum(s.val)) + '"></i>';
+    }
+  });
+  var legend = segs.map(function (s) {
+    return '<span><i style="background:' + _ovTone(s.tone) + ';"></i>' + _esc(s.label) + ' <b>' + _idNum(s.val) + '</b></span>';
+  }).join('');
+  return '<div class="vz-waffle">' + cells + '</div><div class="vz-legend">' + legend + '</div>';
+}
+
+// Heat strip: intensitas per bulan (opasitas navy), angka di dalam sel.
+function _vzHeat(v) {
+  var labels = v.labels || [], vals = (v.vals || []).map(function (x) { return Number(x) || 0; });
+  var max = Math.max.apply(null, vals.concat([0]));
+  if (!labels.length || max <= 0) return '';
+  var cells = labels.map(function (l, i) {
+    var n = vals[i] || 0;
+    var a = n > 0 ? (0.14 + 0.78 * n / max) : 0;
+    var style = n > 0 ? 'background:rgba(43,54,116,' + a.toFixed(2) + ');color:' + (a > 0.5 ? '#FFFFFF' : 'var(--n-text-primary)') + ';' : '';
+    return '<div class="vz-heat-unit" title="' + _esc(_ovMonthShort(l) + ': ' + n + ' kegiatan') + '">' +
+      '<div class="vz-heat-cell' + (n > 0 ? '' : ' zero') + '" style="' + style + '">' + (n > 0 ? n : '') + '</div>' +
+      '<div class="vz-heat-lbl">' + _esc(_ovMonthShort(l)) + '</div></div>';
+  }).join('');
+  return '<div class="vz-heat" style="grid-template-columns:repeat(' + labels.length + ',minmax(0,1fr));">' + cells + '</div>';
+}
+
+// Chip status per item (terisi = sudah melapor).
+function _vzChips(v) {
+  var items = v.items || [];
+  if (!items.length) return '';
+  return '<div class="vz-chips">' + items.map(function (it) {
+    return '<span class="vz-chip' + (it.melapor ? ' on' : '') + '" title="' + _esc(it.label + (it.melapor ? ' \u2014 melapor' : ' \u2014 belum melapor')) + '">' +
+      '<i></i>' + _esc(it.label) + '</span>';
+  }).join('') + '</div>';
+}
+
+var _VZ_RENDERERS = { cols: _vzCols, donut: _vzDonut, hbars: _vzHbars, line: _vzLine, waffle: _vzWaffle, heat: _vzHeat, chips: _vzChips };
+
+function _vzRender(v) {
+  if (!v || !_VZ_RENDERERS[v.type]) return '';
+  var inner = _VZ_RENDERERS[v.type](v);
+  return '<div class="vz">' +
+    (v.caption ? '<div class="div-card-foot-cap">' + _esc(v.caption) + '</div>' : '') +
+    '<div class="vz-body">' + (inner || '<div class="vz-empty">Belum ada data pada periode ini.</div>') + '</div>' +
   '</div>';
 }
 
@@ -1557,12 +1775,12 @@ function _ovMetricNum(m) {
 }
 
 // Footer visual kartu — mengisi sisa tinggi kartu agar tidak ada area kosong.
-// Prioritas: dots → stack kartu → bars metrik → gabungan stack per baris → komparasi numerik → catatan.
+// Prioritas: dots → stack kartu → bars metrik → gabungan stack per baris.
 function _ovCardFoot(metrics, stack, dots) {
   if (dots && dots.length) {
     var dOn = dots.filter(function (d) { return d.melapor; }).length;
     return '<div class="div-card-foot">' +
-      '<div class="div-card-foot-cap">Status laporan mingguan \u2014 ' + dOn + '/' + dots.length + '</div>' +
+      '<div class="div-card-foot-cap">Status 7 Divisi \u2014 ' + dOn + '/' + dots.length + ' Melapor</div>' +
       '<div class="div-card-foot-dots">' + _ovDots(dots) + '</div>' +
     '</div>';
   }
@@ -1578,7 +1796,7 @@ function _ovCardFoot(metrics, stack, dots) {
         '<div class="div-card-foot-cap">' + m.lbl + '</div>' + _ovBars(m.bars) + '</div>';
     }
   }
-  // Gabungkan beberapa stack per-baris (Operasi: Ditangkap + Dipantau) jadi komparasi.
+  // Gabungkan beberapa stack per-baris jika ada
   var groups = 0, st = [];
   metrics.forEach(function (m) {
     if (m.stack && m.stack.length && m.val !== '\u2014' && _ovSegTotal(m.stack) > 0) {
@@ -1590,24 +1808,67 @@ function _ovCardFoot(metrics, stack, dots) {
   });
   if (groups >= 2) {
     return '<div class="div-card-foot">' +
-      '<div class="div-card-foot-cap">Komposisi penindakan</div>' + _ovBars(st.slice(0, 6)) + '</div>';
-  }
-  var nums = metrics.map(function (m) { return { label: m.lbl, val: _ovMetricNum(m) }; })
-    .filter(function (x) { return x.val !== null; });
-  if (nums.length >= 2) {
-    var footTones = ['deep', 'soft', 'light'];
-    var items = nums.map(function (x, i) {
-      return { label: x.label, val: x.val, tone: footTones[i % footTones.length] };
-    });
-    return '<div class="div-card-foot">' +
-      '<div class="div-card-foot-cap">Proporsi periode</div>' + _ovBars(items) + '</div>';
-  }
-  if (metrics.length) {
-    return '<div class="div-card-foot">' +
-      '<div class="div-card-foot-note">Data periode terpilih belum lengkap \u2014 isi laporan untuk menampilkan perbandingan.</div>' +
-    '</div>';
+      '<div class="div-card-foot-cap">Komposisi Penindakan</div>' + _ovBars(st.slice(0, 6)) + '</div>';
   }
   return '';
+}
+
+// ===========================================================================
+// LOADER LEAFLET ON-DEMAND (Shared: Ikhtisar, Operasi Laut, Operasi Udara)
+// ===========================================================================
+// Leaflet CSS+JS tidak di-load di Index.html (itu memblokir DOMContentLoaded).
+// Di-inject secara dinamis saat modul/view yang membutuhkan peta dibuka.
+var _LEAFLET_LOADED = false;
+var _leafletQueue   = [];
+function _loadLeaflet(cb) {
+  if (typeof L !== 'undefined' || _LEAFLET_LOADED) {
+    if (cb) { try { cb(); } catch (e) { console.error(e); } }
+    return;
+  }
+  if (cb) _leafletQueue.push(cb);
+  if (document.getElementById('leaflet-js')) return; // sedang loading, tunggu callback
+
+  // Inject CSS
+  if (!document.getElementById('leaflet-css')) {
+    var link = document.createElement('link');
+    link.id   = 'leaflet-css';
+    link.rel  = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+  }
+
+  // Inject JS
+  var script = document.createElement('script');
+  script.id  = 'leaflet-js';
+  script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  script.onload = function () {
+    _LEAFLET_LOADED = true;
+    var queue = _leafletQueue.slice();
+    _leafletQueue = [];
+    queue.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+  };
+  script.onerror = function () {
+    console.error('Gagal memuat Leaflet dari CDN');
+    var queue = _leafletQueue.slice();
+    _leafletQueue = [];
+    queue.forEach(function (fn) { try { fn(new Error('Gagal memuat Leaflet dari CDN')); } catch (e) { console.error(e); } });
+  };
+  document.head.appendChild(script);
+}
+
+// Window resize listener untuk menjaga ukuran map Leaflet tetap sinkron
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('resize', function () {
+    if (typeof _OV_MAP !== 'undefined' && _OV_MAP.map) {
+      try { _OV_MAP.map.invalidateSize(); } catch (e) {}
+    }
+    if (typeof opsLautMap !== 'undefined' && opsLautMap) {
+      try { opsLautMap.invalidateSize(); } catch (e) {}
+    }
+    if (typeof opsUdaraMap !== 'undefined' && opsUdaraMap) {
+      try { opsUdaraMap.invalidateSize(); } catch (e) {}
+    }
+  });
 }
 
 // ===========================================================================
@@ -1844,26 +2105,42 @@ function _ovMapInit() {
   var host = document.getElementById('ov-map');
   if (!host) return;
   if (_OV_MAP.map) { try { _OV_MAP.map.invalidateSize(); } catch (e) {} return; }
-  if (typeof L === 'undefined' || !L.map) return;
 
-  _OV_MAP.map = L.map('ov-map', {
-    zoomControl: true,
-    scrollWheelZoom: false, center: [-2.5489, 118.0149], zoom: 5
-  });
-  // Basemap memakai key CARTO_API_KEY yang sudah ada (Script Property,
-  // dibaca utils_getCartoKey) — sama persis dengan peta Operasi Laut/Udara.
-  // Tidak ada key atau variabel terpisah untuk Ikhtisar. `attributionControl`
-  // sengaja ON: OSM/CARTO mewajibkan atribusi tampil, dan legenda kita ada di
-  // pojok kiri sedangkan baris atribusi Leaflet di kanan, jadi tidak tumpang.
-  _ensureCartoKey(function (key) {
-    if (!_OV_MAP.map) return;                 // pindah tab sebelum key tiba
-    L.tileLayer(_cartoTileUrl(key), {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd', maxZoom: 20
-    }).addTo(_OV_MAP.map);
-  });
+  _loadLeaflet(function () {
+    var h = document.getElementById('ov-map');
+    if (!h) return;
+    if (_OV_MAP.map) { try { _OV_MAP.map.invalidateSize(); } catch (e) {} return; }
+    if (typeof L === 'undefined' || !L.map) return;
 
-  _ovMapLoadGeo();
+    if (h._leaflet_id && !_OV_MAP.map) {
+      try { delete h._leaflet_id; } catch (e) {}
+    }
+
+    _OV_MAP.map = L.map('ov-map', {
+      zoomControl: true,
+      scrollWheelZoom: false, center: [-2.5489, 118.0149], zoom: 5
+    });
+    // Basemap memakai key CARTO_API_KEY yang sudah ada (Script Property,
+    // dibaca utils_getCartoKey) — sama persis dengan peta Operasi Laut/Udara.
+    // Tidak ada key atau variabel terpisah untuk Ikhtisar. `attributionControl`
+    // sengaja ON: OSM/CARTO mewajibkan atribusi tampil, dan legenda kita ada di
+    // pojok kiri sedangkan baris atribusi Leaflet di kanan, jadi tidak tumpang.
+    _ensureCartoKey(function (key) {
+      if (!_OV_MAP.map) return;                 // pindah tab sebelum key tiba
+      L.tileLayer(_cartoTileUrl(key), {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd', maxZoom: 20
+      }).addTo(_OV_MAP.map);
+    });
+
+    _ovMapLoadGeo();
+
+    setTimeout(function () {
+      if (_OV_MAP.map) {
+        try { _OV_MAP.map.invalidateSize(); } catch (e) {}
+      }
+    }, 200);
+  });
 }
 
 // Pemuatan geometri dipisah dari pembuatan map supaya tombol "coba lagi"
@@ -1893,6 +2170,11 @@ function _ovMapLoadGeo() {
     }).addTo(_OV_MAP.map);
     _opsMapStatus('ov-map', null);
     _ovMapLegend(scale);
+    setTimeout(function () {
+      if (_OV_MAP.map) {
+        try { _OV_MAP.map.invalidateSize(); } catch (e) {}
+      }
+    }, 150);
   });
 }
 
@@ -1902,6 +2184,10 @@ function _ovMapDestroy() {
   if (_OV_MAP.map) { try { _OV_MAP.map.remove(); } catch (e) {} }
   _OV_MAP.map = null;
   _OV_MAP.layer = null;
+  var host = document.getElementById('ov-map');
+  if (host && host._leaflet_id) {
+    try { delete host._leaflet_id; } catch (e) {}
+  }
 }
 
 // Dipanggil setelah payload overview tiba.
@@ -5059,39 +5345,9 @@ function _opsRenderTab() {
 }
 
 // ── Loader Leaflet on-demand ─────────────────────────────────
-// Leaflet CSS+JS tidak di-load di Index.html (itu memblokir DOMContentLoaded).
-// Di-inject secara dinamis pertama kali modul Operasi dibuka.
-var _LEAFLET_LOADED = false;
-var _leafletQueue   = [];
-function _loadLeaflet(cb) {
-  if (typeof L !== 'undefined' || _LEAFLET_LOADED) { cb(); return; }
-  _leafletQueue.push(cb);
-  if (_leafletQueue.length > 1) return; // sedang loading, tunggu callback
-
-  // Inject CSS
-  if (!document.getElementById('leaflet-css')) {
-    var link = document.createElement('link');
-    link.id   = 'leaflet-css';
-    link.rel  = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-  }
-
-  // Inject JS
-  var script = document.createElement('script');
-  script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-  script.onload = function () {
-    _LEAFLET_LOADED = true;
-    var queue = _leafletQueue.slice();
-    _leafletQueue = [];
-    queue.forEach(function(fn) { try { fn(); } catch(e) {} });
-  };
-  script.onerror = function () {
-    console.error('Gagal memuat Leaflet dari CDN');
-    _leafletQueue = [];
-  };
-  document.head.appendChild(script);
-}
+// Catatan: _loadLeaflet, _LEAFLET_LOADED, dan _leafletQueue dideklarasikan
+// di bagian utilitas geospasial bersama (sebelum _OV_MAP) agar bisa dipakai
+// bersama oleh Ikhtisar, Operasi Laut, dan Operasi Udara.
 
 // ============================================================
 // MODUL OPERASI LAUT

@@ -182,6 +182,8 @@ function dashboard_getOverview(token, filter) {
 
     // Total armada aktif (master Kapal)
     var totalArmada = _dashTotalArmadaAktif();
+    var kesiapanPct = totalArmada > 0 ? Math.round(siap / totalArmada * 100)
+      : (siap + tidakSiap > 0 ? Math.round(siap / (siap + tidakSiap) * 100) : 0);
 
     // ── LOGISTIK ─────────────────────────────────────────────────
     var amRows  = _dashActiveRows(SHEET_TX.LOGISTIK_AMUNISI);
@@ -285,7 +287,7 @@ function dashboard_getOverview(token, filter) {
       .slice(0, 5);
 
     var headline = [
-      { label: 'Realisasi Anggaran (SP2D)',    value: sp2dPct,  unit: '%',   sub: 'YTD kumulatif', ring: { pct: sp2dPct } },
+      { label: 'Realisasi Anggaran (SP2D)',    value: sp2dPct,  unit: '%',   sub: 'YTD kumulatif', spark: realis },
       { label: 'Hari Operasi Kapal & Pesawat', value: hariKapal + hariPesawat, unit: 'hari', sub: 'Realisasi periode ini', trend: trendHariOp, minibars: hbTot },
       { label: 'Armada Siap Operasi',          value: siap, unit: 'kapal', sub: (siap + tidakSiap) + ' / ' + totalArmada + ' armada aktif',
         donut: { segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ], center: totalArmada } },
@@ -299,82 +301,185 @@ function dashboard_getOverview(token, filter) {
         metrics: [
           { lbl: 'Realisasi SP2D (YTD)',    val: sp2dPct,  unit: '%',   prog: true  },
           { lbl: 'Realisasi Akrual (YTD)',  val: akruPct,  unit: '%',   prog: true  },
-          { lbl: 'Sisa Pagu SP2D',          val: sisaSP2D, unit: 'Rp',  prog: false }
-        ]
+          { lbl: 'Sisa Pagu SP2D',          val: sisaSP2D, unit: 'Rp',  prog: false,
+            badge: Math.max(0, 100 - sp2dPct) + '% Sisa', tone: 'info' }
+        ],
+        stack: {
+          caption: 'Alokasi Pagu Anggaran (SP2D vs Sisa)',
+          segments: [
+            { label: 'Realisasi', val: sp2dPct, tone: 'deep' },
+            { label: 'Sisa Pagu', val: Math.max(0, 100 - sp2dPct), tone: 'light' }
+          ]
+        }
       },
       {
-title: 'Operasi Kapal Pengawas dan Pesawat',
+        title: 'Operasi Kapal Pengawas dan Pesawat',
         metrics: [
-          { lbl: 'Hari Operasi Kapal (realisasi)', val: hariKapal,       unit: 'hari',  prog: false },
-          { lbl: 'Hari Operasi Pesawat (/ 180)',   val: hariPesawat,     unit: 'hari',  prog: false, progMax: 180 },
-          { lbl: 'Kapal Ditangkap (KII/KIA)',      val: kapalDitangkap,  unit: 'unit',  prog: false,
-            stack: [ { label: 'KII', val: kiiDitangkap, tone: 'deep' }, { label: 'KIA', val: kiaDitangkap, tone: 'soft' } ] },
-          { lbl: 'Kapal Dipantau (KII/KIA)',       val: kapalDipantau,   unit: 'unit',  prog: false,
-            stack: [ { label: 'KII', val: kiiDipantau, tone: 'deep' }, { label: 'KIA', val: kiaDipantau, tone: 'soft' } ] },
-          { lbl: 'Cakupan Wilayah',                val: cakupanWilayah,  unit: 'NM\u00B2', prog: false }
-        ]
+          { lbl: 'Hari Operasi Armada',            val: hariKapal + hariPesawat, unit: 'hari', prog: false,
+            badge: hariKapal + ' Kapal · ' + hariPesawat + ' Udara', tone: 'info' },
+          { lbl: 'Kapal Ditangkap & Dipantau',     val: kapalDitangkap + kapalDipantau, unit: 'unit', prog: false,
+            stack: [ { label: 'Ditangkap', val: kapalDitangkap, tone: 'deep' }, { label: 'Dipantau', val: kapalDipantau, tone: 'soft' } ] },
+          { lbl: 'Cakupan Wilayah Patroli',        val: cakupanWilayah,  unit: 'NM\u00B2', prog: false }
+        ],
+        stack: {
+          caption: 'Komposisi Penindakan (KII vs KIA)',
+          segments: [
+            { label: 'KII', val: kiiDitangkap + kiiDipantau, tone: 'deep' },
+            { label: 'KIA', val: kiaDitangkap + kiaDipantau, tone: 'soft' }
+          ]
+        }
       },
       {
         title: 'Intelijen',
         metrics: [
-          { lbl: 'Nota Dinas Data Intelijen', val: notaDinas,   unit: 'dokumen', prog: false },
-          { lbl: 'Pelanggaran Transmitter',   val: pelanggarTx, unit: 'kapal',   prog: false },
-          { lbl: 'Kawasan Konservasi Aktif',  val: kawasanAktif,unit: 'lokasi',  prog: false }
-        ]
+          { lbl: 'Nota Dinas Data Intelijen',   val: notaDinas,   unit: 'dokumen', prog: false },
+          { lbl: 'Pelanggaran Transmitter',     val: pelanggarTx, unit: 'kapal',   prog: false,
+            badge: pelanggarTx === 0 ? 'Nihil / Aman' : 'Terdeteksi', tone: pelanggarTx === 0 ? 'ok' : 'warn' },
+          { lbl: 'Kawasan Konservasi Terpantau', val: kawasanAktif, unit: 'lokasi',  prog: false }
+        ],
+        stack: {
+          caption: 'Aktivitas Intelijen & Pengawasan',
+          segments: [
+            { label: 'Nota Dinas', val: notaDinas, tone: 'deep' },
+            { label: 'Pelanggaran Tx', val: pelanggarTx, tone: pelanggarTx > 0 ? 'warn' : 'soft' },
+            { label: 'Kawasan Aktif', val: kawasanAktif, tone: 'light' }
+          ]
+        }
       },
       {
         title: 'Pemantauan',
         metrics: [
           { lbl: 'SKAT Diterbitkan (YTD)',    val: skatYtd, unit: 'dokumen', prog: false },
           { lbl: 'Username Diterbitkan (YTD)',val: userYtd, unit: 'akun',    prog: false },
-          { lbl: 'Kapal Kondisi Marabahaya',  val: maraYtd, unit: 'unit',    prog: false }
-        ]
+          { lbl: 'Kapal Kondisi Marabahaya',  val: maraYtd, unit: 'unit',    prog: false,
+            badge: maraYtd === 0 ? 'Nihil / Aman' : 'Perlu Tindakan', tone: maraYtd === 0 ? 'ok' : 'crit' }
+        ],
+        stack: {
+          caption: 'Layanan Pemantauan & Akses',
+          segments: [
+            { label: 'SKAT', val: skatYtd, tone: 'deep' },
+            { label: 'Username', val: userYtd, tone: 'soft' }
+          ]
+        }
       },
       {
         title: 'Perawatan',
         metrics: [
-          { lbl: 'Kapal Siap Operasi',   val: siap,       unit: 'unit', prog: false,
-            stack: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ] },
-          { lbl: 'Kapal Tidak Siap',     val: tidakSiap,  unit: 'unit', prog: false },
-          { lbl: 'Docking Aktif',        val: dockingAktif, unit: 'unit', prog: false }
-        ]
+          { lbl: 'Tingkat Kesiapan Armada', val: kesiapanPct, unit: '%', prog: true,
+            badge: kesiapanPct >= 75 ? 'Optimal' : (kesiapanPct >= 50 ? 'Cukup' : 'Perlu Perhatian'), tone: kesiapanPct >= 75 ? 'ok' : 'warn' },
+          { lbl: 'Armada Siap Operasi',     val: siap, unit: 'kapal', prog: false,
+            badge: 'Siap', tone: 'ok' },
+          { lbl: 'Tidak Siap & Docking',   val: tidakSiap + dockingAktif, unit: 'kapal', prog: false,
+            badge: (tidakSiap + dockingAktif) === 0 ? 'Nihil' : (tidakSiap + ' TS · ' + dockingAktif + ' Dock'), tone: (tidakSiap + dockingAktif) === 0 ? 'ok' : 'crit' }
+        ],
+        stack: {
+          caption: 'Rasio Kesiapan Armada (Siap vs Tidak Siap)',
+          segments: [
+            { label: 'Siap', val: siap, tone: 'ok' },
+            { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' }
+          ]
+        }
       },
       {
         title: 'Logistik',
         metrics: [
-          { lbl: 'Realisasi BBM (YTD)',  val: bbmPct,  unit: '%',    prog: true  },
-          { lbl: 'Tunggakan BBM',        val: tunggak, unit: 'item', prog: false },
-          { lbl: 'Stok Amunisi (total)', val: stokTotal, unit: 'butir', prog: false, bars: amStok5 }
-        ]
+          { lbl: 'Realisasi BBM (YTD)',    val: bbmPct,    unit: '%',     prog: true  },
+          { lbl: 'Tunggakan Tagihan BBM',  val: tunggak,   unit: 'item',  prog: false,
+            badge: tunggak === 0 ? 'Lancar / Nihil' : 'Ada Tunggakan', tone: tunggak === 0 ? 'ok' : 'warn' },
+          { lbl: 'Total Stok Amunisi',     val: stokTotal, unit: 'butir', prog: false }
+        ],
+        stack: amStok5 && amStok5.length ? {
+          caption: 'Distribusi Stok Amunisi',
+          segments: amStok5.map(function (s, idx) {
+            return { label: s.label, val: s.val, tone: (['deep', 'soft', 'light', 'lighter'])[idx] || 'lighter' };
+          })
+        } : null
       },
       {
         title: 'Pengawakan',
         metrics: [
-          ...Object.keys(aknTotalPerScope).map(function (sc) {
-            return { lbl: 'AKN ' + aknLabelPerScope[sc], val: aknTotalPerScope[sc], unit: 'orang', prog: false };
-          }),
+          { lbl: 'Total Personel AKN',      val: aknTotalPerScope['KESELURUHAN'] || (aknTotalPerScope['POA'] || 0), unit: 'orang', prog: false },
+          { lbl: 'Awak Kapal (POA)',        val: aknTotalPerScope['POA'] || 0, unit: 'orang', prog: false,
+            badge: (aknTotalPerScope['POA'] && aknTotalPerScope['KESELURUHAN'] ? Math.round(aknTotalPerScope['POA'] / aknTotalPerScope['KESELURUHAN'] * 100) + '% POA' : ''), tone: 'info' },
           { lbl: 'Kegiatan Personel (YTD)', val: awakKegYtd.length, unit: 'kegiatan', prog: false }
         ],
-        stack: { caption: 'Komposisi AKN', segments: aknStack }
+        stack: { caption: 'Komposisi Penempatan AKN', segments: aknStack }
       },
       {
         title: 'Kegiatan Pendukung',
         metrics: [
-          { lbl: 'Kegiatan YTD',            val: kegYtd.length, unit: 'kegiatan', prog: false },
-          { lbl: 'Kegiatan Periode Ini',    val: kegRange.length, unit: 'kegiatan', prog: false },
-          { lbl: 'Terakhir Dicatat',        val: kegLast ? _dashFmtDate(kegLast['Timestamp']) : '\u2014', unit: '', prog: false }
-        ]
+          { lbl: 'Kegiatan Terlaksana (YTD)', val: kegYtd.length, unit: 'kegiatan', prog: false },
+          { lbl: 'Kegiatan Periode Ini',      val: kegRange.length, unit: 'kegiatan', prog: false },
+          { lbl: 'Pencatatan Terakhir',       val: kegLast ? _dashFmtDate(kegLast['Timestamp']) : '\u2014', unit: '', prog: false }
+        ],
+        stack: {
+          caption: 'Intensitas Kegiatan Direktorat',
+          segments: [
+            { label: 'YTD', val: kegYtd.length, tone: 'deep' },
+            { label: 'Periode Ini', val: kegRange.length, tone: 'soft' }
+          ]
+        }
       },
       {
         title: 'Cakupan Laporan',
         metrics: [
-          { lbl: 'Divisi Melapor Minggu Ini', val: nMelapor,            unit: '/ 7', prog: true  },
-          { lbl: 'Divisi Belum Melapor',      val: 7 - nMelapor,        unit: 'divisi', prog: false },
-          { lbl: 'Periode Aktif',             val: getCurrentPeriode(), unit: '',     prog: false }
+          { lbl: 'Divisi Melapor Minggu Ini', val: nMelapor,            unit: '/ 7', prog: true, raw: Math.round(nMelapor / 7 * 100) },
+          { lbl: 'Divisi Belum Melapor',      val: 7 - nMelapor,        unit: 'divisi', prog: false,
+            badge: nMelapor === 7 ? 'Lengkap 100%' : (7 - nMelapor) + ' Belum Lapor', tone: nMelapor === 7 ? 'ok' : 'warn' },
+          { lbl: 'Periode Laporan Aktif',     val: getCurrentPeriode(), unit: '',     prog: false }
         ],
         dots: melaporDetail
       }
     ];
+
+    // ── Visual per kartu divisi + lebar grid (Fase 14, "dinamis, tidak kaku") ──
+    // Tiap kartu mendapat bentuk visual yang menjawab pertanyaan datanya sendiri
+    // (bukan progress bar semua). Palet hanya token tema via `tone`.
+    var aknSegs = aknScopeOrder.filter(function (sc) { return sc !== 'KESELURUHAN'; })
+      .map(function (sc, i) {
+        return { label: aknScopeMap[sc] || sc, val: aknTotalPerScope[sc] || 0,
+                 tone: (['deep', 'soft', 'light', 'lighter'])[i] || 'lighter' };
+      });
+    var vizByTitle = {
+      'Tata Usaha': { type: 'cols', fmt: 'rp', caption: 'Realisasi per bulan (YTD)',
+        series: [ { name: 'SP2D', tone: 'deep' }, { name: 'Akrual', tone: 'light' } ],
+        groups: months.map(function (m, i) { return { label: m, vals: [realis[i] || 0, akru[i] || 0] }; }) },
+      'Cakupan Laporan': { type: 'chips', caption: 'Status 7 divisi minggu ini', items: melaporDetail },
+      'Operasi Kapal Pengawas dan Pesawat': { type: 'cols', caption: 'KII vs KIA (YTD)',
+        series: [ { name: 'Ditangkap', tone: 'deep' }, { name: 'Dipantau', tone: 'light' } ],
+        groups: [ { label: 'KII', vals: [kiiDitangkap, kiiDipantau] }, { label: 'KIA', vals: [kiaDitangkap, kiaDipantau] } ] },
+      'Perawatan': { type: 'donut', caption: 'Kondisi armada', sub: 'KAPAL',
+        segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' },
+                { label: 'Docking', val: dockingAktif, tone: 'warn' } ] },
+      'Intelijen': { type: 'hbars', caption: 'Aktivitas intelijen periode ini',
+        items: [ { label: 'Nota Dinas', val: notaDinas, tone: 'deep' },
+                 { label: 'Pelanggaran Tx', val: pelanggarTx, tone: pelanggarTx > 0 ? 'warn' : 'soft' },
+                 { label: 'Kawasan Terpantau', val: kawasanAktif, tone: 'light' } ] },
+      'Pemantauan': { type: 'line', caption: 'Penerbitan per bulan', labels: months,
+        series: [ { name: 'SKAT', tone: 'deep', data: _dashMonthlyJenis(pemRows, f, 'SKAT') },
+                  { name: 'Username', tone: 'light', data: _dashMonthlyJenis(pemRows, f, 'USERNAME') } ] },
+      'Logistik': amStok5.length ? { type: 'cols', fmt: 'num', caption: 'Stok amunisi per jenis (butir)',
+        series: [ { name: 'Stok', tone: 'deep' } ],
+        groups: amStok5.map(function (s) { return { label: s.label, vals: [s.val] }; }) } : null,
+      'Pengawakan': { type: 'waffle', caption: 'Komposisi personel AKN', segs: aknSegs },
+      'Kegiatan Pendukung': { type: 'heat', caption: 'Kegiatan per bulan', labels: months,
+        vals: _dashMonthlyCount(kegRows, f) }
+    };
+    // Urutan + lebar (grid 6 kolom) disusun supaya tiap baris penuh: 4+2, 2+2+2, 2+4, 3+3.
+    var layoutByTitle = {
+      'Tata Usaha': { order: 0, span: 4 }, 'Cakupan Laporan': { order: 1, span: 2 },
+      'Operasi Kapal Pengawas dan Pesawat': { order: 2, span: 2 }, 'Perawatan': { order: 3, span: 2 },
+      'Intelijen': { order: 4, span: 2 }, 'Pemantauan': { order: 5, span: 2 },
+      'Logistik': { order: 6, span: 4 }, 'Pengawakan': { order: 7, span: 3 },
+      'Kegiatan Pendukung': { order: 8, span: 3 }
+    };
+    divisi.forEach(function (dv) {
+      var lay = layoutByTitle[dv.title] || { order: 99, span: 2 };
+      dv.span = lay.span;
+      dv.order = lay.order;
+      dv.viz = vizByTitle[dv.title] || null;
+    });
+    divisi.sort(function (a, b) { return a.order - b.order; });
 
     var data = {
       periode: getCurrentPeriode(),
@@ -739,6 +844,28 @@ function _dashDivisiMelapor() {
 }
 
 // ── Tren bulanan (Jan → bulan terpilih) ─────────────────────
+function _dashMonthKey(ts) {
+  var t = new Date(ts);
+  if (isNaN(t.getTime())) return '';
+  return t.getFullYear() + '-' + (t.getMonth() < 9 ? '0' + (t.getMonth() + 1) : (t.getMonth() + 1));
+}
+
+/** Jumlah (kolom `Jumlah`) per bulan untuk satu `Jenis` (Pemantauan/Intelijen). */
+function _dashMonthlyJenis(rows, f, jenis) {
+  return utils_getTrendMonths(f).map(function (m) {
+    return rows.reduce(function (acc, r) {
+      return acc + ((String(r['Jenis'] || '') === jenis && _dashMonthKey(r['Timestamp']) === m) ? _num(r['Jumlah']) : 0);
+    }, 0);
+  });
+}
+
+/** Banyaknya baris per bulan (mis. Kegiatan Direktorat). */
+function _dashMonthlyCount(rows, f) {
+  return utils_getTrendMonths(f).map(function (m) {
+    return rows.reduce(function (acc, r) { return acc + (_dashMonthKey(r['Timestamp']) === m ? 1 : 0); }, 0);
+  });
+}
+
 function _dashMonthly(rows, f, col) {
   var months = utils_getTrendMonths(f);
   var out = [];

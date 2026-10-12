@@ -170,6 +170,25 @@ function admin_updateUser(token, params) {
       // Approval: pencairan akun NONAKTIF/REJECTED langsung→APPROVED oleh
       // Superadmin sah (bukan lewat queue).
       updateRowCells(usersSheet, found.rowIndex, updates);
+
+      // Jika status berubah ke APPROVED atau REJECTED, sinkronkan Approval_Queue jika ada entri pending
+      if (newStatus === USER_STATUS.APPROVED || newStatus === USER_STATUS.REJECTED) {
+        try {
+          var queueSheet = openLogSheet(SHEET_LOG.APPROVAL_QUEUE);
+          var qRow = findRowByField(queueSheet, 'UserID', userId);
+          if (qRow && String(qRow.obj['Status']) === USER_STATUS.PENDING) {
+            updateRowCells(queueSheet, qRow.rowIndex, {
+              'Status': newStatus,
+              'DecidedBy': session.userId,
+              'DecidedAt': new Date(),
+              'AlasanReject': newStatus === USER_STATUS.REJECTED ? 'Ditolak langsung oleh Superadmin via Admin Panel' : ''
+            });
+          }
+        } catch (qe) {
+          Logger.log('[admin_updateUser] Sync Approval_Queue gagal: ' + qe.message);
+        }
+      }
+
       // Cabut sesi lama: role/divisi/status baru harus berlaku setelah login ulang,
       // jangan sampai token lama tetap memegang hak akses usang.
       _revokeUserSessions(userId);

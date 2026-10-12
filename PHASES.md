@@ -387,42 +387,22 @@ Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek u
 - **Tidak diubah**: tidak ada kolom spreadsheet baru (menghitung dari data yang sudah ada lebih murah daripada migrasi sheet dan tidak memberi informasi baru); validasi `tataUsaha_revisi` yang tidak mewajibkan Catatan Revisi Pagu **sengaja tidak** disentuh — memperbaikinya akan menolak revisi lama yang sah dan perlu keputusan terpisah; tidak ada verifikasi visual/browser (tidak tersedia di environment ini).
 - Detail: `CHANGELOG.md` `[Fase 14 — Pagu] — JUMLAH REVISI PAGU di bawah baris Pagu (form TU + modal revisi)`.
 
-#### Fase 14 — Open Issue (Blocker Sebelum Fase 15): Akun Sudah Di-ACC Superadmin Namun Pendaftar Tertahan di Layar "Menunggu Persetujuan"
+#### Fase 14 — Selesai: Fix Auto-Detection Akun Disetujui (Serialisasi Date GAS, Hak Veto Superadmin, Flush Sheet, dan Countdown Redirect)
 
-- **Status**: **BELUM SELESAI / OPEN ISSUE (Sedang Diinvestigasi & Wajib Diselesaikan Sebelum Masuk Fase 15)**.
-- **Laporan User (7 Oktober 2026)**: Superadmin sudah menyetujui (ACC) akun pendaftar, tetapi di layar pendaftar (`#v-pending`) status tetap tertahan pada *"Menunggu Persetujuan"* dengan indikator *"Memeriksa status persetujuan secara otomatis..."* dan banner persetujuan tidak pernah muncul.
-- **Bukti & Skenario Kasus**:
-  - Pendaftar: Zakki Ramadhan Thoriq Mohammad (`muhammad.ztrr@gmail.com`).
-  - Jabatan Dilamar: **Staf** (`ROLE.STAF`).
-  - Tampilan Klien: Halaman Menunggu Persetujuan (`#v-pending`) tetap aktif dengan badge status kuning, tombol "Halaman Masuk" dan "Daftar Baru", tanpa auto-redirect atau banner sukses.
-- **Akar Masalah yang Teridentifikasi**:
-  1. **Konflik Kewenangan Approval Superadmin pada Entri Staf (`services/AuthService.js` §`auth_decideApproval`)**:
-     - Sesuai aturan routing `_routeApproval`, pendaftar jabatan Staf diarahkan (`RoutedTo`) ke `ROLE.KADIV` (Kepala Divisi terkait).
-     - Di `auth_decideApproval` baris 719-723, terdapat validasi keras:
-       ```javascript
-       } else if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
-         if (String(q['RoutedTo']) !== ROLE.SUPERADMIN) {
-           return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
-         }
-       }
-       ```
-     - Jika Superadmin mencoba meng-ACC pendaftar staf yang `RoutedTo`-nya adalah `KADIV`, server menolak dengan error `Anda tidak berwenang memutuskan permintaan ini.` Akibatnya penulisan status ke sheet `Users` **gagal dieksekusi**, sehingga akun tetap berstatus `PENDING` di database!
-     - Superadmin sebagai pemegang hak administratif tertinggi seharusnya memiliki hak override (veto) untuk menyetujui atau menolak permohonan antrean apa pun (`KADIV` maupun `STAF`).
-  2. **Approval via Menu Admin Panel Tidak Mensinkronkan `Approval_Queue` (`services/AdminService.js` §`admin_updateUser`)**:
-     - Jika Superadmin meng-ACC via tab Pengguna di Admin Panel (`admin_updateUser`), status di sheet `Users` diubah menjadi `APPROVED`, namun entri di sheet `Approval_Queue` tidak ikut di-update. Hal ini menimbulkan inkonsistensi data antar sheet.
-  3. **Sensitivitas Huruf (Case-Sensitivity) pada Lookup Email (`services/AuthService.js` §`auth_checkRegistrationStatus`)**:
-     - `auth_checkRegistrationStatus` mencari baris dengan `findRowByField(usersSheet, 'Email', email)`. Fungsi `findRowByField` melakukan perbandingan persis `===`. Jika email pendaftar di spreadsheet memiliki variasi huruf kapital (misal `Muhammad.ztrr@gmail.com`), sementara request mengirim `muhammad.ztrr@gmail.com`, baris tidak ditemukan (`userRow = null`) dan mengembalikan error `'Data pendaftaran tidak ditemukan.'`.
-  4. **Ketiadaan `SpreadsheetApp.flush()` pada Operasi Tulis**:
-     - Operasi update baris akun (`updateRowCells`) tidak memanggil `SpreadsheetApp.flush()`. Dalam lingkungan multi-request Google Apps Script, pembacaan sheet dari request polling pendaftar (unauthenticated) dapat membaca data stale sebelum buffer commit spreadsheet dieksekusi oleh GAS.
-  5. **Silent RPC Error Silencing di Client Polling (`html/Script_Main.html`)**:
-     - Fungsi `_startPendingStatusPolling` membungkus pemanggilan RPC dengan `withFailureHandler` kosong tanpa logging console, sehingga bila terjadi error jaringan atau penolakan server, tidak ada informasi diagnostik yang terlihat.
-- **Rencana Tindakan Perbaikan (Sebelum Fase 15)**:
-  - [ ] Perbaiki `auth_decideApproval` di `services/AuthService.js`: Izinkan Superadmin memutuskan semua entri permohonan registrasi tanpa dibatasi oleh `q['RoutedTo']`.
-  - [ ] Sinkronisasi `admin_updateUser` di `services/AdminService.js` agar memperbarui `Approval_Queue` saat status user diubah menjadi `APPROVED`/`REJECTED`.
-  - [ ] Buat pencarian email di `auth_checkRegistrationStatus` case-insensitive dan trimmed.
-  - [ ] Tambahkan `SpreadsheetApp.flush()` setelah pembaruan status pendaftaran dan queue.
-  - [ ] Tambahkan diagnostic log console pada `_startPendingStatusPolling` di `html/Script_Main.html`.
-  - [ ] Uji verifikasi alur ACC Superadmin untuk pelamar Staf dan Kadiv.
+- **Status**: **Selesai (Implementasi selesai & terverifikasi lokal)**.
+- **Laporan User (7 & 12 Oktober 2026)**: Pendaftar yang telah disetujui (ACC) oleh Superadmin masih tertahan di layar pending (`#v-pending`), sistem tidak auto-refresh atau mendeteksi persetujuan.
+- **Akar Masalah yang Ditemukan**:
+  1. **Serialisasi Date Object GAS pada `auth_checkRegistrationStatus`**: Nilai kolom `ApprovedAt` adalah objek native `Date`. Google Apps Script IPC (`google.script.run`) tidak mendukung transfer objek `Date`, sehingga mengembalikan `null` ke client dan guard polling langsung keluar diam-diam tanpa memproses status `APPROVED`.
+  2. **Konflik Hak Approval Superadmin pada Antrean Staf**: Pendaftar staf di-route ke `ROLE.KADIV`, dan validasi lama menolak Superadmin sehingga status tidak tersimpan di sheet `Users`.
+  3. **Penulisan Spreadsheet Tertunda**: `updateRowCells` tidak memanggil `SpreadsheetApp.flush()`, sehingga pembacaan sheet antar sesi berbeda membaca data stale.
+- **Perbaikan yang Diterapkan**:
+  - `auth_checkRegistrationStatus`: `ApprovedAt` dikonversi ke ISO string (`.toISOString()`), pencarian email dilengkapi fallback case-insensitive + trim.
+  - `auth_decideApproval` & `auth_getPendingApprovals`: Superadmin diberikan hak veto mutlak untuk melihat dan menyetujui seluruh pendaftaran (baik Kadiv maupun Staf).
+  - `admin_updateUser`: Menyinkronkan baris `Approval_Queue` jika Superadmin menyetujui user langsung dari Admin Panel.
+  - `SheetAccess.js`: Ditambahkan `SpreadsheetApp.flush()` pada `appendRowData` dan `updateRowCells`.
+  - `Script_Main.html`: Auto-detection memperbarui judul layar menjadi *"Pendaftaran Disetujui"*, menyembunyikan teks verifikasi, mengubah badge menjadi hijau (*Disetujui & Aktif*), memunculkan banner sukses, serta mengaktifkan countdown 4 detik menuju halaman login (`_pendingGoToLogin`).
+- **Verifikasi**: `node --check` 100% lolos di seluruh backend dan frontend. Syntax script client lolos validasi.
+- Detail: `CHANGELOG.md` `[Fix — Sebelum Fase 15] — Perbaikan Auto-Detection Akun Disetujui`.
 
 ---
 

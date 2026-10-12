@@ -388,6 +388,7 @@ function appendRowData(sheet, dataObj) {
   });
   sheet.appendRow(row);
   bumpTxVersion();
+  SpreadsheetApp.flush();
 }
 
 /**
@@ -406,6 +407,7 @@ function updateRowCells(sheet, rowIndex, updates) {
     }
   });
   bumpTxVersion();
+  SpreadsheetApp.flush();
 }
 
 // ===========================================================================

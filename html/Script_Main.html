@@ -294,8 +294,17 @@ function showAuthView(name) { _showAuthView(name); } // public alias for inline 
 // State polling status pendaftaran (real-time tanpa refresh)
 var _pendingPollTimer = null;
 var _lastPendingPayload = null;
+var _pendingAutoRedirectTimer = null;
+
+function _clearPendingAutoRedirect() {
+  if (_pendingAutoRedirectTimer) {
+    clearInterval(_pendingAutoRedirectTimer);
+    _pendingAutoRedirectTimer = null;
+  }
+}
 
 function _clearPendingBanners() {
+  _clearPendingAutoRedirect();
   var pHost = document.getElementById('pending-banner-host');
   if (pHost) pHost.innerHTML = '';
   var rHost = document.getElementById('register-banner-host');
@@ -312,18 +321,28 @@ function _startPendingStatusPolling(payload) {
     _silentRun(function () {
       google.script.run
         .withSuccessHandler(function (res) {
-          if (!res || !res.success || !res.data) return;
-          var st = res.data.status;
+          if (!res) {
+            console.warn('[PendingPolling] Response kosong dari server.');
+            return;
+          }
+          if (!res.success) {
+            console.warn('[PendingPolling] Pemeriksaan status:', res.error);
+            return;
+          }
+          if (!res.data) return;
+          var st = String(res.data.status || '').trim().toUpperCase();
           if (st === 'APPROVED') {
+            console.log('[PendingPolling] Akun telah disetujui (APPROVED). Memperbarui UI...');
             _stopPendingStatusPolling();
             _onRegistrationApproved(res.data);
           } else if (st === 'REJECTED') {
+            console.log('[PendingPolling] Akun ditolak (REJECTED). Memperbarui UI...');
             _stopPendingStatusPolling();
             _onRegistrationRejected(res.data);
           }
         })
-        .withFailureHandler(function () {
-          // silent: kegagalan sesaat tidak menghentikan polling berkala
+        .withFailureHandler(function (err) {
+          console.error('[PendingPolling] Gagal menghubungi auth_checkRegistrationStatus:', err);
         })
         .auth_checkRegistrationStatus({
           email: _lastPendingPayload.email,
@@ -350,6 +369,21 @@ function _onRegistrationApproved(data) {
 
   try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
 
+  var titleEl = document.querySelector('#v-pending .auth-title');
+  if (titleEl) titleEl.textContent = 'Pendaftaran Disetujui';
+
+  var staticInfoEl = document.querySelector('#v-pending .n-info-static');
+  if (staticInfoEl) staticInfoEl.style.display = 'none';
+
+  var pInfoEl = document.getElementById('pending-info');
+  if (pInfoEl) {
+    var warnBadge = pInfoEl.querySelector('.badge-warn');
+    if (warnBadge) {
+      warnBadge.className = 'badge badge-success';
+      warnBadge.textContent = 'Disetujui & Aktif';
+    }
+  }
+
   var bannerHtml =
     '<div class="n-banner-approved" role="alert">' +
       '<div class="n-banner-approved-head">' +
@@ -372,17 +406,48 @@ function _onRegistrationApproved(data) {
   var rHost = document.getElementById('register-banner-host');
   if (rHost) rHost.innerHTML = bannerHtml;
 
+  var timeLeft = 4;
   var liveEl = document.getElementById('pending-live-status');
   if (liveEl) {
-    liveEl.innerHTML = '<span style="color:var(--n-status-success);font-weight:600;">Status: Akun Aktif &amp; Disetujui</span>';
+    liveEl.innerHTML =
+      '<span style="color:var(--n-status-success);font-weight:600;display:inline-flex;align-items:center;gap:6px;">' +
+        '&#10003; Mengalihkan otomatis ke halaman masuk dalam <span id="pending-cd-sec">' + timeLeft + '</span> detik…' +
+      '</span>';
   }
+
+  _clearPendingAutoRedirect();
+  _pendingAutoRedirectTimer = setInterval(function () {
+    timeLeft--;
+    var cdEl = document.getElementById('pending-cd-sec');
+    if (cdEl) cdEl.textContent = String(timeLeft);
+    if (timeLeft <= 0) {
+      _clearPendingAutoRedirect();
+      _pendingGoToLogin(email);
+    }
+  }, 1000);
 }
 
 function _onRegistrationRejected(data) {
+  _clearPendingAutoRedirect();
   var email  = data.email || (_lastPendingPayload && _lastPendingPayload.email) || '';
   var alasan = data.alasanReject || 'Pendaftaran tidak memenuhi kriteria verifikasi.';
 
   try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
+
+  var titleEl = document.querySelector('#v-pending .auth-title');
+  if (titleEl) titleEl.textContent = 'Pendaftaran Ditolak';
+
+  var staticInfoEl = document.querySelector('#v-pending .n-info-static');
+  if (staticInfoEl) staticInfoEl.style.display = 'none';
+
+  var pInfoEl = document.getElementById('pending-info');
+  if (pInfoEl) {
+    var warnBadge = pInfoEl.querySelector('.badge-warn');
+    if (warnBadge) {
+      warnBadge.className = 'badge badge-danger';
+      warnBadge.textContent = 'Ditolak';
+    }
+  }
 
   var bannerHtml =
     '<div class="n-banner-rejected" role="alert">' +
@@ -412,6 +477,8 @@ function _onRegistrationRejected(data) {
 }
 
 function _pendingGoToLogin(email) {
+  _clearPendingAutoRedirect();
+  _stopPendingStatusPolling();
   _showAuthView('login');
   var emailInput = document.getElementById('login-email');
   if (emailInput && email) {
@@ -426,6 +493,8 @@ function _pendingGoToLogin(email) {
 }
 
 function _pendingGoToRegister(email) {
+  _clearPendingAutoRedirect();
+  _stopPendingStatusPolling();
   _showAuthView('register');
   _regResetOtp();
   var emailInput = document.getElementById('reg-email');
@@ -436,6 +505,7 @@ function _pendingGoToRegister(email) {
 }
 
 function _pendingCancelOrNew() {
+  _clearPendingAutoRedirect();
   _stopPendingStatusPolling();
   _lastPendingPayload = null;
   try { sessionStorage.removeItem('NAUTIKA_PENDING_REG'); } catch (e) {}
@@ -445,6 +515,12 @@ function _pendingCancelOrNew() {
 }
 
 function _renderPendingInfo(user) {
+  _clearPendingAutoRedirect();
+  var titleEl = document.querySelector('#v-pending .auth-title');
+  if (titleEl) titleEl.textContent = 'Menunggu Persetujuan';
+  var staticInfoEl = document.querySelector('#v-pending .n-info-static');
+  if (staticInfoEl) staticInfoEl.style.display = '';
+
   var el = document.getElementById('pending-info');
   if (!el) return;
   el.innerHTML =

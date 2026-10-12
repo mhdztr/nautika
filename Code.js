@@ -154,3 +154,14 @@ function debug_adminCheck() {
     return results;
   }
 }
+
+
+
+
+
+
+
+function auth_checkStatusByEmail(email){ return auth_checkStatusByEmail_global(email); }
+function auth_checkStatusByEmail_global(email){ return auth_checkStatusByEmail_global_fn ? auth_checkStatusByEmail_global_fn(email) : null; }
+
+

@@ -59,9 +59,15 @@
           <div class="form-grp">
             <label for="oud-periode-tahun">Periode Laporan</label>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-              <select id="oud-periode-tahun"><option value="">Tahun</option></select>
-              <select id="oud-periode-bulan"><option value="">Bulan</option></select>
-              <select id="oud-periode-minggu"><option value="">Minggu Ke-</option></select>
+              <select id="oud-periode-tahun">
+                <option value="">Tahun</option>
+              </select>
+              <select id="oud-periode-bulan">
+                <option value="">Bulan</option>
+              </select>
+              <select id="oud-periode-minggu">
+                <option value="">Minggu Ke-</option>
+              </select>
             </div>
             <div class="n-form-hint" id="oud-periode-hint">Periode: —</div>
           </div>
@@ -75,11 +81,14 @@
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
           <div class="form-grp">
-            <label for="oud-kapal">Kapal Pengawas <span style="color:var(--n-text-muted);font-weight:400;">(wajib)</span></label>
+            <label for="oud-kapal">Kapal Pengawas <span
+                style="color:var(--n-text-muted);font-weight:400;">(wajib)</span></label>
             <div class="kdl-sel">
-              <input type="text" id="oud-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
+              <input type="text" id="oud-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off"
+                placeholder="(Pilih Kapal)">
               <input type="hidden" id="oud-kapal">
-              <button type="button" id="oud-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+              <button type="button" id="oud-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan"
+                style="display:none;"></button>
               <span class="kdl-caret"></span>
               <div class="kdl-panel" id="oud-kapal-panel">
                 <input type="text" id="oud-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
@@ -92,7 +101,8 @@
 
         <div style="border-top: 1px solid var(--n-border-subtle); margin: 24px 0;"></div>
         <h3 style="font-size: 1rem; color: var(--n-text-primary); margin-bottom: 4px;">Pemantauan Udara</h3>
-        <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:14px;">Jumlah objek teridentifikasi dihitung otomatis dari daftar di bawah.</div>
+        <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:14px;">Jumlah objek teridentifikasi
+          dihitung otomatis dari daftar di bawah.</div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
           <div class="form-grp">
@@ -162,7 +172,8 @@
       <div id="oud-revisi-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
       <div id="oud-revisi-msg" class="n-msg"></div>
 
-      <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:12px;">Jumlah KII/KIA/Objek SDK mengikuti daftar di bawah (dihitung sistem).</div>
+      <div style="font-size:.78rem; color:var(--n-text-muted); margin-bottom:12px;">Jumlah KII/KIA/Objek SDK mengikuti
+        daftar di bawah (dihitung sistem).</div>
       <div id="rv-oud-objek-list"></div>
       <button type="button" class="n-list-add" onclick="_opsUdaraAddRvObjek()">Tambah Objek</button>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px; margin-top: 20px;">
@@ -170,11 +181,14 @@
         <div class="form-grp"><label>Cakupan (NM²)</label><input type="number" id="rv-oud-cakupan" min="0"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="form-grp"><label for="rv-oud-kapal">Kapal Pengawas <span style="color:var(--n-status-critical);">*</span></label>
+        <div class="form-grp"><label for="rv-oud-kapal">Kapal Pengawas <span
+              style="color:var(--n-status-critical);">*</span></label>
           <div class="kdl-sel">
-            <input type="text" id="rv-oud-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off" placeholder="(Pilih Kapal)">
+            <input type="text" id="rv-oud-kapal-input" class="kdl-field" readonly="readonly" autocomplete="off"
+              placeholder="(Pilih Kapal)">
             <input type="hidden" id="rv-oud-kapal">
-            <button type="button" id="rv-oud-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan" style="display:none;"></button>
+            <button type="button" id="rv-oud-kapal-clear" class="kdl-clear" tabindex="-1" title="Hapus pilihan"
+              style="display:none;"></button>
             <span class="kdl-caret"></span>
             <div class="kdl-panel" id="rv-oud-kapal-panel">
               <input type="text" id="rv-oud-kapal-q" class="kdl-q" placeholder="Cari kapal…" autocomplete="off">
@@ -183,8 +197,10 @@
           </div>
         </div>
         <div style="display:flex; gap:10px;">
-          <div class="form-grp" style="flex:1;"><label>Hari Jml</label><input type="number" id="rv-oud-hari-jumlah"></div>
-          <div class="form-grp" style="flex:1;"><label>Hari Target</label><input type="number" id="rv-oud-hari-target"></div>
+          <div class="form-grp" style="flex:1;"><label>Hari Jml</label><input type="number" id="rv-oud-hari-jumlah">
+          </div>
+          <div class="form-grp" style="flex:1;"><label>Hari Target</label><input type="number" id="rv-oud-hari-target">
+          </div>
         </div>
       </div>
 
@@ -208,8 +224,10 @@
       <div id="oud-anulir-info" style="margin-bottom:14px;font-size:.875rem;color:var(--n-text-secondary);"></div>
       <div id="oud-anulir-msg" class="n-msg"></div>
 
-      <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--n-status-critical); padding: 12px; margin-bottom: 16px; font-size: 0.875rem; color: var(--n-text-primary);">
-        <strong>Perhatian:</strong> Komentar anulir akan terlihat oleh seluruh anggota divisi dan notifikasi akan dikirim ke publisher.
+      <div
+        style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--n-status-critical); padding: 12px; margin-bottom: 16px; font-size: 0.875rem; color: var(--n-text-primary);">
+        <strong>Perhatian:</strong> Komentar anulir akan terlihat oleh seluruh anggota divisi dan notifikasi akan
+        dikirim ke publisher.
       </div>
 
       <div class="form-grp">
@@ -218,7 +236,8 @@
       </div>
 
       <div style="display:flex;gap:12px;margin-top:24px;">
-        <button class="btn-primary" style="background:var(--n-status-critical);" id="oud-btn-anulir-save" onclick="opsUdaraAnulirConfirm()">Anulir Laporan</button>
+        <button class="btn-primary" style="background:var(--n-status-critical);" id="oud-btn-anulir-save"
+          onclick="opsUdaraAnulirConfirm()">Anulir Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-oud-anulir')">Batal</button>
       </div>
     </div>

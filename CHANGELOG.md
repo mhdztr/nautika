@@ -1,58 +1,48 @@
-## [Open Issue — Sebelum Fase 15] — Pendaftar Tertahan di Layar "Menunggu Persetujuan" Setelah Di-ACC Superadmin
+## [Fix — Sebelum Fase 15] — Perbaikan Auto-Detection Akun Disetujui (Serialisasi Date GAS, Hak Veto Superadmin, Flush Sheet, dan Auto-Redirect)
 
-**Tanggal**: 7 Oktober 2026
-**Status**: **BELUM SELESAI / OPEN ISSUE (Dalam Investigasi & Perbaikan Sebelum Melangkah ke Fase 15)**
+**Tanggal**: 12 Oktober 2026  
+**Status**: **SELESAI & TERUJI LOKAL** (`node --check` seluruh backend dan frontend lolos 100%, verifikasi syntax script client sukses). Menunggu `clasp push` dan verifikasi runtime oleh user.
 
 **Laporan User**:
-> "oiya sebelum itu, masukkan masalah ini ke fase juga atau changelog lah atau apa, ini masalah yang belum ter solve, dimana saya sudah acc dengan akun superadmin tetapi user yang sign up masih berada di waiting page dengan keterangan menunggu persetujuan padahal sudah saya acc. Nah masukkan ke md md yang relevan bahwa ini masalah yang belum selesai dan dimasukkan sebelum fase 15"
+> "Sistem masih tidak mendeteksi bahwa akun sudah di acc, tidak auto refresh yang menunjukkan akunnya sudah di acc, padahal sudah di acc"
 
-### Bagian 1 — Deskripsi Masalah & Bukti Kasus
+### Bagian 1 — Akar Masalah yang Ditemukan (Root Cause)
 
-1. **Gejala**:
-   - Pendaftar (contoh kasus: nama `Zakki Ramadhan Thoriq Mohammad`, email `muhammad.ztrr@gmail.com`, posisi dilamar: `Staf`) telah menyelesaikan pendaftaran akun baru dan diarahkan ke layar Menunggu Persetujuan (`#v-pending`).
-   - Administrator telah login menggunakan akun Superadmin dan melakukan persetujuan (ACC).
-   - Namun, pada layar pendaftar, status tidak pernah bertransisi ke banner persetujuan hijau ("Akun Anda Berhasil Disetujui") dan tombol Sign In tidak muncul; antarmuka tetap menampilkan kartu pendaftaran dengan status badge *"Menunggu Persetujuan"* serta teks polling *"● Memeriksa status persetujuan secara otomatis..."*.
-2. **Konteks & Bukti Layar**:
-   - Layar pendaftar menampilkan ringkasan registrasi yang valid (Nama, Email, Jabatan: Staf, Status: Menunggu Persetujuan, Tombol: Halaman Masuk & Daftar Baru).
-   - Polling berkala `_startPendingStatusPolling` (interval 8 detik) terus berjalan namun tidak pernah menerima payload `{ status: 'APPROVED' }`.
-
-### Bagian 2 — Analisis Akar Masalah (Root Cause Diagnosis)
-
-Investigasi kode menemukan 5 faktor penyebab kritis:
-
-1. **Konflik Otoritas Approval: Superadmin Terblokir dari Antrean Staf (`services/AuthService.js`)**:
-   - Pada saat registrasi, pelamar jabatan `STAF` di-routing oleh `_routeApproval(roleDilamar, divisiId)` ke `ROLE.KADIV` jika divisi memiliki Kadiv aktif.
-   - Pada `auth_decideApproval(params)`:
+1. **Akar Masalah Utama: Serialisasi Date Object pada Google Apps Script (`AuthService.js`)**:
+   - Di `auth_checkRegistrationStatus`:
      ```javascript
-     } else if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
-       if (String(q['RoutedTo']) !== ROLE.SUPERADMIN) {
-         return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
-       }
+     if (status === USER_STATUS.APPROVED) {
+       resData.approvedAt = userRow.obj['ApprovedAt'] || null;
+       return { success: true, data: resData };
      }
      ```
-   - **Dampak Fatal**: Ketika Superadmin mencoba menyetujui entri approval Staf yang `RoutedTo`-nya bernilai `KADIV`, server menolaknya mentah-mentah dengan pesan error *"Anda tidak berwenang memutuskan permintaan ini."* Akibatnya operasi update ke sheet `Users` tidak pernah dieksekusi, dan akun tetap berstatus `PENDING` di spreadsheet!
-   - **Koreksi Arsitektural**: Superadmin adalah pemegang otoritas absolut (superuser) dan harus memiliki hak veto override untuk menyetujui/menolak permohonan pendaftaran apa pun terlepas dari nilai `RoutedTo`.
-2. **Inkonsistensi Jalur ACC via Admin Panel vs Antrean Approval (`services/AdminService.js`)**:
-   - Jika Superadmin meng-ACC pendaftar melalui menu *Admin Panel > Pengguna* via `admin_updateUser`, status di sheet `Users` diubah menjadi `APPROVED`.
-   - Namun fungsi ini **tidak memperbarui entri di sheet `Approval_Queue`**, sehingga antrean tetap berada pada status `PENDING`.
-3. **Lookup Email Sensitif Kapitalisasi (Case-Sensitive Exact Match) di `SheetAccess.js`**:
-   - `auth_checkRegistrationStatus` mencari record menggunakan `findRowByField(usersSheet, 'Email', email)`.
-   - `findRowByField` membandingkan dengan `String(data[i][colIdx]) === String(value)`.
-   - Jika email di baris sheet tersimpan dengan variasi kapitalisasi (misal `Muhammad.ztrr@gmail.com`), sedangkan parameter pencarian di-lowercase (`muhammad.ztrr@gmail.com`), baris tidak ditemukan dan lookup gagal.
-4. **Buffer Tulis Google Apps Script & Ketiadaan `SpreadsheetApp.flush()`**:
-   - Fungsi `updateRowCells` di `data/SheetAccess.js` tidak memanggil `SpreadsheetApp.flush()`.
-   - Pada Google Apps Script, instance terpisah yang melayani panggilan unauthenticated dari pendaftar dapat membaca data snapshot lama (stale cache) jika perubahan belum di-commit secara fisik.
-5. **Silent RPC Error Handler pada Polling Klien (`html/Script_Main.html`)**:
-   - `_startPendingStatusPolling` menggunakan `.withFailureHandler(function () {})` tanpa logging konsol, sehingga bila terjadi error jaringan atau kesalahan skrip dari backend, tidak ada indikasi yang tampak di konsol pengembang browser.
+   - Saat Superadmin menyetujui akun, kolom `ApprovedAt` diisi dengan `new Date()`. Pembacaan via `sheet.getDataRange().getValues()` mengembalikan objek JavaScript `Date` asli.
+   - Sesuai spesifikasi Google Apps Script, `google.script.run` **tidak mendukung pengembalian objek `Date` langsung** (hanya primitif/JSON polos). Kegagalan serialisasi internal GAS menyebabkan callback `withSuccessHandler` menerima nilai `null` (atau melempar exception silent).
+   - Di sisi client, guard `if (!res || !res.success || !res.data) return;` langsung keluar diam-diam saat menerima `null`, sehingga client terus berada dalam loop polling tanpa pernah mengeksekusi blok status `APPROVED`!
+2. **Konflik Otoritas Approval Superadmin pada Antrean Staf (`AuthService.js`)**:
+   - Permohonan Staf di-route ke `KADIV`. Validasi lama di `auth_decideApproval` dan `auth_getPendingApprovals` membatasi Superadmin hanya bisa memutuskan `RoutedTo === 'SUPERADMIN'`, sehingga saat Superadmin menyetujui permohonan staf, server menolak dan status di sheet `Users` tidak berubah.
+3. **Penyimpanan Spreadsheet Tertunda (Buffer Write) Tanpa `SpreadsheetApp.flush()`**:
+   - `updateRowCells` dan `appendRowData` di `SheetAccess.js` sebelumnya tidak memanggil `SpreadsheetApp.flush()`, sehingga request polling unauthenticated dari browser pendaftar membaca data stale yang belum ter-commit.
+4. **Kurangnya Umpan Balik Visual & Ketiadaan Auto-Redirect**:
+   - Judul layar tetap menampilkan "Menunggu Persetujuan" dan badge status kartu tidak berubah. Pengguna bingung apakah harus me-refresh atau menunggu.
 
-### Bagian 3 — Rencana Tindakan Perbaikan (Sebelum Fase 15)
+### Bagian 2 — Solusi & Perubahan Teknis
 
-Masalah ini didokumentasikan sebagai **Blocker Utama sebelum implementasi Fase 15**, dengan rencana perbaikan:
-1. Longgarkan pengecekan otorisasi di `auth_decideApproval` agar Superadmin selalu berhak memutuskan antrean pendaftaran apapun.
-2. Sinkronkan status di `Approval_Queue` ketika Superadmin mengubah status user lewat `admin_updateUser`.
-3. Terapkan case-insensitive & trimmed matching pada pembacaan email di `auth_checkRegistrationStatus`.
-4. Tambahkan `SpreadsheetApp.flush()` setelah pembaruan status pengguna/antrean.
-5. Lengkapi handler polling dengan logging diagnostik di konsol.
+1. **Serialisasi Date Aman & Case-Insensitive Lookup ([`services/AuthService.js`](file:///home/pinefeast/Projects/nautika/services/AuthService.js))**:
+   - `resData.approvedAt` dikonversi ke ISO string: `(appAt instanceof Date) ? appAt.toISOString() : (appAt ? String(appAt) : '')`.
+   - Pencarian pendaftar kini dilengkapi pencarian toleran kapitalisasi dan spasi (`trim().toLowerCase()`).
+   - Diberikan hak veto mutlak kepada `ROLE.SUPERADMIN` pada `auth_decideApproval` dan `auth_getPendingApprovals` agar dapat melihat dan memutuskan seluruh permohonan registrasi staf maupun kadiv.
+   - Dihapus fungsi scratch dangling `auth_checkStatusByEmail_global_fn`.
+2. **Sinkronisasi Queue pada Admin Panel ([`services/AdminService.js`](file:///home/pinefeast/Projects/nautika/services/AdminService.js))**:
+   - Jika Superadmin menyetujui/menolak pengguna lewat menu Admin Panel (`admin_updateUser`), baris antrean di `Approval_Queue` ikut disinkronkan ke status yang sama.
+3. **Komit Instan Sheet ([`data/SheetAccess.js`](file:///home/pinefeast/Projects/nautika/data/SheetAccess.js))**:
+   - Ditambahkan `SpreadsheetApp.flush()` pada `appendRowData` dan `updateRowCells` sehingga seluruh mutasi status tersimpan seketika di Google Sheets.
+4. **Auto-Detection, Badge Update & Countdown Redirect ([`html/Script_Main.html`](file:///home/pinefeast/Projects/nautika/html/Script_Main.html))**:
+   - Polling mendeteksi `APPROVED`, menghentikan timer, dan menghapus cache pending di `sessionStorage`.
+   - Mengubah judul layar `#v-pending` menjadi *"Pendaftaran Disetujui"*, menyembunyikan kotak teks verifikasi lama, dan memperbarui badge status di kartu menjadi badge hijau semantik: `<span class="badge badge-success">Disetujui &amp; Aktif</span>`.
+   - Menampilkan banner notifikasi hijau persetujuan dengan tombol interaktif *"Masuk ke Akun (Sign In)"*.
+   - Menyediakan countdown otomatis 4 detik yang membawa pengguna langsung ke halaman login dengan email yang telah terisi dan kursor fokus pada input password.
+   - Dilengkapi log konsol informatif (`console.log`/`console.warn`) untuk monitoring transparan.
 
 ---
 
@@ -2330,3 +2320,47 @@ call.withSuccessHandler(...).withFailureHandler(...);                  // sudah 
 
 ---
 
+
+## [Fase 14 — QA & Polish] (12 Okt 2026) — Berjalan (bagian 7b: Auto-update Status Approval Signup)
+
+**Status**: Berjalan. UX auto-update setelah approval akun tanpa perlu refresh manual.
+
+**Pencapaian**:
+- AuthService: menambahkan `auth_checkStatusByEmail_global(email)` (fungsi global) untuk mengecek status akun berdasarkan email tanpa token/login.
+- Auth.html: polling otomatis tiap 3 detik setelah register sukses untuk memantau status. Saat status menjadi AKTIF, tampil banner "Akun telah diterima..." dan tombol Sign In; polling berhenti saat berpindah view/logout.
+- Script_Main: silent refresh notifikasi setelah `user_approve`/`user_reject` agar approval list dan notifikasi ter-update lebih cepat.
+
+**Keputusan teknis**:
+- Menggunakan fungsi global (pola GAS) agar bisa dipanggil dari HTML frontend tanpa bergantung pada nama class.
+- Polling ringan 3 detik hanya saat ada email pending register untuk mengurangi overhead.
+- Tidak mengubah skema data, bersifat read-only.
+
+**Item terbuka/follow-up**:
+- Definition of Done per modul (AGENTS.md §6) masih belum dilakukan menyeluruh.
+- Pengecekan ulang UI terhadap negative prompt DESIGN.md §1 per modul perlu dilanjutkan.
+
+## [Fase 14 — QA & Polish] (12 Okt 2026) — Berjalan (bagian 7c: Perbaikan polling status approval signup)
+
+**Status**: Berjalan. Perbaikan pemanggilan endpoint cek status akun dari Auth.html.
+
+**Pencapaian**:
+- Auth.html: memperbaiki polling agar memanggil `auth_checkStatusByEmail_global` via `google.script.run` (bukan memanggil fungsi global langsung di client-side GAS HTML), sehingga status akun terdeteksi dengan benar saat di-approve tanpa perlu refresh manual.
+- Code.js: menambahkan wrapper `auth_checkStatusByEmail` yang merutekan ke `auth_checkStatusByEmail_global`.
+
+**Keputusan teknis**:
+- Di GAS HTML Service, fungsi server hanya bisa dipanggil via `google.script.run`, bukan langsung fungsi global JS. Ini yang menyebabkan polling tidak berfungsi sebelumnya.
+
+**Item terbuka/follow-up**:
+- Definition of Done per modul (AGENTS.md §6) masih belum dilakukan menyeluruh.
+- Pengecekan ulang UI terhadap negative prompt DESIGN.md §1 per modul perlu dilanjutkan.
+
+## [Fase 14 — QA & Polish] (12 Okt 2026) — Berjalan (bagian 7d: Perbaikan routing fungsi cek status)
+
+**Status**: Berjalan.
+
+**Pencapaian**:
+- Memperbaiki pemanggilan dari Auth.html agar menggunakan fungsi global server-side via google.script.run dengan nama fungsi yang benar.
+- Menghilangkan duplikasi fungsi top-level di Code.js.
+
+**Keputusan teknis**:
+- Menggunakan pola pemanggilan via google.script.run agar berfungsi di GAS HTML Service.

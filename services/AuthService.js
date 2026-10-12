@@ -225,6 +225,16 @@ function auth_checkRegistrationStatus(params) {
     }
     if (!userRow && email) {
       userRow = findRowByField(usersSheet, 'Email', email);
+      if (!userRow) {
+        var allUsers = sheetToObjects(usersSheet);
+        for (var u = 0; u < allUsers.length; u++) {
+          var rowEmail = String(allUsers[u]['Email'] || '').trim().toLowerCase();
+          if (rowEmail === email) {
+            userRow = { obj: allUsers[u], rowIndex: u + 2 };
+            break;
+          }
+        }
+      }
     }
 
     if (!userRow) {
@@ -244,7 +254,8 @@ function auth_checkRegistrationStatus(params) {
     };
 
     if (status === USER_STATUS.APPROVED) {
-      resData.approvedAt = userRow.obj['ApprovedAt'] || null;
+      var appAt = userRow.obj['ApprovedAt'];
+      resData.approvedAt = (appAt instanceof Date) ? appAt.toISOString() : (appAt ? String(appAt) : '');
       return { success: true, data: resData };
     }
 
@@ -640,7 +651,10 @@ function auth_getPendingApprovals(token) {
 
     var pending = queueRows.filter(function (q) {
       if (String(q['Status']) !== USER_STATUS.PENDING) return false;
-      if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
+      if (session.role === ROLE.SUPERADMIN) {
+        return true;
+      }
+      if (session.role === ROLE.DIREKTUR) {
         return String(q['RoutedTo']) === ROLE.SUPERADMIN;
       }
       if (session.role === ROLE.KADIV) {
@@ -716,7 +730,9 @@ function auth_decideApproval(params) {
         if (String(q['RoutedTo']) !== ROLE.KADIV || String(q['DivisiID']) !== session.divisiId) {
           return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
         }
-      } else if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR) {
+      } else if (session.role === ROLE.SUPERADMIN) {
+        // Superadmin memiliki wewenang penuh memutuskan seluruh antrean persetujuan (hak veto)
+      } else if (session.role === ROLE.DIREKTUR) {
         if (String(q['RoutedTo']) !== ROLE.SUPERADMIN) {
           return { success: false, error: 'Anda tidak berwenang memutuskan permintaan ini.' };
         }

@@ -57,6 +57,8 @@ Berhenti dan tanyakan ke user (jangan lanjut mengasumsikan) jika:
 
 ## 6. Definition of Done (per modul divisi)
 
+> **Aturan Waktu Trigger Audit (Keputusan User, 12 Okt 2026)**: Audit Definition of Done per modul dipindahkan ke tahap akhir proyek di luar penomoran fase. Agent dilarang menjalankan atau memaksakan audit ini di tengah fase; audit hanya akan dieksekusi ketika seluruh fase selesai dan user meminta *"lanjut"* saat tidak ada lagi fase pengembangan yang tersisa.
+
 Satu modul divisi (mis. Operasi Laut) dianggap selesai jika:
 - [ ] Form input sesuai field di `DATA_SCHEMA.md` untuk sheet terkait, termasuk dropdown relasional (Kapal/WPP/Kawasan, bukan free-text)
 - [ ] Validasi server-side sesuai aturan di `PRD.md` §5 untuk modul tersebut

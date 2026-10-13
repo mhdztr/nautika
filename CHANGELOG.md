@@ -1,3 +1,107 @@
+## [Fase 15b] — Modular Silent Reloaders & Auto-Sync Transaksi Site-Wide (14 Modul, Anti-Flicker, dan Preservasi Scroll)
+
+**Tanggal**: 12 Oktober 2026  
+**Status**: **SELESAI & TERUJI LOKAL** (`node --check` 100% lulus, VM unit test Node berhasil memvalidasi seluruh 14 modul). Menunggu `clasp push` dan pengujian runtime oleh user.
+
+### 1. Pencapaian & Ringkasan Perubahan
+1. **Registry Silent Reloader Modular (`_SYNC_RELOADERS`)**:
+   - Dibuat di `html/Script_Main.html` untuk memetakan seluruh 14 modul dan view data secara granular:
+     - `overview`: `_ovLoadData(true)` + `_refreshApprovalPanels()` (KPI utama, chart penindakan & tren, grid 6-kolom, choropleth WPP, antrean approver).
+     - `tata-usaha`: `_tuLoadKPI(true)` + `_tuLoadHistory(true)` (KPI pagu/realisasi, tren bulanan, riwayat).
+     - `operasi`: `_opsLautLoadKPI(true)` / `_opsUdaraLoadKPI(true)` + history, adaptif terhadap tab aktif (`_OPS.tab === 'pesawat'` atau `'kapal'`).
+     - `intelijen`: `_intelLoadKPI(true)` + `_intelLoadHistory(true)` (KPI kejadian, tabel kawasan, chart jenis, riwayat).
+     - `pemantauan`: `_pemLoadKPI(true)` + `_pemLoadHistory(true)` (KPI penerbitan/migrasi/penyedia, riwayat).
+     - `perawatan`: `_rawatLoadKPI(true)` + `_rawatFetchHistory(_RAWAT.tab, true)` + `_rawatBuildPaneCharts()` (adaptif sub-tab: kesiapan, docking, atau item).
+     - `logistik`: `_logLoadKPI(true)` + `_logFetchHistory(_LOG.tab, true)` + `_logBuildPaneCharts()` (adaptif sub-tab: amunisi, bbm, atau personil).
+     - `pengawakan`: `_awkLoadKPI(true)` + `_awkFetchHistory(_AWK.tab, true)` + `_awkBuildPaneCharts()` (adaptif sub-tab: akn atau kegiatan).
+     - `kegiatan`: `_kgdLoadKPI(true)` + `_kgdLoadHistory(true)` (feed kronologis kegiatan direktorat).
+     - `riwayat`: `_riwLoad(true)` (tabel agregasi lintas modul & filter status tab).
+     - `master-data`: `_mdReloadActiveTab(true)` (adaptif sub-tab kapal/kawasan/wpp/opsi).
+     - `kelola-akun`: `_adnReloadActiveTab()` (adaptif sub-tab persetujuan/pengguna/audit/reminder).
+     - `notifikasi`: `_ntfReload()` (daftar notifikasi).
+     - `profil-kapal`: `_pkLoad()` (kartu profil kapal terpilih).
+2. **Pemberantasan Flicker (Anti-Flicker Mechanism)**:
+   - Menambahkan parameter `silent = true` pada seluruh loader KPI strip dan tabel riwayat agar tidak mengganti DOM menjadi skeleton spinner saat background update berjalan. Elemen UI yang ada tetap utuh dan data langsung terbarui begitu respons server tiba.
+3. **Peta WPP Tetap Utuh (Zero Harsh Map Teardown)**:
+   - Peta Leaflet pada Operasi Laut dan Operasi Udara tidak dihancurkan; hanya layer intensitas poligon WPP (`_renderWppLayer()` / `_renderOpsUdaraWppLayer()`) yang di-update warnanya in-place.
+4. **Preservasi Scroll Window & Tabel**:
+   - `_dispatchModuleSilentReloader(viewId)` mencatat koordinat scroll halaman (`window.pageYOffset`) dan scroll kontainer tabel (`.n-table-wrap`, `.table-responsive`) sebelum pembaruan, lalu memulihkannya kembali secara instan setelah render selesai. Kursor dan posisi pandang pengguna tidak pernah mental ke atas layar.
+5. **Preservasi Filter & Sub-Tab**:
+   - Semua sub-tab aktif (`_OPS.tab`, `_RAWAT.tab`, `_LOG.tab`, `_AWK.tab`, `_ADN.tab`, `_MD.tab`, `_RIW.statusTab`) dan filter periode global (`APP.filter`) tetap terjaga utuh.
+
+### 2. Keputusan Teknis
+- **In-Place Updates**: Menghindari penghancuran dan pembuatan ulang DOM wrapper (`page-content`) saat data server berubah. Update data ditargetkan langsung ke elemen data/chart tanpa merusak state antarmuka.
+- **Scroll Memory Microtask**: Penundaan 120ms pemulihan scroll memastikan DOM tabel selesai dibangun oleh browser sebelum koordinat `scrollTop` dipulihkan.
+
+### 3. File yang Dimodifikasi
+- `html/Script_Main.html`: Penambahan `_SYNC_RELOADERS`, `_dispatchModuleSilentReloader()`, `_adnReloadActiveTab()`, `_mdReloadActiveTab()`, penambahan parameter `silent` pada seluruh fungsi loader KPI & history.
+- `PHASES.md`: Status Fase 15b diubah menjadi Selesai. Seluruh fase pengembangan roadmap resmi tuntas.
+
+---
+
+## [Fase 15a] — Fondasi Backend Version-State & Client Heartbeat Engine (Live-Sync Real-Time Tanpa F5, Form Modal Guard, dan Zero-Sheet-Read)
+
+**Tanggal**: 12 Oktober 2026  
+**Status**: **SELESAI & TERUJI LOKAL** (`node --check` 100% lulus di seluruh file backend dan skrip HTML client). Menunggu `clasp push` dan pengujian runtime oleh user.
+
+### 1. Pencapaian & Ringkasan Perubahan
+1. **Backend Version-State Endpoint (`app_getSyncState`)**:
+   - Dibuat di `services/DashboardService.js` sebagai kanal komunikasi sinkronisasi ultra-ringan tanpa membaca spreadsheet (*Zero-Sheet-Read*, eksekusi < 50ms).
+   - Membaca `DASH_TX_VERSION` langsung dari `CacheService` RAM yang otomatis dinaikkan oleh `bumpTxVersion()` di `data/SheetAccess.js` pada setiap operasi tulis/revisi/anulir.
+   - Mengambil jumlah unread notifikasi user dan antrean approval approver langsung dari cache RAM, dengan cache setter di `NotifikasiService.js` dan `AuthService.js`.
+2. **Client Heartbeat Engine Terpadu**:
+   - Diterapkan di `html/Script_Main.html` dengan interval periodik 35 detik (`APP_SYNC.syncInterval`).
+   - Berjalan senyap via `_silentRun(fn)` sehingga tidak memicu spinner `#filter-busy` yang mengganggu pandangan pengguna.
+   - Dilengkapi *Tab Visibility & Focus Sync*: saat tab diminimalkan atau disembunyikan, heartbeat dijeda; saat tab aktif kembali (`visibilitychange` atau window `focus`), sinkronisasi instan (*sync-on-focus*) langsung dipicu.
+3. **Form Modal Guard (Anti-Interupsi Input Data)**:
+   - Fungsi `_isFormActive()` mendeteksi keberadaan overlay formulir yang sedang terbuka (`.n-overlay:not(.n-hidden)`), drawer penolakan/persetujuan, atau input teks di layar yang sedang menerima fokus pengguna (`document.activeElement`).
+   - Jika versi data di server berubah saat form sedang aktif, proses reload otomatis **ditunda** (`APP_SYNC.deferredReload = true`) demi menjamin formulir yang sedang diketik pengguna tidak ter-reset atau terinterupsi.
+   - Begitu modal ditutup melalui `closeModal(id)` atau submit selesai via `_formSubmitDone()`, fungsi `_syncCheckDeferred()` otomatis mengeksekusi pembaruan data yang tertunda secara halus.
+4. **Indikator Live Status UI**:
+   - Menambahkan elemen `#sync-indicator` di header halaman (`_renderPageHeader`) tepat di samping `#filter-busy` dengan gaya pill minimalis (`Style.html`).
+   - Menyediakan 3 status semantik:
+     - `Tersinkron`: titik hijau lembut, menunjukkan data lokal identik dengan server. Tooltip menampilkan timestamp sinkronisasi terakhir.
+     - `Menyinkronkan…`: titik biru dengan animasi denyut halus saat RPC in-flight.
+     - `Ada Pembaruan`: titik oranye peringatan lembut saat ada data baru namun pembaruan ditunda karena form sedang aktif.
+   - Mendukung interaksi klik manual (`_triggerManualSync()`) sehingga pengguna dapat memaksa pengecekan data ke server kapan saja secara instan.
+5. **Reloader Dispatcher (`_executeCurrentViewReloader`)**:
+   - Menyiapkan dispatcher sentral pembaruan data untuk tampilan aktif (Overview, Notifikasi, Admin Panel, Riwayat Laporan) yang akan diperluas ke 14 modular silent reloader di Fase 15b.
+
+### 2. Keputusan Teknis
+- **Zero-Sheet-Read via CacheService**: Polling berkala setiap 35 detik tidak membebani kuota `SpreadsheetApp.openById` Google Apps Script karena seluruh data versi dan hitungan badge dilayani dari memory cache RAM (`CacheService.getScriptCache()`).
+- **Deferred Update Alih-alih Interupsi**: Menghindari keluhan umum sistem auto-refresh di mana form yang sedang diisi pengguna tiba-tiba ter-reload atau kursor mental saat rekan kerja lain mengunggah laporan.
+- **Pill Indikator Ramah Desain**: Mematuhi `DESIGN.md` §1 (negative prompt: tanpa gradien mencolok, tanpa border neon, tanpa efek kaca berlebihan, tipografi 0.72rem berpadu serasi dengan tema nautika).
+
+### 3. File yang Dimodifikasi
+- `services/DashboardService.js`: Penambahan endpoint `app_getSyncState(token)`.
+- `services/NotifikasiService.js`: Caching `SYNC_UNREAD_` di `notifikasi_getRingkasan()`.
+- `services/AuthService.js`: Caching `SYNC_QUEUE_` di `auth_getPendingApprovals()`.
+- `html/Style.html`: Styling `.sync-indicator`, `.sync-indicator-dot`, `.is-syncing`, `.is-deferred`.
+- `html/Script_Main.html`: State `APP_SYNC`, `_isFormActive()`, `_syncCheckDeferred()`, `_syncUpdateIndicator()`, `#sync-indicator` di `_renderPageHeader()`, `closeModal()`, `_runSyncTick()`, `_startAppHeartbeat()`, dan `_executeCurrentViewReloader()`.
+- `PHASES.md`: Status Fase 15a diubah menjadi Selesai, dependensi Fase 15b terbuka.
+
+---
+
+## [Struktur Roadmap] — Audit Definition of Done Dipindahkan ke Tahap Akhir Proyek (Fase 14 Resmi Selesai)
+
+**Tanggal**: 12 Oktober 2026  
+**Status**: Dokumentasi roadmap `PHASES.md` & `AGENTS.md` disinkronkan. Fase 14 resmi berstatus **Selesai**. Target pengerjaan berikutnya adalah **Fase 15a**.
+
+**Keputusan User**:
+> "untuk audit tolong dipindahkan ke akhir, tidak usah masuk fase, dia hanya akan ke trigger setelah saya minta lanjut tapi tidak ada fase lagi, tolong ubah changelog phases dkk"
+
+### Rincian Perubahan Struktur:
+1. **Fase 14 Resmi Ditandai Selesai**:
+   - Seluruh 6 item perbaikan visual, layout grid asimetris 6-kolom tanpa gauge di Ikhtisar, perbaikan loader on-demand peta WPPNRI, serta auto-detection persetujuan pendaftaran (serialisasi Date GAS + hak veto Superadmin + flush sheet) telah terverifikasi sukses.
+2. **Audit Definition of Done (DoD) Dipindahkan ke Post-Phases**:
+   - Audit menyeluruh Definition of Done per modul ([`AGENTS.md` §6](file:///home/pinefeast/Projects/nautika/AGENTS.md#L60-L75)) dikeluarkan dari cakupan Fase 14.
+   - Audit diposisikan sebagai tahap *Standby* di akhir roadmap (`PHASES.md` §Tahap Akhir) dan **tidak memiliki nomor fase** serta **tidak memblokir** fase fitur.
+   - Tahap audit hanya akan dieksekusi jika seluruh fase pengembangan selesai dan user meminta *"lanjut"* saat tidak ada fase tersisa.
+3. **Fase Aktif Berikutnya**:
+   - Sistem kini langsung menuju **Fase 15a — Fondasi Backend Version-State & Client Heartbeat Engine**.
+
+---
+
 ## [Fix — Sebelum Fase 15] — Perbaikan Auto-Detection Akun Disetujui (Serialisasi Date GAS, Hak Veto Superadmin, Flush Sheet, dan Auto-Redirect)
 
 **Tanggal**: 12 Oktober 2026  

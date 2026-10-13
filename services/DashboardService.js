@@ -994,3 +994,48 @@ function _dashKapalInfo(kapalId) {
   }
   return null;
 }
+
+// ===========================================================================
+// FASE 15a — ENDPOINT LIVE-SYNC SYSTEMWIDE (ZERO-SHEET-READ)
+// ===========================================================================
+
+/**
+ * Endpoint sinkronisasi status ringan (Fase 15a Live-Sync).
+ * Mengembalikan versi transaksi server saat ini (DASH_TX_VERSION) dan indikator status
+ * tanpa membaca Google Sheets (Zero-Sheet-Read, eksekusi < 50ms) dari CacheService RAM.
+ *
+ * @param {string} token - Session token
+ * @returns {Object} { success: boolean, data?: { txVersion: number, unreadNotif: number, queueCount: number, serverTime: string }, error?: string }
+ */
+function app_getSyncState(token) {
+  try {
+    var session = _requireSession(token);
+    assertScope(session, null, null);
+
+    var cache = CacheService.getScriptCache();
+    var txVersion = Number(cache.get('DASH_TX_VERSION') || '0');
+
+    // Data unread notification dan approval queue (dibaca dari cache ram jika ada)
+    var cachedNotif = cache.get('SYNC_UNREAD_' + session.userId);
+    var unreadNotif = cachedNotif !== null ? Number(cachedNotif) : null;
+
+    var queueCount = null;
+    if (session.role === ROLE.SUPERADMIN || session.role === ROLE.DIREKTUR || session.role === ROLE.KADIV) {
+      var cachedQueue = cache.get('SYNC_QUEUE_' + session.userId);
+      queueCount = cachedQueue !== null ? Number(cachedQueue) : null;
+    }
+
+    return {
+      success: true,
+      data: {
+        txVersion: txVersion,
+        unreadNotif: unreadNotif,
+        queueCount: queueCount,
+        serverTime: new Date().toISOString()
+      }
+    };
+  } catch (e) {
+    Logger.log('[app_getSyncState] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

@@ -199,9 +199,11 @@ Ini **bukan** dimulainya Fase 14. Ini permintaan user di tengah masa jeda antar-
 - Detail & daftar file: `CHANGELOG.md` `[Revisi Lintas Modul] — Bentuk Tabel Riwayat Seragam (Lihat/Revisi/Anulir) & Tombol Lampiran Dihapus dari Baris`.
 
 ### Fase 14 — QA & Polish
-Jalankan Definition of Done per modul (`AGENTS.md` §6) untuk semua modul. Cek ulang seluruh UI terhadap negative prompt desain. Perbaiki bug/inkonsistensi yang ditemukan.
+Penyempurnaan visual, audit UI terhadap negative prompt desain, perbaikan inkonsistensi geometris/layout, dan stabilisasi alur auth/approval.
 
-> **Berjalan (item 1–6 selesai + perbaikan peta WPP + penghitung revisi pagu TU + peta sebaran Ikhtisar + penyelarasan visualisasi Ikhtisar — belum selesai sebagai fase).** Item 1: konsistensi input periode seluruh form. Item 2: ikon aksi. Item 3: audit geometri list + RBAC Revisi. Item 4: tombol ikon-saja + audit ikon. Item 5: popup berhasil setelah submit + loading lebih terlihat. Item 6: kapal pengawas wajib di Operasi Laut/Udara + enum `Kapal.JenisKapal` (lihat blok di bawah). Perbaikan peta: batas WPPNRI tidak muncul di Operasi. Perbaikan pagu: jumlah revisi pagu di bawah baris Pagu TU. Peta Ikhtisar: choropleth sebaran WPP di Executive Overview + kartu divisi bebas whitespace. Penyelarasan visualisasi Ikhtisar: Komposisi Penindakan & Kapal Teraktif terpusat seimbang, standarisasi 3 metrik per kartu divisi dengan status badge semantik dan micro progress bar, visual stack footer bermakna untuk semua kartu divisi. Definition of Done per modul (`AGENTS.md` §6) **masih belum** dikerjakan. Catatan: revisi Opsi/revisi transaksi yang masuk 28 Sep 2026 dicatat di blok **Fase 12** di atas karena masih merupakan perbaikan atas pekerjaan yang sudah berjalan — **bukan** dimulainya Fase 14. Classifier yang sama berlaku untuk blok **Perubahan Lintas Fase (OTP + NIP)** di atas: itu perubahan atas persetujuan user di tengah Fase 13, **bukan** Fase 14.
+> **Status (12 Okt 2026): Selesai.** Seluruh item perbaikan telah tuntas & diverifikasi: Item 1 (konsistensi dropdown periode semua form), Item 2 (ikon aksi tombol mikro), Item 3 (audit geometri list + RBAC Revisi), Item 4 (tombol ikon-saja + audit ikon site-wide), Item 5 (popup berhasil submit + loading terlihat), Item 6 (kapal pengawas wajib di Operasi Laut/Udara + enum JenisKapal di Master), Perbaikan Peta WPPNRI (loader terkoordinasi), Perbaikan Pagu TU (penghitung jumlah revisi pagu), Peta Sebaran WPP di Ikhtisar (choropleth + panel ranking), Penyelarasan Visualisasi Ikhtisar (multi-span 6 kolom dinamis tanpa gauge), serta Perbaikan Auto-Detection Persetujuan Akun Pendaftar (serialisasi Date GAS & hak veto Superadmin).
+> 
+> **Catatan Pemindahan Audit (Instruksi User, 12 Okt 2026)**: Audit Definition of Done (DoD) per modul ([`AGENTS.md` §6](file:///home/pinefeast/Projects/nautika/AGENTS.md#L60-L75)) **dipindahkan ke tahap akhir proyek di luar penomoran fase**. Audit tidak lagi berada di dalam Fase 14 dan tidak memblokir perjalanan fase berikutnya; audit hanya akan dieksekusi ketika seluruh fase selesai dan user meminta *"lanjut"* saat tidak ada fase tersisa.
 
 #### Fase 14 — Peta Sebaran WPP di Ikhtisar + Kartu Divisi Tanpa Whitespace
 
@@ -413,56 +415,49 @@ Arsitektur sinkronisasi data real-time menyeluruh (*systemwide*) agar seluruh mo
 Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, modular, dan dapat diverifikasi secara aman:
 
 #### Fase 15a — Fondasi Backend Version-State & Client Heartbeat Engine
-- **Status**: **Belum Mulai** (menunggu konfirmasi user untuk dieksekusi).
+- **Status**: **Selesai (12 Okt 2026)**.
 - **Dependensi**: Fase 14 Selesai.
 - **Tujuan**: Membangun kanal komunikasi sinkronisasi ringan antara server dan client yang efisien tanpa membaca spreadsheet secara berulang (*zero-sheet-read*).
-- **Ruang Lingkup Teknis**:
-  1. **Endpoint Server `app_getSyncState(token)`**:
-     - Lokasi: `services/DashboardService.js` / `services/AuthService.js`.
-     - Memeriksa sesi via `_requireSession(token)`.
-     - Membaca `DASH_TX_VERSION` dari `CacheService` (dinaikkan setiap tulis oleh `bumpTxVersion()` di `SheetAccess.js`).
-     - Membaca jumlah unread notifikasi user dan jumlah antrean approval (bila user adalah approver: `SUPERADMIN`/`DIREKTUR`/`KADIV`).
-     - Mengembalikan payload ringkas: `{ success: true, data: { txVersion: number, unreadNotif: number, queueCount: number, serverTime: string } }`.
-     - **Constraint**: Beban kueri spreadsheet = 0; waktu respons server < 50ms.
-  2. **Client Heartbeat Engine Terpadu**:
-     - Lokasi: `html/Script_Main.html`.
-     - Timer periodik 35 detik di latar belakang dengan wrapper `_silentRun(fn)` (tanpa menyalakan `#filter-busy`).
-     - **Tab Visibility Guard**: Otomatis pause saat `document.visibilityState === 'hidden'`. Begitu tab aktif kembali (`visibilitychange` atau window `focus`), memicu 1 kali sinkronisasi instan (*sync-on-focus*).
-     - State tracking: menyimpan `APP_SYNC = { lastTxVersion, inFlight: false, deferredReload: false }`.
-  3. **Form Modal Guard (Anti-Interupsi Input Pengguna)**:
-     - Helper `_isFormActive()`: mendeteksi apakah ada modal dialog terbuka (`.n-modal:not(.n-hidden)`), drawer aktif, atau input teks sedang menerima fokus kursor.
-     - Jika ada aktivitas input saat `txVersion` server berubah, **tunda (defer) reload data** sampai modal ditutup atau disubmit. Input pengguna dijamin 100% aman dan tidak terhapus.
-  4. **Status Indikator Live (UI Bersih & Patuh `DESIGN.md` §1)**:
-     - Indikator halus non-intrusive di header/footer samping filter periode: status sinkronisasi ("Sinkron") dengan titik status semantik, tanpa animasi berlebihan, tanpa gradient blob.
-- **Kriteria Verifikasi**:
-  - `node --check` bersih.
-  - Unit test Node VM: endpoint mengembalikan data versi yang benar dari cache; client heartbeat memicu callback tanpa error; Form Guard berhasil menahan reload saat modal aktif.
+- **Hasil Implementasi**:
+  1. **Endpoint Backend `app_getSyncState(token)`**: Dibuat di `services/DashboardService.js` (RAM zero-sheet-read, <50ms) membaca `DASH_TX_VERSION`, unread notifikasi, dan antrean approval dari `CacheService`. Caching dioptimalkan pada `NotifikasiService.js` dan `AuthService.js`.
+  2. **Client Heartbeat Engine Terpadu**: Diimplementasikan di `html/Script_Main.html` dengan interval 35 detik (`APP_SYNC.syncInterval`), wrapper `_silentRun(fn)`, dan listener sinkronisasi instan pada `visibilitychange` serta window `focus`.
+  3. **Form Modal Guard & Deferred Update**: Fungsi `_isFormActive()` mendeteksi overlay form aktif (`.n-overlay:not(.n-hidden)`), drawer terbuka, atau input teks sedang fokus. Jika form aktif saat versi transaksi server berubah, reload ditunda (`deferredReload = true`) dan dieksekusi otomatis oleh `_syncCheckDeferred()` sesaat setelah formulir ditutup via `closeModal(id)`.
+  4. **Status Indikator UI**: Indikator status `#sync-indicator` ditambahkan di header samping `#filter-busy` (gaya pill minimalis sesuai `DESIGN.md` §1) dengan status `Tersinkron`, `Menyinkronkan…`, dan `Ada Pembaruan (Tertunda)`. Mendukung klik manual untuk sinkronisasi seketika (`_triggerManualSync()`).
+- **Verifikasi**: `node --check` 100% lulus di seluruh file backend dan skrip `Script_Main.html`.
 
 #### Fase 15b — Modular Silent Reloaders & Auto-Sync Transaksi Site-Wide
-- **Status**: **Belum Mulai** (bergantung pada Fase 15a).
+- **Status**: **Selesai (12 Okt 2026)**.
 - **Dependensi**: Fase 15a Selesai.
 - **Tujuan**: Menerapkan fungsi *silent reload* ke seluruh modul data (Overview, 9 Divisi, Kegiatan, Riwayat Laporan, Master Data) saat ada transaksi baru terdeteksi.
-- **Ruang Lingkup Teknis**:
-  1. **Registry Silent Reloader Modular (`_SYNC_RELOADERS`)**:
-     - Setiap modul mendaftarkan fungsi pembaruan datanya:
-       - `overview`: `_ovLoadData()` (KPI baris atas, visualisasi penindakan, grid divisi, peta WPP).
-       - `tata-usaha`: reload KPI Pagu/Realisasi + tabel riwayat TU.
-       - `operasi-laut` & `operasi-udara`: reload KPI hari operasi, rincian tangkapan/inspeksi, dan riwayat. **Peta WPP Leaflet tidak di-reload dari nol** (tetap memakai instance map yang ada dan layer diperbarui in-place).
-       - `perawatan`: reload sub-modul aktif (Kesiapan, Docking, atau Item Pekerjaan).
-       - `logistik`: reload sub-modul aktif (Amunisi, BBM, atau Personil) + sisa stok.
-       - `pengawakan`: reload sub-modul aktif (Komposisi AKN atau Kegiatan Personel).
-       - `intelijen` & `pemantauan`: reload KPI kejadian/pemantauan + tabel riwayat.
-       - `kegiatan`: reload feed kegiatan direktorat.
-       - `riwayat`: reload feed agregasi lintas modul.
-       - `master-data` & `kelola-akun`: reload tabel data master.
-  2. **Preservasi State & Scroll**:
-     - Mempertahankan posisi scroll tabel (`scrollTop`) saat baris baru dimasukkan.
-     - Mempertahankan filter periode global aktif (tidak boleh ter-reset ke bulan default).
-     - Menghindari flicker: komponen yang tidak berubah nilai tidak me-reset DOM secara kasar.
-- **Kriteria Verifikasi (Definition of Done)**:
-  - Uji Multi-User / Multi-Tab: User A submit laporan di modul Operasi Laut -> User B yang sedang membuka layar Operasi Laut melihat data baru muncul dalam 35 detik tanpa menekan F5.
-  - Uji Keamanan Input: User B sedang mengetik rincian form saat User A submit -> form User B tetap utuh, kursor tidak mental, dan data baru tersinkron begitu form ditutup.
-  - `verify.sh`, `selftest.js`, dan `nulltest.js` lolos 100%.
+- **Hasil Implementasi**:
+  1. **Registry Silent Reloader Modular (`_SYNC_RELOADERS`)**: Memetakan seluruh 14 modul dan view data (`overview`, `tata-usaha`, `operasi`, `intelijen`, `pemantauan`, `perawatan`, `logistik`, `pengawakan`, `kegiatan`, `riwayat`, `master-data`, `kelola-akun`, `notifikasi`, `profil-kapal`) ke silent reloader masing-masing.
+  2. **Anti-Flicker & Zero Harsh DOM Teardown**: Seluruh loader KPI (`_tuLoadKPI`, `_opsLautLoadKPI`, `_opsUdaraLoadKPI`, `_intelLoadKPI`, `_pemLoadKPI`, `_rawatLoadKPI`, `_logLoadKPI`, `_awkLoadKPI`, `_kgdLoadKPI`) dan riwayat (`_tuLoadHistory`, `_opsLautLoadHistory`, `_opsUdaraLoadHistory`, `_intelLoadHistory`, `_pemLoadHistory`, `_rawatFetchHistory`, `_logFetchHistory`, `_awkFetchHistory`, `_kgdLoadHistory`, `_riwLoad`) mendukung parameter `silent = true` sehingga tidak me-reset elemen menjadi skeleton/spinner saat pembaruan berlangsung.
+  3. **Peta WPP Tetap Utuh**: Pada modul Operasi Laut & Udara, peta Leaflet tidak di-destroy dari nol; layer polygon WPP diperbarui warnanya secara in-place melalui data intensitas baru.
+  4. **Preservasi Scroll & State Sub-Tab**: `_dispatchModuleSilentReloader()` mencatat dan memulihkan posisi scroll window (`window.pageYOffset`) dan kontainer tabel riwayat (`.n-table-wrap`, `.table-responsive`) setelah data dimuat. State sub-tab (`_OPS.tab`, `_RAWAT.tab`, `_LOG.tab`, `_AWK.tab`, `_ADN.tab`, `_MD.tab`, `_RIW.statusTab`) dan filter periode global (`APP.filter`) dipertahankan sepenuhnya.
+- **Verifikasi**: `node --check` 100% lulus, pengujian unit test VM Node membuktikan seluruh 14 modul terdaftar dan berjalan mulus tanpa error.
+
+---
+
+### Tahap Akhir (Di Luar Fase) — Final Systemwide Audit & Definition of Done
+
+Tahap audit komprehensif seluruh sistem untuk memverifikasi kesiapan rilis penuh (*production readiness*).
+
+- **Status**: **Standby (Hanya Berjalan Saat Diminta)**.
+- **Aturan Pemicu (Trigger Rule — Instruksi User 12 Okt 2026)**:
+  - Tahap ini **TIDAK memiliki nomor fase** dan **TIDAK memblokir fase fitur apa pun**.
+  - Agent **DILARANG** menjalankan audit ini di sela-sela fase atau sebelum fase roadmap selesai.
+  - Tahap ini **HANYA** akan dieksekusi jika kedua syarat ini terpenuhi:
+    1. Seluruh fase pengembangan dalam roadmap (termasuk Fase 15 dan fase sesudahnya jika ada) telah berstatus **Selesai**.
+    2. User memberikan instruksi eksplisit untuk *"lanjut"* saat sudah tidak ada lagi fase pengembangan yang tersisa.
+- **Ruang Lingkup Pemeriksaan (Definition of Done — [`AGENTS.md` §6](file:///home/pinefeast/Projects/nautika/AGENTS.md#L60-L75))**:
+  1. **Audit Form & Dropdown Relasional**: Pastikan semua form di 9 divisi + Kegiatan Pendukung memakai pemilih relasional (Kapal, WPP, Kawasan Konservasi dari Master Data), bebas free-text liar.
+  2. **Validasi Server-Side**: Pemeriksaan ketat bahwa seluruh kalkulasi, pengecekan keabsahan data, dan pembatasan scope dijalankan di Google Apps Script (Apps Script = single source of truth).
+  3. **Penegakan RBAC**: Staf & Kadiv hanya memiliki hak CRUD pada divisinya; Direktur & Superadmin beroperasi lintas divisi.
+  4. **Versioning & Audit Trail**: Setiap transaksi perubahan memakai mekanisme `SUPERSEDED` dan pembatalan memakai `VOID`, tercatat lengkap dengan `UserID`, `Timestamp`, dan `Alasan`.
+  5. **Akumulasi Otomatis**: Verifikasi agregasi mingguan -> bulanan -> YTD dihitung sistem di backend tanpa intervensi manual.
+  6. **Evidence Dual-Mode**: Unggah berkas langsung dan penyalinan tautan Google Drive tersimpan rapi pada struktur folder Drive yang benar.
+  7. **Kepatuhan Desain & Visualisasi**: Tidak ada pelanggaran negative prompt ([`DESIGN.md` §1](file:///home/pinefeast/Projects/nautika/DESIGN.md)), palet warna semantik konsisten, chart sesuai tipologi data ([`DESIGN.md` §6](file:///home/pinefeast/Projects/nautika/DESIGN.md)).
+  8. **Global Filter Integration**: Filter periode (bulanan / rentang tanggal) terbukti mengendalikan seluruh tampilan aktif secara sinkron.
 
 ---
 

@@ -112,6 +112,107 @@ function _silentRun(fn) {
   }
 })();
 
+// ── SYNC & HEARTBEAT STATE (Fase 15a) ─────────────────────
+var APP_SYNC = {
+  lastTxVersion:  null,   // string/angka versi transaksi data global dari server (DASH_TX_VERSION)
+  inFlight:       false,  // mutex guard agar RPC sinkronisasi tidak tumpang tindih
+  deferredReload: false,  // true jika ada pembaruan data saat modal form/input sedang aktif
+  lastSyncTime:   0,      // timestamp lokal sinkronisasi sukses terakhir
+  syncInterval:   35000   // 35 detik interval heartbeat background (hemat kuota GAS)
+};
+
+function _fmtSyncTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  var hh = (d.getHours() < 10 ? '0' : '') + d.getHours();
+  var mm = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+  var ss = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
+  return hh + ':' + mm + ':' + ss;
+}
+
+function _syncUpdateIndicator(state, detailText) {
+  var el = document.getElementById('sync-indicator');
+  if (!el) return;
+  var txt = el.querySelector('.sync-indicator-text');
+
+  el.classList.remove('is-syncing', 'is-deferred');
+
+  if (state === 'syncing') {
+    el.classList.add('is-syncing');
+    if (txt) txt.textContent = 'Menyinkronkan\u2026';
+    el.title = 'Sedang memeriksa versi data ke server\u2026';
+  } else if (state === 'deferred') {
+    el.classList.add('is-deferred');
+    if (txt) txt.textContent = 'Ada Pembaruan';
+    el.title = 'Data baru tersedia di server. Pembaruan ditunda karena formulir sedang aktif, dan akan dimuat otomatis saat formulir ditutup.';
+  } else {
+    // synced
+    var timeStr = APP_SYNC.lastSyncTime ? (' (' + _fmtSyncTime(APP_SYNC.lastSyncTime) + ')') : '';
+    if (txt) txt.textContent = detailText || 'Tersinkron';
+    el.title = 'Data tersinkron dengan server' + timeStr + '. Klik untuk memeriksa pembaruan sekarang.';
+  }
+}
+
+function _triggerManualSync() {
+  if (APP_SYNC.inFlight) return;
+  _runSyncTick(true);
+}
+
+/**
+ * Form Modal Guard (Fase 15a):
+ * Memeriksa apakah pengguna sedang mengisi formulir atau membuka modal data entry.
+ * Jika aktif, silent reloader TIDAK BOLEH memuat ulang data tampilan agar input pengguna tidak terhapus/terinterupsi.
+ */
+function _isFormActive() {
+  // 1. Cek overlay modal terbuka (.n-overlay yang tidak memiliki class .n-hidden)
+  var openOverlays = document.querySelectorAll('.n-overlay:not(.n-hidden)');
+  for (var i = 0; i < openOverlays.length; i++) {
+    var ov = openOverlays[i];
+    if (ov.id === 'dr-mask') continue; // abaikan backdrop drawer mask jika drawer tertutup
+    var hasInputs = ov.querySelector('input, textarea, select');
+    if (hasInputs) return true;
+  }
+
+  // 2. Cek apakah ada elemen input di halaman utama yang sedang aktif (focus)
+  var ae = document.activeElement;
+  if (ae && ae !== document.body && ae !== document.documentElement) {
+    var tag = ae.tagName ? ae.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      // Kecualikan filter periode di header
+      if (!ae.classList.contains('filter-sel') && !ae.classList.contains('filter-date')) {
+        return true;
+      }
+    }
+  }
+
+  // 3. Cek apakah drawer persetujuan sedang terbuka dan ada input aktif
+  var drawer = document.getElementById('approval-drawer');
+  if (drawer && !drawer.classList.contains('n-hidden')) {
+    var rejectArea = drawer.querySelector('textarea, input');
+    if (rejectArea && rejectArea.value && rejectArea.value.trim().length > 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Pemeriksaan tertunda (Fase 15a):
+ * Dipanggil sesaat setelah modal ditutup. Jika sebelumnya ada pembaruan data yang ditunda,
+ * eksekusi pembaruan sekarang karena formulir sudah tertutup dengan aman.
+ */
+function _syncCheckDeferred() {
+  setTimeout(function () {
+    if (!APP_SYNC.deferredReload) return;
+    if (_isFormActive()) return; // masih ada formulir lain yang terbuka
+    APP_SYNC.deferredReload = false;
+    _syncUpdateIndicator('syncing');
+    _executeCurrentViewReloader();
+    setTimeout(function () { _syncUpdateIndicator('synced'); }, 400);
+  }, 120);
+}
+
 // ── NAVIGASI: section + items ─────────────────────────────
 // divisiId: null = semua role; string = DIV-* untuk Kadiv/Staf
 // minRoles: null = semua APPROVED; array = hanya role tsb
@@ -878,6 +979,7 @@ function _initApp() {
   _routeTo(hash);
   _applyShellStatus(); // badge notifikasi + strip "divisi belum melapor" (Fase 13)
   _startAppHeartbeat();
+  _runSyncTick(true); // inisialisasi versi live-sync server (Fase 15a)
   window.addEventListener('hashchange', function () {
     _routeTo((window.location.hash || '').replace('#', ''));
   });
@@ -964,11 +1066,16 @@ function _renderPageHeader(viewId) {
     '<div class="page-header-inner">' +
       '<h1 class="page-title">' + _esc(_viewTitle(viewId)) + '</h1>' +
       '<div class="filter-periode">' +
+        '<div id="sync-indicator" class="sync-indicator" onclick="_triggerManualSync()" title="Data sinkron dengan server. Klik untuk memeriksa pembaruan sekarang.">' +
+          '<span class="sync-indicator-dot"></span>' +
+          '<span class="sync-indicator-text">Tersinkron</span>' +
+        '</div>' +
         (filterHtml ? '<div class="filter-box">' + filterHtml + '</div>' : '') +
         '<span id="filter-busy" class="filter-busy" title="Memuat data&hellip;"></span>' +
       '</div>' +
     '</div>';
   _syncBusy();
+  _syncUpdateIndicator(APP_SYNC.deferredReload ? 'deferred' : 'synced');
 }
 
 // ── FILTER PERIODE ────────────────────────────────────────
@@ -3779,13 +3886,12 @@ function _riwSetTab(status) {
   _riwRender();
 }
 
-function _riwLoad() {
+function _riwLoad(silent) {
   var wrap = document.getElementById('riw-history-wrap');
-  if (!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat riwayat seluruh laporan\u2026');
+  if (wrap && !silent) wrap.innerHTML = _loadingInline('Memuat riwayat seluruh laporan\u2026');
 
   var stripKPI = document.getElementById('riw-kpi-strip');
-  if (stripKPI) stripKPI.innerHTML = _kpiSkeleton(4);
+  if (stripKPI && !silent) stripKPI.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -4034,34 +4140,290 @@ function _renderReminderStrip(info) {
   strip.classList.remove('n-hidden');
 }
 
-// ── APP HEARTBEAT (Auto-refresh tanpa reload) ─────────────
+// ── APP HEARTBEAT & LIVE-SYNC ENGINE (Fase 15a & 15b) ──────
 var _appHeartbeatTimer = null;
 var _lastHeartbeatTick = 0;
 
-function _runHeartbeatTick() {
+/**
+ * Registry Silent Reloader Modular (Fase 15b):
+ * Memetakan setiap modul/view ke fungsi pembaruan datanya masing-masing
+ * tanpa me-rebuild DOM utama atau mereset posisi scroll & state sub-tab.
+ */
+var _SYNC_RELOADERS = {
+  'overview': function () {
+    if (typeof _ovLoadData === 'function') _ovLoadData(true);
+    var isApprover = (APP.user && ['SUPERADMIN','DIREKTUR','KADIV'].indexOf(APP.user.role) !== -1);
+    if (isApprover && typeof _refreshApprovalPanels === 'function') {
+      _refreshApprovalPanels();
+    }
+  },
+
+  'tata-usaha': function () {
+    if (typeof _tuLoadKPI === 'function') _tuLoadKPI(true);
+  },
+
+  'operasi': function () {
+    if (typeof _OPS !== 'undefined' && _OPS.tab === 'pesawat') {
+      if (typeof _opsUdaraLoadKPI === 'function') _opsUdaraLoadKPI(true);
+      if (typeof _opsUdaraLoadHistory === 'function') _opsUdaraLoadHistory(true);
+    } else {
+      if (typeof _opsLautLoadKPI === 'function') _opsLautLoadKPI(true);
+      if (typeof _opsLautLoadHistory === 'function') _opsLautLoadHistory(true);
+    }
+  },
+
+  'intelijen': function () {
+    if (typeof _intelLoadKPI === 'function') _intelLoadKPI(true);
+    if (typeof _intelLoadHistory === 'function') _intelLoadHistory(true);
+  },
+
+  'pemantauan': function () {
+    if (typeof _pemLoadKPI === 'function') _pemLoadKPI(true);
+    if (typeof _pemLoadHistory === 'function') _pemLoadHistory(true);
+  },
+
+  'perawatan': function () {
+    if (typeof _rawatLoadKPI === 'function') _rawatLoadKPI(true);
+    if (typeof _rawatFetchHistory === 'function' && typeof _RAWAT !== 'undefined' && _RAWAT.tab) {
+      _rawatFetchHistory(_RAWAT.tab, true);
+    }
+    if (typeof _rawatBuildPaneCharts === 'function') _rawatBuildPaneCharts();
+  },
+
+  'logistik': function () {
+    if (typeof _logLoadKPI === 'function') _logLoadKPI(true);
+    if (typeof _logFetchHistory === 'function' && typeof _LOG !== 'undefined' && _LOG.tab) {
+      _logFetchHistory(_LOG.tab, true);
+    }
+    if (typeof _logBuildPaneCharts === 'function') _logBuildPaneCharts();
+  },
+
+  'pengawakan': function () {
+    if (typeof _awkLoadKPI === 'function') _awkLoadKPI(true);
+    if (typeof _awkFetchHistory === 'function' && typeof _AWK !== 'undefined' && _AWK.tab) {
+      _awkFetchHistory(_AWK.tab, true);
+    }
+    if (typeof _awkBuildPaneCharts === 'function') _awkBuildPaneCharts();
+  },
+
+  'kegiatan': function () {
+    if (typeof _kgdLoadKPI === 'function') _kgdLoadKPI(true);
+    if (typeof _kgdLoadHistory === 'function') _kgdLoadHistory(true);
+  },
+
+  'riwayat': function () {
+    if (typeof _riwLoad === 'function') _riwLoad(true);
+  },
+
+  'master-data': function () {
+    _mdReloadActiveTab(true);
+  },
+
+  'kelola-akun': function () {
+    _adnReloadActiveTab();
+  },
+
+  'notifikasi': function () {
+    if (typeof _ntfReload === 'function') _ntfReload();
+  },
+
+  'profil-kapal': function () {
+    if (typeof _pkLoad === 'function') _pkLoad();
+  }
+};
+
+function _adnReloadActiveTab() {
+  if (typeof _ADN === 'undefined') return;
+  if (_ADN.tab === 'persetujuan') {
+    if (typeof _renderApprovalsInto === 'function') {
+      _renderApprovalsInto('ka');
+    } else if (typeof _loadApprovals === 'function') {
+      _loadApprovals();
+    }
+  } else if (_ADN.tab === 'pengguna') {
+    if (typeof _adnLoadUsers === 'function') _adnLoadUsers();
+  } else if (_ADN.tab === 'audit') {
+    if (typeof _adnLoadAudit === 'function') _adnLoadAudit();
+  } else if (_ADN.tab === 'reminder') {
+    if (typeof _adnLoadReminder === 'function') _adnLoadReminder();
+  }
+}
+
+function _mdReloadActiveTab(silent) {
+  if (typeof _MD === 'undefined') return;
+  if (_MD.tab === 'kapal') {
+    if (typeof _mdLoadKapal === 'function') _mdLoadKapal();
+  } else if (_MD.tab === 'kawasan') {
+    if (typeof _mdLoadKawasan === 'function') _mdLoadKawasan();
+  } else if (_MD.tab === 'wpp') {
+    if (typeof _mdLoadWpp === 'function') _mdLoadWpp();
+  } else if (_MD.tab === 'opsi') {
+    if (typeof _mdLoadOpsi === 'function') _mdLoadOpsi();
+  } else {
+    if (typeof _mdLoadAll === 'function') _mdLoadAll();
+  }
+}
+
+/**
+ * Dispatcher pembaruan modular (Fase 15b):
+ * Memanggil silent reloader spesifik modul aktif dengan preservasi scroll window & table.
+ */
+function _dispatchModuleSilentReloader(viewId) {
+  var reloader = _SYNC_RELOADERS[viewId];
+  if (typeof reloader !== 'function') return;
+
+  // Preservasi scroll window dan kontainer tabel
+  var scrollPos = (typeof window !== 'undefined') ? (window.pageYOffset || document.documentElement.scrollTop || 0) : 0;
+  var tableWraps = document.querySelectorAll('.n-table-wrap, .n-table-container, .table-responsive');
+  var wrapScrolls = [];
+  tableWraps.forEach(function (el) {
+    wrapScrolls.push({ el: el, top: el.scrollTop, left: el.scrollLeft });
+  });
+
+  try {
+    reloader();
+  } catch (e) {
+    if (window.console && console.warn) {
+      console.warn('[LiveSync] Silent reload view "' + viewId + '" error:', e);
+    }
+  }
+
+  // Restore scroll positions setelah render update selesai
+  setTimeout(function () {
+    if (typeof window !== 'undefined' && scrollPos > 0) {
+      window.scrollTo({ top: scrollPos, behavior: 'instant' });
+    }
+    wrapScrolls.forEach(function (ws) {
+      if (ws.el && ws.el.isConnected) {
+        ws.el.scrollTop = ws.top;
+        ws.el.scrollLeft = ws.left;
+      }
+    });
+  }, 120);
+}
+
+/**
+ * Dispatcher silent reload untuk tampilan yang sedang aktif.
+ * Dipanggil ketika ada pembaruan versi transaksi dari server (DASH_TX_VERSION)
+ * dan dipastikan tidak ada modal formulir yang sedang aktif.
+ */
+function _executeCurrentViewReloader() {
   if (!APP.token || !APP.user) return;
-  var now = Date.now();
-  if (now - _lastHeartbeatTick < 10000) return; // minimal tenggang 10 detik
-  _lastHeartbeatTick = now;
+  var view = APP.currentView;
 
   _silentRun(function () {
-    // 1. Selalu perbarui badge notifikasi & strip pengingat mingguan
+    // 1. Selalu perbarui status badge & reminder bar shell
     _applyShellStatus();
 
-    // 2. Jika user sedang di halaman notifikasi, reload list
-    if (APP.currentView === 'notifikasi') {
-      _ntfReload();
-    }
+    // 2. Eksekusi silent reload melalui registry modular
+    _dispatchModuleSilentReloader(view);
+  });
+}
 
-    // 3. Jika approver dan sedang membuka overview atau panel kelola akun / drawer terbuka
-    var isApprover = (APP.user.role === 'SUPERADMIN' || APP.user.role === 'DIREKTUR' || APP.user.role === 'KADIV');
-    if (isApprover) {
-      var drawer = document.getElementById('approval-drawer');
-      var drawerOpen = drawer && !drawer.classList.contains('n-hidden');
-      if (drawerOpen || APP.currentView === 'kelola-akun' || APP.currentView === 'overview') {
-        _refreshApprovalPanels();
-      }
-    }
+function _runHeartbeatTick() {
+  _runSyncTick(false);
+}
+
+/**
+ * Eksekutor heartbeat utama (Fase 15a):
+ * Mengirim permintaan ringan ke endpoint backend app_getSyncState (RAM zero-sheet-read, <50ms).
+ * Mendeteksi perubahan versi transaksi, unread notifikasi, dan antrean approval.
+ */
+function _runSyncTick(force) {
+  if (!APP.token || !APP.user) return;
+  var now = Date.now();
+  if (!force && (now - _lastHeartbeatTick < 10000)) return; // tenggang minimum 10 detik antar tick
+  if (APP_SYNC.inFlight) return;
+
+  _lastHeartbeatTick = now;
+  APP_SYNC.inFlight = true;
+
+  if (force) {
+    _syncUpdateIndicator('syncing');
+  }
+
+  _silentRun(function () {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        APP_SYNC.inFlight = false;
+        if (!res || !res.success) {
+          _syncUpdateIndicator(APP_SYNC.deferredReload ? 'deferred' : 'synced');
+          return;
+        }
+
+        APP_SYNC.lastSyncTime = Date.now();
+        var d = res.data || {};
+
+        // 1. Update badge notifikasi jika data unread tersedia
+        if (typeof d.unreadNotif === 'number') {
+          _renderNotifBadge(d.unreadNotif);
+        }
+
+        // 2. Update antrean approval (jika role approver)
+        if (typeof d.queueCount === 'number') {
+          var isApprover = (APP.user.role === 'SUPERADMIN' || APP.user.role === 'DIREKTUR' || APP.user.role === 'KADIV');
+          if (isApprover) {
+            var banner = document.getElementById('dr-banner');
+            var bannerCount = document.getElementById('dr-banner-count');
+            if (banner && bannerCount) {
+              bannerCount.textContent = String(d.queueCount);
+              if (d.queueCount > 0) banner.classList.remove('n-hidden');
+              else banner.classList.add('n-hidden');
+            }
+            var drawer = document.getElementById('approval-drawer');
+            var drawerOpen = drawer && !drawer.classList.contains('n-hidden');
+            if (drawerOpen || APP.currentView === 'kelola-akun') {
+              if (typeof _refreshApprovalPanels === 'function') {
+                _refreshApprovalPanels();
+              }
+            }
+          }
+        }
+
+        // 3. Deteksi perubahan versi transaksi global (txVersion)
+        var serverTx = (d.txVersion !== undefined && d.txVersion !== null) ? String(d.txVersion) : '';
+        if (serverTx) {
+          if (APP_SYNC.lastTxVersion === null) {
+            // Inisialisasi awal saat login/pertama kali load
+            APP_SYNC.lastTxVersion = serverTx;
+            _syncUpdateIndicator('synced');
+          } else if (serverTx !== APP_SYNC.lastTxVersion) {
+            // Terjadi transaksi baru di server (tambah/edit/anulir)
+            APP_SYNC.lastTxVersion = serverTx;
+            if (_isFormActive()) {
+              // Pengguna sedang membuka modal formulir: TUNDA reload demi keamanan data input
+              APP_SYNC.deferredReload = true;
+              _syncUpdateIndicator('deferred');
+            } else {
+              // Tidak ada formulir aktif: langsung lakukan silent reload tanpa refresh halaman
+              APP_SYNC.deferredReload = false;
+              _syncUpdateIndicator('syncing');
+              _executeCurrentViewReloader();
+              setTimeout(function () { _syncUpdateIndicator('synced'); }, 400);
+            }
+          } else {
+            // Versi transaksi server sama dengan lokal
+            if (APP_SYNC.deferredReload && !_isFormActive()) {
+              APP_SYNC.deferredReload = false;
+              _syncUpdateIndicator('syncing');
+              _executeCurrentViewReloader();
+              setTimeout(function () { _syncUpdateIndicator('synced'); }, 400);
+            } else if (APP_SYNC.deferredReload) {
+              _syncUpdateIndicator('deferred');
+            } else {
+              _syncUpdateIndicator('synced');
+            }
+          }
+        } else {
+          _syncUpdateIndicator(APP_SYNC.deferredReload ? 'deferred' : 'synced');
+        }
+      })
+      .withFailureHandler(function (err) {
+        APP_SYNC.inFlight = false;
+        _failOrLogout(err);
+        _syncUpdateIndicator(APP_SYNC.deferredReload ? 'deferred' : 'synced');
+      })
+      .app_getSyncState(APP.token);
   });
 }
 
@@ -4074,7 +4436,7 @@ function _startAppHeartbeat() {
     if (isVisible) {
       _runHeartbeatTick();
     }
-  }, 25000);
+  }, APP_SYNC.syncInterval || 35000);
 }
 
 if (typeof document !== 'undefined') {
@@ -4449,6 +4811,7 @@ function closeModal(id) {
   _formRestore(id);
   var el = document.getElementById(id);
   if (el) el.classList.add('n-hidden');
+  _syncCheckDeferred();
 }
 
 // ── OVERLAY KLIK DI LUAR MODAL = TUTUP ──────────────────────────────────
@@ -5069,16 +5432,16 @@ function _tuSyncPeriodeHint() {
   if (hint) hint.textContent = 'Periode: ' + (_composePeriode('tu-') || '—');
 }
 
-function _tuLoadKPI() {
+function _tuLoadKPI(silent) {
   var strip = document.getElementById('tu-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function (res) {
       if (!res.success) { _tuKPIError(res.error); return; }
       _TU.kpi = res.data;
       _tuRenderKPI(res.data);
-      _tuLoadHistory();
+      _tuLoadHistory(silent);
       _tuLoadCharts();
     })
     .withFailureHandler(function () { _tuKPIError('Gagal memuat KPI.'); })
@@ -5296,9 +5659,9 @@ function _tuFillFormContext() {
 
 // ── HISTORY ───────────────────────────────────────────────
 
-function _tuLoadHistory() {
+function _tuLoadHistory(silent) {
   var wrap = document.getElementById('tu-history-wrap');
-  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+  if (wrap && !silent) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
 
   google.script.run
     .withSuccessHandler(function (res) {
@@ -5948,9 +6311,9 @@ function _opsLautPopulateWpp() {
   _opsLautBuildWppOptions();
 }
 
-function _opsLautLoadKPI() {
+function _opsLautLoadKPI(silent) {
   var strip = document.getElementById('ops-laut-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
   
   google.script.run
     .withSuccessHandler(function(res) {
@@ -6618,10 +6981,10 @@ function opsLautSubmit() {
     .operasiLaut_submit(APP.token, params);
 }
 
-function _opsLautLoadHistory() {
+function _opsLautLoadHistory(silent) {
   var wrap = document.getElementById('ops-laut-history-wrap');
   if(!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat riwayat operasi laut\u2026');
+  if(!silent) wrap.innerHTML = _loadingInline('Memuat riwayat operasi laut\u2026');
   
   google.script.run
     .withSuccessHandler(function(res){
@@ -6992,9 +7355,9 @@ function _opsUdaraPopulateWpp() {
   });
 }
 
-function _opsUdaraLoadKPI() {
+function _opsUdaraLoadKPI(silent) {
   var strip = document.getElementById('ops-udara-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -7155,10 +7518,10 @@ function opsUdaraSubmit() {
     .operasiUdara_submit(APP.token, params);
 }
 
-function _opsUdaraLoadHistory() {
+function _opsUdaraLoadHistory(silent) {
   var wrap = document.getElementById('ops-udara-history-wrap');
   if(!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat riwayat operasi pesawat\u2026');
+  if(!silent) wrap.innerHTML = _loadingInline('Memuat riwayat operasi pesawat\u2026');
 
   google.script.run
     .withSuccessHandler(function(res){
@@ -7444,9 +7807,9 @@ function intelAddKawasanRow() {
 }
 
 // ── KPI ──
-function _intelLoadKPI() {
+function _intelLoadKPI(silent) {
   var strip = document.getElementById('int-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(6);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(6);
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -7542,10 +7905,10 @@ function intelClearKawasanFilter() {
 }
 
 // ── Riwayat ──
-function _intelLoadHistory() {
+function _intelLoadHistory(silent) {
   var wrap = document.getElementById('int-history-wrap');
   if (!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat riwayat intelijen\u2026');
+  if (!silent) wrap.innerHTML = _loadingInline('Memuat riwayat intelijen\u2026');
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -7914,9 +8277,9 @@ function _kgdDateInput(v) {
 }
 
 // ── KPI ──
-function _kgdLoadKPI() {
+function _kgdLoadKPI(silent) {
   var strip = document.getElementById('kgd-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(3);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(3);
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -7947,10 +8310,10 @@ function _kgdRenderKPI(kpi) {
 }
 
 // ── FEED KRONOLOGIS ──
-function _kgdLoadHistory() {
+function _kgdLoadHistory(silent) {
   var wrap = document.getElementById('kgd-history-wrap');
   if (!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat kegiatan direktorat\u2026');
+  if (!silent) wrap.innerHTML = _loadingInline('Memuat kegiatan direktorat\u2026');
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -8277,9 +8640,9 @@ function pemAddMarabahayaRow() {
 }
 
 // ── KPI + event log ──
-function _pemLoadKPI() {
+function _pemLoadKPI(silent) {
   var strip = document.getElementById('pem-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(5);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(5);
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -8359,10 +8722,10 @@ function _pemRenderMarabahaya(rows) {
 }
 
 // ── Riwayat ──
-function _pemLoadHistory() {
+function _pemLoadHistory(silent) {
   var wrap = document.getElementById('pem-history-wrap');
   if (!wrap) return;
-  wrap.innerHTML = _loadingInline('Memuat riwayat pemantauan\u2026');
+  if (!silent) wrap.innerHTML = _loadingInline('Memuat riwayat pemantauan\u2026');
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -8997,9 +9360,9 @@ function _rawatPopulateOptions() {
 
 // ── KPI ───────────────────────────────────────────────────
 
-function _rawatLoadKPI() {
+function _rawatLoadKPI(silent) {
   var strip = document.getElementById('rawat-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function (res) {
@@ -9085,10 +9448,10 @@ function _rawatBuildPaneCharts() {
 // ── HISTORY ───────────────────────────────────────────────
 
 // Endpoint getter per jenis (ditulis eksplisit agar google.script.run aman)
-function _rawatFetchHistory(jenis) {
+function _rawatFetchHistory(jenis, silent) {
   var prefix = _RAWAT_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
-  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+  if (wrap && !silent) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
 
   var runner = google.script.run
     .withSuccessHandler(function (res) {
@@ -9792,9 +10155,9 @@ function _logBbmModeChange() {
 
 // ── KPI ───────────────────────────────────────────────────
 
-function _logLoadKPI() {
+function _logLoadKPI(silent) {
   var strip = document.getElementById('log-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function (res) {
@@ -9894,10 +10257,10 @@ function _logBuildPaneCharts() {
 
 // ── HISTORY ───────────────────────────────────────────────
 
-function _logFetchHistory(jenis) {
+function _logFetchHistory(jenis, silent) {
   var prefix = _LOG_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
-  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+  if (wrap && !silent) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
 
   var runner = google.script.run
     .withSuccessHandler(function (res) {
@@ -10418,9 +10781,9 @@ function _awkPopulateOptions() {
 
 // ── KPI ───────────────────────────────────────────────────
 
-function _awkLoadKPI() {
+function _awkLoadKPI(silent) {
   var strip = document.getElementById('awak-kpi-strip');
-  if (strip) strip.innerHTML = _kpiSkeleton(4);
+  if (strip && !silent) strip.innerHTML = _kpiSkeleton(4);
 
   google.script.run
     .withSuccessHandler(function (res) {
@@ -10524,10 +10887,10 @@ function _awkRenderKomposisi(d) {
 
 // ── HISTORY ───────────────────────────────────────────────
 
-function _awkFetchHistory(jenis) {
+function _awkFetchHistory(jenis, silent) {
   var prefix = _AWK_PREFIX[jenis];
   var wrap = document.getElementById(prefix + '-history-wrap');
-  if (wrap) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
+  if (wrap && !silent) wrap.innerHTML = _loadingInline('Memuat riwayat\u2026');
 
   var runner = google.script.run
     .withSuccessHandler(function (res) {

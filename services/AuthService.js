@@ -686,6 +686,10 @@ function auth_getPendingApprovals(token) {
       };
     });
 
+    try {
+      CacheService.getScriptCache().put('SYNC_QUEUE_' + session.userId, String(enriched.length), 300);
+    } catch (eCache) {}
+
     return { success: true, data: enriched };
   } catch (e) {
     Logger.log('[auth_getPendingApprovals] ' + e.message);

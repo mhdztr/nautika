@@ -120,10 +120,15 @@ function notifikasi_getRingkasan(token) {
       }
     }
 
+    var unread = _ntfUnread(rows);
+    try {
+      CacheService.getScriptCache().put('SYNC_UNREAD_' + session.userId, String(unread), 300);
+    } catch (eCache) {}
+
     return {
       success: true,
       data: {
-        unreadCount: _ntfUnread(rows),
+        unreadCount: unread,
         divisiBelumMelapor: divisiBelum
       }
     };

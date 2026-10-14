@@ -465,31 +465,31 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 17 — Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung
 
-- **Status**: **Siap Dikerjakan (Menunggu Penyelesaian Fase 16 Total UI Revision)**.
-- **Dependensi**: Fase 16 Total UI Revision Selesai.
+- **Status**: **Selesai (14 Oktober 2026)**.
+- **Dependensi**: Fase 16 Total UI Revision Selesai (Lunas).
 - **Tujuan**: Memperbaiki model akuntansi anggaran negara, menambahkan telemetri pembaruan transaksi di header utama, merapikan halaman Ikhtisar sesuai standar SiMata (eliminasi visual bloat), serta menerapkan kompresi kanvas sisi klien untuk melindungi kuota Google Drive.
 - **Ruang Lingkup Deliverables**:
   1. **Rekonstruksi Model Keuangan Tata Usaha**:
      - Memperbaiki kalkulasi di `services/TataUsahaService.js` dan `services/DashboardService.js` agar memisahkan Pagu Reguler vs Pagu ABT serta Realisasi SP2D vs Akrual (matriks 2x2).
      - Menghitung persentase serapan nasional yang sah: `(Total SP2D Reguler + ABT) / (Total Pagu Reguler + ABT) * 100`.
   2. **Live Header Timestamp Telemetry**:
-     - Memperbarui `bumpTxVersion()` di `utils/Lock.js` untuk mencatat metadata pembaruan terakhir (`METADATA_LAST_TX`) di `PropertiesService`.
+     - Memperbarui `bumpTxVersion()` di `data/SheetAccess.js` untuk mencatat metadata pembaruan terakhir (`METADATA_LAST_TX`) di `CacheService` dan `PropertiesService`.
      - Mengirimkan metadata ke klien lewat polling zero-sheet-read `app_getSyncState`.
-     - Menampilkan indikator *"Data per: <Tanggal Jam WIB> | <Modul>"* pada navbar atas, dengan alert kuning jika data belum diperbarui >7 hari.
+     - Menampilkan indikator *"Data per: <Tanggal Jam WIB>"* pada navbar atas, dengan alert kuning jika data belum diperbarui >7 hari.
   3. **Simplifikasi Ikhtisar Selaras SiMata**:
      - Mengeliminasi *unnecessary visual bloat / clutter*: menghapus mini-waffle chart, heatmap seluler mikro, dan grafik donat ad-hoc yang tumpang tindih.
-     - Menyusun halaman dalam 3 blok piramida: 4 KPI Card SiMata (`X — Y% dari total`), Peta Taktis 34 Kapal Besar, dan Executive Monitoring Data Grid 8 unit kerja dengan status chip yang rapi.
+     - Menyusun halaman dalam 3 blok piramida: 4 KPI Card SiMata (`X — Y% dari total`), Peta Taktis WPP, dan Executive Monitoring Data Grid 8 unit kerja dengan status chip yang rapi.
   4. **Kompresi Kanvas Sisi Klien (Storage Protection Tier 1)**:
      - Mengimplementasikan fungsi kompresi gambar berbasis HTML5 Canvas di browser pada `html/Script_Main.html`.
      - Setiap foto bukti dukung otomatis di-resize menjadi maksimal lebar 1600px dengan kualitas JPEG 0.8 sebelum diunggah (mereduksi ukuran ~80% dari ~6MB menjadi <500KB).
-     - Kebijakan video: mewajibkan penempelan tautan Google Drive / YouTube privat untuk berkas video >20MB.
+     - Kebijakan video: mewajibkan penempelan tautan Google Drive / YouTube untuk berkas video >20MB.
 
 ---
 
 ### Fase 18 — Peta Taktis 34 Kapal Pengawas Ukuran Besar, Interlock Validasi Laik Laut, & Scoring Engine Kapal Terbaik Triwulanan
 
-- **Status**: **Siap Dikerjakan**.
-- **Dependensi**: Fase 17 Selesai.
+- **Status**: **Siap Dikerjakan (Dependensi Fase 17 Terpenuhi)**.
+- **Dependensi**: Fase 17 Selesai (Lunas).
 - **Tujuan**: Membangun visualisasi peta taktis pemantauan khusus 34 Kapal Pengawas Ukuran Besar, menegakkan aturan interlock validasi kelaikan laut antar-modul, dan mengimplementasikan sistem gamifikasi penilaian Kapal Terbaik Triwulan.
 - **Ruang Lingkup Deliverables**:
   1. **Peta Taktis 34 Kapal Pengawas Ukuran Besar (Screenshot 2 & 3)**:

@@ -112,9 +112,10 @@ function _silentRun(fn) {
   }
 })();
 
-// ── SYNC & HEARTBEAT STATE (Fase 15a) ─────────────────────
+// ── SYNC & HEARTBEAT STATE (Fase 15a/17) ─────────────────────
 var APP_SYNC = {
   lastTxVersion:  null,   // string/angka versi transaksi data global dari server (DASH_TX_VERSION)
+  lastTxMetadata: null,   // metadata transaksi terakhir { timestamp: ISOString, sheet: string } (Fase 17)
   inFlight:       false,  // mutex guard agar RPC sinkronisasi tidak tumpang tindih
   deferredReload: false,  // true jika ada pembaruan data saat modal form/input sedang aktif
   lastSyncTime:   0,      // timestamp lokal sinkronisasi sukses terakhir
@@ -128,6 +129,47 @@ function _fmtSyncTime(ts) {
   var mm = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
   var ss = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
   return hh + ':' + mm + ':' + ss;
+}
+
+/**
+ * Render Live Header Telemetry Timestamp (Fase 17)
+ * Menampilkan waktu transaksi terakhir ("Data per: DD MMM YYYY · HH:mm WIB")
+ * Memberi status peringatan kuning (is-stale) jika usia data > 7 hari.
+ */
+function _updateTelemetryTimestampUI() {
+  var el = document.getElementById('telemetry-timestamp');
+  if (!el) return;
+  var meta = APP_SYNC.lastTxMetadata;
+  if (!meta || !meta.timestamp) {
+    el.style.display = 'none';
+    return;
+  }
+  var d = new Date(meta.timestamp);
+  if (isNaN(d.getTime())) {
+    el.style.display = 'none';
+    return;
+  }
+  var monthsShort = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  var day = d.getDate();
+  var mName = monthsShort[d.getMonth()] || '';
+  var y = d.getFullYear();
+  var hh = (d.getHours() < 10 ? '0' : '') + d.getHours();
+  var mm = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
+  var dateStr = day + ' ' + mName + ' ' + y + ' \u00B7 ' + hh + ':' + mm + ' WIB';
+
+  var ageDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+  var isStale = ageDays > 7;
+
+  el.style.display = 'inline-flex';
+  if (isStale) {
+    el.className = 'telemetry-timestamp is-stale';
+    el.title = 'Peringatan: Data terakhir diperbarui ' + Math.floor(ageDays) + ' hari yang lalu (> 7 hari). Perlu pembaruan laporan.';
+    el.innerHTML = '<span class="telemetry-dot"></span><span>Data per: ' + _esc(dateStr) + ' (Usang)</span>';
+  } else {
+    el.className = 'telemetry-timestamp';
+    el.title = 'Waktu transaksi data terakhir tercatat di sistem: ' + (meta.sheet ? _esc(meta.sheet) : 'Transaksi');
+    el.innerHTML = '<span class="telemetry-dot"></span><span>Data per: ' + _esc(dateStr) + '</span>';
+  }
 }
 
 function _syncUpdateIndicator(state, detailText) {
@@ -1067,6 +1109,7 @@ function _renderPageHeader(viewId) {
     '<div class="page-header-inner">' +
       '<h1 class="page-title">' + _esc(_viewTitle(viewId)) + '</h1>' +
       '<div class="filter-periode">' +
+        '<div id="telemetry-timestamp" class="telemetry-timestamp" title="Waktu transaksi data terakhir tercatat di sistem"></div>' +
         '<div id="sync-indicator" class="sync-indicator" onclick="_triggerManualSync()" title="Data sinkron dengan server. Klik untuk memeriksa pembaruan sekarang.">' +
           '<span class="sync-indicator-dot"></span>' +
           '<span class="sync-indicator-text">Tersinkron</span>' +
@@ -1077,6 +1120,7 @@ function _renderPageHeader(viewId) {
     '</div>';
   _syncBusy();
   _syncUpdateIndicator(APP_SYNC.deferredReload ? 'deferred' : 'synced');
+  _updateTelemetryTimestampUI();
 }
 
 // ── FILTER PERIODE ────────────────────────────────────────
@@ -4355,6 +4399,12 @@ function _runSyncTick(force) {
         APP_SYNC.lastSyncTime = Date.now();
         var d = res.data || {};
 
+        // 0. Update telemetri waktu transaksi terakhir (Fase 17)
+        if (d.lastTxMetadata !== undefined) {
+          APP_SYNC.lastTxMetadata = d.lastTxMetadata;
+          _updateTelemetryTimestampUI();
+        }
+
         // 1. Update badge notifikasi jika data unread tersedia
         if (typeof d.unreadNotif === 'number') {
           _renderNotifBadge(d.unreadNotif);
@@ -5474,11 +5524,25 @@ function _attachPickFiles(key) {
   if (!s) return;
   var input = document.getElementById(key + '-files');
   if (input && input.files) {
-    for (var i = 0; i < input.files.length; i++) s.files.push(input.files[i]);
+    var rejectedVideos = [];
+    for (var i = 0; i < input.files.length; i++) {
+      var file = input.files[i];
+      var isVideo = file.type && file.type.indexOf('video/') === 0;
+      // Enforce video policy (Fase 17): Video > 20MB wajib via link Drive / YouTube
+      if (isVideo && file.size > 20 * 1024 * 1024) {
+        rejectedVideos.push(file.name + ' (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB)');
+        continue;
+      }
+      s.files.push(file);
+    }
     input.value = '';
+    if (rejectedVideos.length > 0) {
+      _attachMsg(key, 'warn', 'Video melebihi batas 20MB: ' + rejectedVideos.join(', ') + '. Sesuai kebijakan penyimpanan, silakan gunakan opsi tautan Google Drive / YouTube.');
+    } else {
+      _attachMsg(key, null);
+    }
   }
   _attachRenderList(key);
-  _attachMsg(key, null);
 }
 
 function _attachRemoveFile(key, idx) {
@@ -5552,8 +5616,8 @@ function _attachValidate(key) {
   if (s.files.length === 0 && !s.link) {
     return 'Lampiran wajib pada pengunggahan ini, atau centang \u201cPengunggahan ini tidak perlu lampiran\u201d.';
   }
-  if (s.link && !/drive\.google\.com/.test(s.link) && !/^[a-zA-Z0-9_\-]{20,}$/.test(s.link)) {
-    return 'Link harus berupa URL Google Drive yang valid.';
+  if (s.link && !/drive\.google\.com/.test(s.link) && !/youtube\.com|youtu\.be/.test(s.link) && !/^[a-zA-Z0-9_\-]{20,}$/.test(s.link)) {
+    return 'Link harus berupa URL Google Drive atau tautan YouTube yang valid.';
   }
   return '';
 }
@@ -5585,6 +5649,58 @@ function _attachReadBase64(file, cb) {
     cb(data || null);
   };
   reader.onerror = function () { cb(null); };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Kompresi Kanvas Sisi Klien (Fase 17):
+ * Mengubah resolusi gambar raster (JPEG/PNG/WEBP) ke max-width 1600px dan mengompresnya
+ * ke format JPEG kualitas 0.8 sebelum di-encode ke Base64. Menghemat kuota Google Drive
+ * dan mencegah batas kuota/timeout payload GAS.
+ */
+function _compressImageCanvas(file, maxWidth, quality, cb) {
+  if (!file.type || !file.type.match(/^image\/(jpeg|png|webp)/i)) {
+    _attachReadBase64(file, function (b64) {
+      cb({ name: file.name, mime: file.type || 'application/octet-stream', b64: b64 });
+    });
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var targetW = img.width;
+        var targetH = img.height;
+        if (targetW > maxWidth) {
+          targetH = Math.round((targetH * maxWidth) / targetW);
+          targetW = maxWidth;
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+
+        var dataUrl = canvas.toDataURL('image/jpeg', quality || 0.8);
+        var b64 = dataUrl.replace(/^data:[^;]+;base64,/, '');
+        var newName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+        cb({ name: newName, mime: 'image/jpeg', b64: b64 });
+      } catch (err) {
+        var fallbackB64 = String(e.target.result || '').replace(/^data:[^;]+;base64,/, '');
+        cb({ name: file.name, mime: file.type, b64: fallbackB64 });
+      }
+    };
+    img.onerror = function () {
+      var fallbackB64 = String(e.target.result || '').replace(/^data:[^;]+;base64,/, '');
+      cb({ name: file.name, mime: file.type, b64: fallbackB64 });
+    };
+    img.src = e.target.result;
+  };
+  reader.onerror = function () {
+    cb({ name: file.name, mime: file.type, b64: null });
+  };
   reader.readAsDataURL(file);
 }
 
@@ -5623,8 +5739,10 @@ function _attachReadTasks(key, idx, done) {
   if (idx >= s.tasks.length) { done(); return; }
   var t = s.tasks[idx];
   if (t.kind !== 'file' || t.base64) { _attachReadTasks(key, idx + 1, done); return; }
-  _attachReadBase64(t.file, function (b64) {
-    t.base64 = b64;
+  _compressImageCanvas(t.file, 1600, 0.8, function (res) {
+    t.base64 = res.b64;
+    t.compressedName = res.name;
+    t.compressedMime = res.mime;
     _attachReadTasks(key, idx + 1, done);
   });
 }
@@ -5657,8 +5775,8 @@ function _attachRunNext(key, idx) {
   if (t.kind === 'file') {
     var params = {
       refSheet: s.refSheet,
-      fileName: t.file.name,
-      mimeType: t.file.type || 'application/octet-stream',
+      fileName: t.compressedName || t.file.name,
+      mimeType: t.compressedMime || t.file.type || 'application/octet-stream',
       dataBase64: t.base64
     };
     if (single) { params.refRowId = s.rowIds[0]; runner.evidence_upload(APP.token, params); }
@@ -5773,47 +5891,67 @@ function _tuRenderKPI(d) {
   var el = document.getElementById('tu-kpi-strip');
   if (!el) return;
 
-  // Pagu diambil server dari baris ACTIVE terbaru (berlaku tahunan, bukan per-filter).
-  // Jika belum ada laporan, nilai = 0.
   var paguSource = d.paguReguler > 0 || d.paguABT > 0 ? 'Berlaku tahunan' : 'Belum diisi';
 
-  var progSP2D   = Math.min(Math.max(d.pctSP2D,   0), 100);
-  var progAkrual = Math.min(Math.max(d.pctAkrual, 0), 100);
+  var progSP2D   = Math.min(Math.max(d.pctSerapanNasional !== undefined ? d.pctSerapanNasional : (d.pctSP2D || 0), 0), 100);
+  var progAkrual = Math.min(Math.max(d.pctAkrual || 0, 0), 100);
   var clsSP2D    = progSP2D   >= 90 ? 'warn' : '';
   var clsAkrual  = progAkrual >= 90 ? 'warn' : '';
 
-  // Baris 1: Pagu (2 kartu) + Realisasi SP2D
+  // Baris 1: Pagu Total + Serapan Nasional (SP2D) + Realisasi Akrual (2x2 Matrix APBN)
   var html = '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);">';
-  // Pagu Reguler
-  html += '<div class="kpi-card"><div class="kpi-label">Pagu Reguler</div>' +
-    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.paguReguler) + '</div>' +
-    '<div class="kpi-sub">' + paguSource + '</div></div>';
-  // Pagu ABT
-  html += '<div class="kpi-card"><div class="kpi-label">Pagu ABT</div>' +
-    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.paguABT) + '</div>' +
-    '<div class="kpi-sub">Anggaran Biaya Tambahan</div></div>';
-  // Realisasi SP2D: persen besar + bar + sub teks
-  html += '<div class="kpi-card"><div class="kpi-label">Realisasi SP2D</div>' +
-    '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctSP2D + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
+  // Pagu Anggaran Total
+  html += '<div class="kpi-card"><div class="kpi-label">Pagu Anggaran Total</div>' +
+    '<div class="kpi-value" style="font-size:1.35rem;">' + _rupiah(d.paguTotal) + '</div>' +
+    '<div class="kpi-sub">Reg: ' + _rupiah(d.paguReguler) + ' \u00B7 ABT: ' + _rupiah(d.paguABT) + '</div></div>';
+  // Serapan Nasional SP2D
+  html += '<div class="kpi-card"><div class="kpi-label">Serapan Nasional (SP2D)</div>' +
+    '<div class="kpi-value" style="font-size:1.5rem;">' + (d.pctSerapanNasional !== undefined ? d.pctSerapanNasional : (d.pctSP2D || 0)) + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
     '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsSP2D + '" style="width:' + progSP2D + '%;"></div></div></div>' +
-    '<div class="kpi-sub">' + _rupiah(d.realisasiSP2D) + ' dari ' + _rupiah(d.paguReguler) + '</div></div>';
+    '<div class="kpi-sub">' + _rupiah(d.realisasiSP2D) + ' dari ' + _rupiah(d.paguTotal) + '</div></div>';
+  // Realisasi Akrual
+  html += '<div class="kpi-card"><div class="kpi-label">Realisasi Akrual (Fisik)</div>' +
+    '<div class="kpi-value" style="font-size:1.5rem;">' + (d.pctAkrual || 0) + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
+    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsAkrual + '" style="width:' + progAkrual + '%;"></div></div></div>' +
+    '<div class="kpi-sub">' + _rupiah(d.realisasiAkrual) + ' dari ' + _rupiah(d.paguTotal) + '</div></div>';
   html += '</div>';
 
-  // Baris 2: Realisasi Akrual + Sisa SP2D + Sisa Akrual
+  // Baris 2: Realisasi Reguler + Realisasi ABT + Sisa Konsolidasi
   html += '<div class="ov-kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:0;">';
-  html += '<div class="kpi-card"><div class="kpi-label">Realisasi Akrual</div>' +
-    '<div class="kpi-value" style="font-size:1.5rem;">' + d.pctAkrual + '<span style="font-size:.9rem;font-weight:500;color:var(--n-text-secondary);">%</span></div>' +
-    '<div class="prog-wrap"><div class="prog-bar-bg"><div class="prog-bar-fill ' + clsAkrual + '" style="width:' + progAkrual + '%;"></div></div></div>' +
-    '<div class="kpi-sub">' + _rupiah(d.realisasiAkrual) + ' dari ' + _rupiah(d.paguABT) + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Sisa SP2D</div>' +
+  html += '<div class="kpi-card"><div class="kpi-label">Realisasi Reguler (SP2D)</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.realisasiSP2D_Reguler || 0) + '</div>' +
+    '<div class="kpi-sub">Serapan: ' + (d.pctSP2D_Reguler || 0) + '% \u00B7 Sisa: ' + _rupiah(d.sisaSP2D_Reguler || 0) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Realisasi ABT (SP2D)</div>' +
+    '<div class="kpi-value" style="font-size:1.25rem;">' + _rupiah(d.realisasiSP2D_ABT || 0) + '</div>' +
+    '<div class="kpi-sub">Serapan: ' + (d.pctSP2D_ABT || 0) + '% \u00B7 Sisa: ' + _rupiah(d.sisaSP2D_ABT || 0) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Sisa Anggaran Kas (SP2D)</div>' +
     '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaSP2D < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaSP2D) + '</div>' +
-    '<div class="kpi-sub">' + (d.sisaSP2D >= 0 ? 'Saldo aman' : 'Melebihi Pagu') + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Sisa Akrual</div>' +
-    '<div class="kpi-value" style="font-size:1.25rem;color:' + (d.sisaAkrual < 0 ? 'var(--n-crit)' : 'inherit') + ';">' + _rupiah(d.sisaAkrual) + '</div>' +
-    '<div class="kpi-sub">' + (d.sisaAkrual >= 0 ? 'Saldo aman' : 'Melebihi Pagu') + '</div></div>';
+    '<div class="kpi-sub">Sisa Akrual: ' + _rupiah(d.sisaAkrual) + ' \u00B7 Rev. Pagu: ' + (d.revisiPagu || 0) + 'x</div></div>';
   html += '</div>';
 
   el.innerHTML = html;
+}
+
+function _tuUpdateFormRealTotals() {
+  var sReg = Number((document.getElementById('tu-real-sp2d-reguler') || {}).value) || 0;
+  var sAbt = Number((document.getElementById('tu-real-sp2d-abt') || {}).value) || 0;
+  var aReg = Number((document.getElementById('tu-real-akrual-reguler') || {}).value) || 0;
+  var aAbt = Number((document.getElementById('tu-real-akrual-abt') || {}).value) || 0;
+  var hint = document.getElementById('tu-real-totals-hint');
+  if (hint) {
+    hint.textContent = 'Total Minggu Ini \u2014 SP2D: ' + _rupiah(sReg + sAbt) + ' \u00B7 Akrual: ' + _rupiah(aReg + aAbt);
+  }
+}
+
+function _tuUpdateRvRealTotals() {
+  var sReg = Number((document.getElementById('rv-real-sp2d-reguler') || {}).value) || 0;
+  var sAbt = Number((document.getElementById('rv-real-sp2d-abt') || {}).value) || 0;
+  var aReg = Number((document.getElementById('rv-real-akrual-reguler') || {}).value) || 0;
+  var aAbt = Number((document.getElementById('rv-real-akrual-abt') || {}).value) || 0;
+  var hint = document.getElementById('rv-real-totals-hint');
+  if (hint) {
+    hint.textContent = 'Total Minggu Ini \u2014 SP2D: ' + _rupiah(sReg + sAbt) + ' \u00B7 Akrual: ' + _rupiah(aReg + aAbt);
+  }
 }
 
 // ── FORM (POPUP, BACKLOG A) ──────────────────────────────
@@ -5825,10 +5963,16 @@ function tuOpenForm() {
   });
   _opsInitPeriodeUi('tu-');
   _tuSyncPeriodeHint();
-  ['tu-pagu-reguler','tu-pagu-abt','tu-real-sp2d','tu-real-akrual','tu-catatan'].forEach(function(id) {
+  [
+    'tu-pagu-reguler','tu-pagu-abt',
+    'tu-real-sp2d-reguler','tu-real-sp2d-abt',
+    'tu-real-akrual-reguler','tu-real-akrual-abt',
+    'tu-catatan'
+  ].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.value = '';
   });
+  _tuUpdateFormRealTotals();
 
   // Pagu: kunci & isi otomatis dari laporan ACTIVE terakhir (KPI punya pagu periode berjalan).
   // Hanya berubah bila user menekan "Ubah Pagu". Bila belum ada laporan sebelumnya, Pagu bebas diisi.
@@ -6010,8 +6154,12 @@ function _tuRenderHistory(items) {
         ['Pagu Reguler', _rupiah(r.paguReguler)],
         ['Pagu ABT', _rupiah(r.paguABT)],
         ['Pagu Total', _rupiah(r.paguTotal)],
-        ['Realisasi SP2D', _rupiah(r.realisasiSP2D)],
-        ['Realisasi Akrual', _rupiah(r.realisasiAkrual)],
+        ['SP2D Reguler (Minggu)', _rupiah(r.realisasiSP2D_Reguler || 0)],
+        ['SP2D ABT (Minggu)', _rupiah(r.realisasiSP2D_ABT || 0)],
+        ['Total SP2D (Minggu)', _rupiah(r.realisasiSP2D)],
+        ['Akrual Reguler (Minggu)', _rupiah(r.realisasiAkrual_Reguler || 0)],
+        ['Akrual ABT (Minggu)', _rupiah(r.realisasiAkrual_ABT || 0)],
+        ['Total Akrual (Minggu)', _rupiah(r.realisasiAkrual)],
         ['Sisa SP2D', _rupiah(r.sisaSP2D)],
         ['Sisa Akrual', _rupiah(r.sisaAkrual)],
         ['Catatan Revisi Pagu', _esc(r.catatanRevisiPagu || '—')],
@@ -6035,13 +6183,22 @@ function tuSubmit() {
   if (!periode) { _msg('tu-form-msg', 'error', 'Periode wajib dipilih.'); return; }
   _setLoading(btn, true);
 
+  var sReg = Number((document.getElementById('tu-real-sp2d-reguler') || {}).value) || 0;
+  var sAbt = Number((document.getElementById('tu-real-sp2d-abt')     || {}).value) || 0;
+  var aReg = Number((document.getElementById('tu-real-akrual-reguler') || {}).value) || 0;
+  var aAbt = Number((document.getElementById('tu-real-akrual-abt')     || {}).value) || 0;
+
   var params = {
-    periode:          periode,
-    paguReguler:      (document.getElementById('tu-pagu-reguler') || {}).value || 0,
-    paguABT:          (document.getElementById('tu-pagu-abt')     || {}).value || 0,
-    realisasiSP2D:    (document.getElementById('tu-real-sp2d')    || {}).value || 0,
-    realisasiAkrual:  (document.getElementById('tu-real-akrual')  || {}).value || 0,
-    catatanRevisiPagu:(document.getElementById('tu-catatan')      || {}).value || ''
+    periode:                 periode,
+    paguReguler:             (document.getElementById('tu-pagu-reguler') || {}).value || 0,
+    paguABT:                 (document.getElementById('tu-pagu-abt')     || {}).value || 0,
+    realisasiSP2D_Reguler:   sReg,
+    realisasiSP2D_ABT:       sAbt,
+    realisasiAkrual_Reguler: aReg,
+    realisasiAkrual_ABT:     aAbt,
+    realisasiSP2D:           sReg + sAbt,
+    realisasiAkrual:         aReg + aAbt,
+    catatanRevisiPagu:       (document.getElementById('tu-catatan')      || {}).value || ''
   };
 
   google.script.run
@@ -6069,15 +6226,18 @@ function tuOpenRevisiModal(rowId) {
   // Pre-fill dari data history
   var row = (_TU.history || []).filter(function(r) { return r.rowId === rowId; })[0];
   if (row) {
-    document.getElementById('rv-pagu-reguler').value  = row.paguReguler || 0;
-    document.getElementById('rv-pagu-abt').value      = row.paguABT     || 0;
-    document.getElementById('rv-real-sp2d').value     = row.realisasiSP2D   || 0;
-    document.getElementById('rv-real-akrual').value   = row.realisasiAkrual || 0;
-    document.getElementById('rv-alasan').value        = '';
-    document.getElementById('rv-catatan').value       = '';
+    document.getElementById('rv-pagu-reguler').value        = row.paguReguler || 0;
+    document.getElementById('rv-pagu-abt').value            = row.paguABT     || 0;
+    document.getElementById('rv-real-sp2d-reguler').value   = row.realisasiSP2D_Reguler !== undefined ? row.realisasiSP2D_Reguler : (row.realisasiSP2D || 0);
+    document.getElementById('rv-real-sp2d-abt').value       = row.realisasiSP2D_ABT !== undefined ? row.realisasiSP2D_ABT : 0;
+    document.getElementById('rv-real-akrual-reguler').value = row.realisasiAkrual_Reguler !== undefined ? row.realisasiAkrual_Reguler : (row.realisasiAkrual || 0);
+    document.getElementById('rv-real-akrual-abt').value     = row.realisasiAkrual_ABT !== undefined ? row.realisasiAkrual_ABT : 0;
+    document.getElementById('rv-alasan').value              = '';
+    document.getElementById('rv-catatan').value             = '';
     var info = document.getElementById('tu-revisi-info');
     if (info) info.textContent = 'Merevisi laporan periode ' + row.periode + '.';
     _tuRenderRevisiPagu('rv-pagu-rev', false);
+    _tuUpdateRvRealTotals();
   }
   _attachInit('tu-revisi', { refSheet: 'TX_TataUsaha' });
   _msg('tu-revisi-msg', null);
@@ -6096,14 +6256,23 @@ function tuRevisiConfirm() {
   if (!alasan.trim()) { _msg('tu-revisi-msg', 'error', 'Alasan revisi wajib diisi.'); return; }
   _setLoading(btn, true);
 
+  var sReg = Number((document.getElementById('rv-real-sp2d-reguler') || {}).value) || 0;
+  var sAbt = Number((document.getElementById('rv-real-sp2d-abt')     || {}).value) || 0;
+  var aReg = Number((document.getElementById('rv-real-akrual-reguler') || {}).value) || 0;
+  var aAbt = Number((document.getElementById('rv-real-akrual-abt')     || {}).value) || 0;
+
   var params = {
-    targetRowId:      _TU.pendingRowId,
-    paguReguler:      (document.getElementById('rv-pagu-reguler')  || {}).value || 0,
-    paguABT:          (document.getElementById('rv-pagu-abt')      || {}).value || 0,
-    realisasiSP2D:    (document.getElementById('rv-real-sp2d')     || {}).value || 0,
-    realisasiAkrual:  (document.getElementById('rv-real-akrual')   || {}).value || 0,
-    alasanRevisi:     alasan,
-    catatanRevisiPagu:(document.getElementById('rv-catatan')       || {}).value || ''
+    targetRowId:             _TU.pendingRowId,
+    paguReguler:             (document.getElementById('rv-pagu-reguler')  || {}).value || 0,
+    paguABT:                 (document.getElementById('rv-pagu-abt')      || {}).value || 0,
+    realisasiSP2D_Reguler:   sReg,
+    realisasiSP2D_ABT:       sAbt,
+    realisasiAkrual_Reguler: aReg,
+    realisasiAkrual_ABT:     aAbt,
+    realisasiSP2D:           sReg + sAbt,
+    realisasiAkrual:         aReg + aAbt,
+    alasanRevisi:            alasan,
+    catatanRevisiPagu:       (document.getElementById('rv-catatan')       || {}).value || ''
   };
 
   google.script.run

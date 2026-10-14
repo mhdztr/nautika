@@ -103,21 +103,60 @@ function tataUsaha_getKPI(token, filter) {
     var tahunRef = range.startDate.getFullYear();
     var ytdStart = new Date(tahunRef, 0, 1);
 
-    var realisasiSP2D   = 0;
-    var realisasiAkrual = 0;
+    var realisasiSP2D_Reguler   = 0;
+    var realisasiSP2D_ABT       = 0;
+    var realisasiAkrual_Reguler = 0;
+    var realisasiAkrual_ABT     = 0;
+
     rows.forEach(function (r) {
       if (String(r['Status']) !== ROW_STATUS.ACTIVE) return;
       var ts = new Date(r['Timestamp']);
       if (ts >= ytdStart && ts <= range.endDate) {
-        realisasiSP2D   += _num(r['RealisasiSP2D_Minggu']);
-        realisasiAkrual += _num(r['RealisasiAkrual_Minggu']);
+        var sp2dReg = _num(r['RealisasiSP2D_Reguler_Minggu']);
+        var sp2dAbt = _num(r['RealisasiSP2D_ABT_Minggu']);
+        var akruReg = _num(r['RealisasiAkrual_Reguler_Minggu']);
+        var akruAbt = _num(r['RealisasiAkrual_ABT_Minggu']);
+        var legSP2D = _num(r['RealisasiSP2D_Minggu']);
+        var legAkru = _num(r['RealisasiAkrual_Minggu']);
+
+        if (sp2dReg > 0 || sp2dAbt > 0) {
+          realisasiSP2D_Reguler += sp2dReg;
+          realisasiSP2D_ABT     += sp2dAbt;
+        } else {
+          // Fallback legacy row
+          realisasiSP2D_Reguler += legSP2D;
+        }
+
+        if (akruReg > 0 || akruAbt > 0) {
+          realisasiAkrual_Reguler += akruReg;
+          realisasiAkrual_ABT     += akruAbt;
+        } else {
+          // Fallback legacy row
+          realisasiAkrual_Reguler += legAkru;
+        }
       }
     });
 
-    var sisaSP2D   = paguReguler - realisasiSP2D;
-    var sisaAkrual = paguABT     - realisasiAkrual;
-    var pctSP2D    = paguReguler   > 0 ? _round((realisasiSP2D   / paguReguler)   * 100, 2) : 0;
-    var pctAkrual  = paguABT       > 0 ? _round((realisasiAkrual / paguABT)       * 100, 2) : 0;
+    var realisasiSP2D_Total   = realisasiSP2D_Reguler + realisasiSP2D_ABT;
+    var realisasiAkrual_Total = realisasiAkrual_Reguler + realisasiAkrual_ABT;
+
+    // Sisa Pagu (Pagu - Realisasi SP2D)
+    var sisaSP2D_Reguler = paguReguler - realisasiSP2D_Reguler;
+    var sisaSP2D_ABT     = paguABT     - realisasiSP2D_ABT;
+    var sisaSP2D_Total   = paguTotal   - realisasiSP2D_Total;
+
+    var sisaAkrual_Reguler = paguReguler - realisasiAkrual_Reguler;
+    var sisaAkrual_ABT     = paguABT     - realisasiAkrual_ABT;
+    var sisaAkrual_Total   = paguTotal   - realisasiAkrual_Total;
+
+    // Persentase Serapan Konsolidasi Nasional yang sah: (Total SP2D Reguler + ABT) / (Total Pagu) * 100
+    var pctSP2D_Reguler    = paguReguler > 0 ? _round((realisasiSP2D_Reguler / paguReguler) * 100, 2) : 0;
+    var pctSP2D_ABT        = paguABT     > 0 ? _round((realisasiSP2D_ABT     / paguABT)     * 100, 2) : 0;
+    var pctSerapanNasional = paguTotal   > 0 ? _round((realisasiSP2D_Total   / paguTotal)   * 100, 2) : 0;
+
+    var pctAkrual_Reguler = paguReguler > 0 ? _round((realisasiAkrual_Reguler / paguReguler) * 100, 2) : 0;
+    var pctAkrual_ABT     = paguABT     > 0 ? _round((realisasiAkrual_ABT     / paguABT)     * 100, 2) : 0;
+    var pctAkrual_Total   = paguTotal   > 0 ? _round((realisasiAkrual_Total   / paguTotal)   * 100, 2) : 0;
 
     // Minggu terakhir submit (ACTIVE terbaru dalam range)
     var latest = activeInRange.slice().sort(function (a, b) {
@@ -127,18 +166,31 @@ function tataUsaha_getKPI(token, filter) {
     return {
       success: true,
       data: {
-        paguReguler:          paguReguler,
-        paguABT:              paguABT,
-        paguTotal:            paguTotal,
-        revisiPagu:           _tuHitungRevisiPagu(activeAll),
-        realisasiSP2D:        realisasiSP2D,
-        realisasiAkrual:      realisasiAkrual,
-        sisaSP2D:             sisaSP2D,
-        sisaAkrual:           sisaAkrual,
-        pctSP2D:              pctSP2D,
-        pctAkrual:            pctAkrual,
-        mingguTerakhirSubmit: latest ? String(latest['Periode']) : null,
-        periodeAktif:         getCurrentPeriode()
+        paguReguler:             paguReguler,
+        paguABT:                 paguABT,
+        paguTotal:               paguTotal,
+        revisiPagu:              _tuHitungRevisiPagu(activeAll),
+        realisasiSP2D:           realisasiSP2D_Total,
+        realisasiSP2D_Reguler:   realisasiSP2D_Reguler,
+        realisasiSP2D_ABT:       realisasiSP2D_ABT,
+        realisasiAkrual:         realisasiAkrual_Total,
+        realisasiAkrual_Reguler: realisasiAkrual_Reguler,
+        realisasiAkrual_ABT:     realisasiAkrual_ABT,
+        sisaSP2D:                sisaSP2D_Total,
+        sisaSP2D_Reguler:        sisaSP2D_Reguler,
+        sisaSP2D_ABT:            sisaSP2D_ABT,
+        sisaAkrual:              sisaAkrual_Total,
+        sisaAkrual_Reguler:      sisaAkrual_Reguler,
+        sisaAkrual_ABT:          sisaAkrual_ABT,
+        pctSP2D:                 pctSerapanNasional,
+        pctSP2D_Reguler:         pctSP2D_Reguler,
+        pctSP2D_ABT:             pctSP2D_ABT,
+        pctSerapanNasional:      pctSerapanNasional,
+        pctAkrual:               pctAkrual_Total,
+        pctAkrual_Reguler:       pctAkrual_Reguler,
+        pctAkrual_ABT:           pctAkrual_ABT,
+        mingguTerakhirSubmit:    latest ? String(latest['Periode']) : null,
+        periodeAktif:            getCurrentPeriode()
       }
     };
   } catch (e) {
@@ -175,23 +227,36 @@ function tataUsaha_getHistory(token, filter) {
     var data = filtered.map(function (r) {
       var paguReguler = _num(r['PaguReguler']);
       var paguABT     = _num(r['PaguABT']);
+      var paguReguler = _num(r['PaguReguler']);
+      var paguABT     = _num(r['PaguABT']);
+      var sp2dReg     = _num(r['RealisasiSP2D_Reguler_Minggu']);
+      var sp2dAbt     = _num(r['RealisasiSP2D_ABT_Minggu']);
+      var akruReg     = _num(r['RealisasiAkrual_Reguler_Minggu']);
+      var akruAbt     = _num(r['RealisasiAkrual_ABT_Minggu']);
+      var sp2dTot     = (sp2dReg + sp2dAbt) || _num(r['RealisasiSP2D_Minggu']);
+      var akruTot     = (akruReg + akruAbt) || _num(r['RealisasiAkrual_Minggu']);
+
       return {
-        rowId:              String(r['RowID']),
-        periode:            String(r['Periode']),
-        submittedBy:        String(r['SubmittedBy']),
-        timestamp:          r['Timestamp'] ? new Date(r['Timestamp']).toISOString() : null,
-        status:             String(r['Status']),
-        paguReguler:        paguReguler,
-        paguABT:            paguABT,
-        paguTotal:          paguReguler + paguABT,
-        realisasiSP2D:      _num(r['RealisasiSP2D_Minggu']),
-        realisasiAkrual:    _num(r['RealisasiAkrual_Minggu']),
-        catatanRevisiPagu:  String(r['CatatanRevisiPagu'] || ''),
-        supersedesRowId:    String(r['SupersedesRowID'] || ''),
+        rowId:                   String(r['RowID']),
+        periode:                 String(r['Periode']),
+        submittedBy:             String(r['SubmittedBy']),
+        timestamp:               r['Timestamp'] ? new Date(r['Timestamp']).toISOString() : null,
+        status:                  String(r['Status']),
+        paguReguler:             paguReguler,
+        paguABT:                 paguABT,
+        paguTotal:               paguReguler + paguABT,
+        realisasiSP2D:           sp2dTot,
+        realisasiSP2D_Reguler:   sp2dReg,
+        realisasiSP2D_ABT:       sp2dAbt,
+        realisasiAkrual:         akruTot,
+        realisasiAkrual_Reguler: akruReg,
+        realisasiAkrual_ABT:     akruAbt,
+        catatanRevisiPagu:       String(r['CatatanRevisiPagu'] || ''),
+        supersedesRowId:         String(r['SupersedesRowID'] || ''),
         // Komentar anulir — visible ke seluruh divisi (PRD §7)
-        voidReason:         String(r['VoidReason']  || ''),
-        voidedBy:           String(r['VoidedBy']    || ''),
-        voidedAt:           r['VoidedAt'] ? new Date(r['VoidedAt']).toISOString() : null
+        voidReason:              String(r['VoidReason']  || ''),
+        voidedBy:                String(r['VoidedBy']    || ''),
+        voidedAt:                r['VoidedAt'] ? new Date(r['VoidedAt']).toISOString() : null
       };
     });
 
@@ -214,6 +279,10 @@ function tataUsaha_getHistory(token, filter) {
  *   paguABT: number,
  *   realisasiSP2D: number,
  *   realisasiAkrual: number,
+ *   realisasiSP2D_Reguler?: number,
+ *   realisasiSP2D_ABT?: number,
+ *   realisasiAkrual_Reguler?: number,
+ *   realisasiAkrual_ABT?: number,
  *   catatanRevisiPagu: string  // opsional; wajib jika Pagu berubah dari sebelumnya
  * }} params
  */
@@ -226,8 +295,34 @@ function tataUsaha_submitMingguan(token, params) {
       var periode         = (params.periode || getCurrentPeriode()).trim();
       var paguReguler     = _numParam(params.paguReguler,    'Pagu Reguler');
       var paguABT         = _numParam(params.paguABT,        'Pagu ABT');
-      var realisasiSP2D   = _numParam(params.realisasiSP2D,  'Realisasi SP2D');
-      var realisasiAkrual = _numParam(params.realisasiAkrual,'Realisasi Akrual');
+
+      // Matriks 2x2 Realisasi: Reguler & ABT
+      var sp2dReg = params.realisasiSP2D_Reguler !== undefined && params.realisasiSP2D_Reguler !== '' ? _num(params.realisasiSP2D_Reguler) : null;
+      var sp2dAbt = params.realisasiSP2D_ABT !== undefined && params.realisasiSP2D_ABT !== '' ? _num(params.realisasiSP2D_ABT) : null;
+      var akruReg = params.realisasiAkrual_Reguler !== undefined && params.realisasiAkrual_Reguler !== '' ? _num(params.realisasiAkrual_Reguler) : null;
+      var akruAbt = params.realisasiAkrual_ABT !== undefined && params.realisasiAkrual_ABT !== '' ? _num(params.realisasiAkrual_ABT) : null;
+
+      var realisasiSP2D, realisasiAkrual;
+      if (sp2dReg !== null || sp2dAbt !== null) {
+        sp2dReg = sp2dReg || 0;
+        sp2dAbt = sp2dAbt || 0;
+        realisasiSP2D = sp2dReg + sp2dAbt;
+      } else {
+        realisasiSP2D = _numParam(params.realisasiSP2D, 'Realisasi SP2D');
+        sp2dReg = realisasiSP2D;
+        sp2dAbt = 0;
+      }
+
+      if (akruReg !== null || akruAbt !== null) {
+        akruReg = akruReg || 0;
+        akruAbt = akruAbt || 0;
+        realisasiAkrual = akruReg + akruAbt;
+      } else {
+        realisasiAkrual = _numParam(params.realisasiAkrual, 'Realisasi Akrual');
+        akruReg = realisasiAkrual;
+        akruAbt = 0;
+      }
+
       var catatanRevisi   = (params.catatanRevisiPagu || '').trim();
 
       // Validasi format periode
@@ -271,21 +366,25 @@ function tataUsaha_submitMingguan(token, params) {
       var rowId = 'TU-' + Utilities.getUuid().replace(/-/g, '').substring(0, 14).toUpperCase();
 
       appendRowData(sheet, {
-        'RowID':                  rowId,
-        'DivisiID':               _TU_DIVISI_ID,
-        'Periode':                periode,
-        'SubmittedBy':            session.userId,
-        'Timestamp':              now,
-        'Status':                 ROW_STATUS.ACTIVE,
-        'SupersedesRowID':        '',
-        'VoidReason':             '',
-        'VoidedBy':               '',
-        'VoidedAt':               '',
-        'PaguReguler':            paguReguler,
-        'PaguABT':                paguABT,
-        'RealisasiSP2D_Minggu':   realisasiSP2D,
-        'RealisasiAkrual_Minggu': realisasiAkrual,
-        'CatatanRevisiPagu':      catatanRevisi
+        'RowID':                          rowId,
+        'DivisiID':                       _TU_DIVISI_ID,
+        'Periode':                        periode,
+        'SubmittedBy':                    session.userId,
+        'Timestamp':                      now,
+        'Status':                         ROW_STATUS.ACTIVE,
+        'SupersedesRowID':                '',
+        'VoidReason':                     '',
+        'VoidedBy':                       '',
+        'VoidedAt':                       '',
+        'PaguReguler':                    paguReguler,
+        'PaguABT':                        paguABT,
+        'RealisasiSP2D_Minggu':           realisasiSP2D,
+        'RealisasiAkrual_Minggu':         realisasiAkrual,
+        'RealisasiSP2D_Reguler_Minggu':   sp2dReg,
+        'RealisasiSP2D_ABT_Minggu':       sp2dAbt,
+        'RealisasiAkrual_Reguler_Minggu': akruReg,
+        'RealisasiAkrual_ABT_Minggu':     akruAbt,
+        'CatatanRevisiPagu':              catatanRevisi
       });
 
       _tuAuditLog(session.userId, 'CREATE', rowId, '');
@@ -313,6 +412,10 @@ function tataUsaha_submitMingguan(token, params) {
  *   paguABT: number,
  *   realisasiSP2D: number,
  *   realisasiAkrual: number,
+ *   realisasiSP2D_Reguler?: number,
+ *   realisasiSP2D_ABT?: number,
+ *   realisasiAkrual_Reguler?: number,
+ *   realisasiAkrual_ABT?: number,
  *   alasanRevisi: string,       // wajib
  *   catatanRevisiPagu: string   // opsional
  * }} params
@@ -327,8 +430,34 @@ function tataUsaha_revisi(token, params) {
       var alasanRevisi    = (params.alasanRevisi || '').trim();
       var paguReguler     = _numParam(params.paguReguler,    'Pagu Reguler');
       var paguABT         = _numParam(params.paguABT,        'Pagu ABT');
-      var realisasiSP2D   = _numParam(params.realisasiSP2D,  'Realisasi SP2D');
-      var realisasiAkrual = _numParam(params.realisasiAkrual,'Realisasi Akrual');
+
+      // Matriks 2x2 Realisasi: Reguler & ABT
+      var sp2dReg = params.realisasiSP2D_Reguler !== undefined && params.realisasiSP2D_Reguler !== '' ? _num(params.realisasiSP2D_Reguler) : null;
+      var sp2dAbt = params.realisasiSP2D_ABT !== undefined && params.realisasiSP2D_ABT !== '' ? _num(params.realisasiSP2D_ABT) : null;
+      var akruReg = params.realisasiAkrual_Reguler !== undefined && params.realisasiAkrual_Reguler !== '' ? _num(params.realisasiAkrual_Reguler) : null;
+      var akruAbt = params.realisasiAkrual_ABT !== undefined && params.realisasiAkrual_ABT !== '' ? _num(params.realisasiAkrual_ABT) : null;
+
+      var realisasiSP2D, realisasiAkrual;
+      if (sp2dReg !== null || sp2dAbt !== null) {
+        sp2dReg = sp2dReg || 0;
+        sp2dAbt = sp2dAbt || 0;
+        realisasiSP2D = sp2dReg + sp2dAbt;
+      } else {
+        realisasiSP2D = _numParam(params.realisasiSP2D, 'Realisasi SP2D');
+        sp2dReg = realisasiSP2D;
+        sp2dAbt = 0;
+      }
+
+      if (akruReg !== null || akruAbt !== null) {
+        akruReg = akruReg || 0;
+        akruAbt = akruAbt || 0;
+        realisasiAkrual = akruReg + akruAbt;
+      } else {
+        realisasiAkrual = _numParam(params.realisasiAkrual, 'Realisasi Akrual');
+        akruReg = realisasiAkrual;
+        akruAbt = 0;
+      }
+
       var catatanRevisi   = (params.catatanRevisiPagu || '').trim();
 
       if (!targetRowId) return { success: false, error: 'targetRowId wajib diisi.' };
@@ -345,21 +474,25 @@ function tataUsaha_revisi(token, params) {
 
       // Insert baris baru
       appendRowData(sheet, {
-        'RowID':                  newRowId,
-        'DivisiID':               _TU_DIVISI_ID,
-        'Periode':                String(oldRow.obj['Periode']),
-        'SubmittedBy':            session.userId,
-        'Timestamp':              now,
-        'Status':                 ROW_STATUS.ACTIVE,
-        'SupersedesRowID':        targetRowId,
-        'VoidReason':             '',
-        'VoidedBy':               '',
-        'VoidedAt':               '',
-        'PaguReguler':            paguReguler,
-        'PaguABT':                paguABT,
-        'RealisasiSP2D_Minggu':   realisasiSP2D,
-        'RealisasiAkrual_Minggu': realisasiAkrual,
-        'CatatanRevisiPagu':      catatanRevisi
+        'RowID':                          newRowId,
+        'DivisiID':                       _TU_DIVISI_ID,
+        'Periode':                        String(oldRow.obj['Periode']),
+        'SubmittedBy':                    session.userId,
+        'Timestamp':                      now,
+        'Status':                         ROW_STATUS.ACTIVE,
+        'SupersedesRowID':                targetRowId,
+        'VoidReason':                     '',
+        'VoidedBy':                       '',
+        'VoidedAt':                       '',
+        'PaguReguler':                    paguReguler,
+        'PaguABT':                        paguABT,
+        'RealisasiSP2D_Minggu':           realisasiSP2D,
+        'RealisasiAkrual_Minggu':         realisasiAkrual,
+        'RealisasiSP2D_Reguler_Minggu':   sp2dReg,
+        'RealisasiSP2D_ABT_Minggu':       sp2dAbt,
+        'RealisasiAkrual_Reguler_Minggu': akruReg,
+        'RealisasiAkrual_ABT_Minggu':     akruAbt,
+        'CatatanRevisiPagu':              catatanRevisi
       });
 
       // Tandai baris lama SUPERSEDED
@@ -557,8 +690,15 @@ function tataUsaha_getTren(token, filter) {
       if (String(r['Status']) !== ROW_STATUS.ACTIVE) continue;
       var mm = String(r['Periode'] || '').substring(0, 7);
       if (idx[mm] === undefined) continue;
-      sp2dBulanan[idx[mm]] += _num(r['RealisasiSP2D_Minggu']);
-      akrualBulanan[idx[mm]] += _num(r['RealisasiAkrual_Minggu']);
+      var sp2dReg = _num(r['RealisasiSP2D_Reguler_Minggu']);
+      var sp2dAbt = _num(r['RealisasiSP2D_ABT_Minggu']);
+      var akruReg = _num(r['RealisasiAkrual_Reguler_Minggu']);
+      var akruAbt = _num(r['RealisasiAkrual_ABT_Minggu']);
+      var sp2dRow = (sp2dReg + sp2dAbt) || _num(r['RealisasiSP2D_Minggu']);
+      var akruRow = (akruReg + akruAbt) || _num(r['RealisasiAkrual_Minggu']);
+
+      sp2dBulanan[idx[mm]] += sp2dRow;
+      akrualBulanan[idx[mm]] += akruRow;
     }
 
     var sp2dYtd = [], akrualYtd = [], cs = 0, ca = 0;

@@ -363,13 +363,23 @@ function readDetailByParent(sheetName) {
  * SP2D/Akrual (YTD)". Penanda ikut masuk ke cache key, sehingga setelah ada
  * tulis, cache lama tidak terpakai lagi dan agregat dihitung ulang.
  */
-function bumpTxVersion() {
+function bumpTxVersion(sheetName) {
   try {
     var cache = CacheService.getScriptCache();
     var n = Number(cache.get('DASH_TX_VERSION')) || 0;
     // TTL 6 jam — jauh melebihi TTL cache agregat (300s) agar penanda tidak
     // lebih dulu kedaluwarsa daripada entri yang dijaganya.
     cache.put('DASH_TX_VERSION', String(n + 1), 21600);
+
+    // Metadata transaksi terakhir (Fase 17 — Live Telemetry)
+    var meta = {
+      timestamp: new Date().toISOString(),
+      sheet: sheetName || 'Transaksi'
+    };
+    cache.put('METADATA_LAST_TX', JSON.stringify(meta), 21600);
+    try {
+      PropertiesService.getScriptProperties().setProperty('METADATA_LAST_TX', JSON.stringify(meta));
+    } catch (eProp) {}
   } catch (ignore) { /* tidak pernah mengganggu alur tulis */ }
 }
 
@@ -387,7 +397,7 @@ function appendRowData(sheet, dataObj) {
     return (val === undefined || val === null) ? '' : val;
   });
   sheet.appendRow(row);
-  bumpTxVersion();
+  bumpTxVersion(sheet.getName ? sheet.getName() : 'Transaksi');
   SpreadsheetApp.flush();
 }
 
@@ -406,7 +416,7 @@ function updateRowCells(sheet, rowIndex, updates) {
       sheet.getRange(rowIndex, colIndex).setValue(updates[colName]);
     }
   });
-  bumpTxVersion();
+  bumpTxVersion(sheet.getName ? sheet.getName() : 'Transaksi');
   SpreadsheetApp.flush();
 }
 

@@ -131,11 +131,41 @@ function dashboard_getOverview(token, filter) {
     var paguReguler = latestTu ? _num(latestTu['PaguReguler']) : 0;
     var paguABT     = latestTu ? _num(latestTu['PaguABT'])     : 0;
     var paguTotal   = paguReguler + paguABT;
-    var realSP2D  = _dashSumIn(tuRows, ytdRange, 'RealisasiSP2D_Minggu');
-    var realAkru  = _dashSumIn(tuRows, ytdRange, 'RealisasiAkrual_Minggu');
-    var sp2dPct   = paguReguler > 0 ? _round(realSP2D / paguReguler * 100, 2) : 0;
-    var akruPct   = paguABT     > 0 ? _round(realAkru / paguABT * 100, 2)     : 0;
-    var sisaSP2D  = paguReguler - realSP2D;
+
+    var realSP2D_Reg = 0, realSP2D_Abt = 0;
+    var realAkru_Reg = 0, realAkru_Abt = 0;
+
+    tuRows.forEach(function (r) {
+      var ts = new Date(r['Timestamp']);
+      if (ts >= ytdStart && ts <= range.endDate) {
+        var sp2dReg = _num(r['RealisasiSP2D_Reguler_Minggu']);
+        var sp2dAbt = _num(r['RealisasiSP2D_ABT_Minggu']);
+        var akruReg = _num(r['RealisasiAkrual_Reguler_Minggu']);
+        var akruAbt = _num(r['RealisasiAkrual_ABT_Minggu']);
+        var legSP2D = _num(r['RealisasiSP2D_Minggu']);
+        var legAkru = _num(r['RealisasiAkrual_Minggu']);
+
+        if (sp2dReg > 0 || sp2dAbt > 0) {
+          realSP2D_Reg += sp2dReg;
+          realSP2D_Abt += sp2dAbt;
+        } else {
+          realSP2D_Reg += legSP2D;
+        }
+
+        if (akruReg > 0 || akruAbt > 0) {
+          realAkru_Reg += akruReg;
+          realAkru_Abt += akruAbt;
+        } else {
+          realAkru_Reg += legAkru;
+        }
+      }
+    });
+
+    var realSP2D = realSP2D_Reg + realSP2D_Abt;
+    var realAkru = realAkru_Reg + realAkru_Abt;
+    var sp2dPct  = paguTotal > 0 ? _round(realSP2D / paguTotal * 100, 2) : 0;
+    var akruPct  = paguTotal > 0 ? _round(realAkru / paguTotal * 100, 2) : 0;
+    var sisaSP2D = paguTotal - realSP2D;
 
     // ── OPERASI LAUT & UDARA ──────────────────────────────────────
     var lautRows  = _dashActiveRows(SHEET_TX.OPERASI_LAUT,  true);
@@ -286,13 +316,38 @@ function dashboard_getOverview(token, filter) {
       .sort(function (a, b) { return b.val - a.val; })
       .slice(0, 5);
 
+    var totalHariOp = hariKapal + hariPesawat;
+    var pctKapal = totalHariOp > 0 ? Math.round(hariKapal / totalHariOp * 100) : 0;
     var headline = [
-      { label: 'Realisasi Anggaran (SP2D)',    value: sp2dPct,  unit: '%',   sub: 'YTD kumulatif', spark: realis },
-      { label: 'Hari Operasi Kapal & Pesawat', value: hariKapal + hariPesawat, unit: 'hari', sub: 'Realisasi periode ini', trend: trendHariOp, minibars: hbTot },
-      { label: 'Armada Siap Operasi',          value: siap, unit: 'kapal', sub: (siap + tidakSiap) + ' / ' + totalArmada + ' armada aktif',
-        donut: { segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ], center: totalArmada } },
-      { label: 'Divisi Melapor Minggu Ini',    value: nMelapor, unit: '/ 7',
-        sub: 'Berdasarkan laporan masuk', dots: melaporDetail }
+      {
+        label: 'Realisasi Anggaran (SP2D)',
+        value: sp2dPct,
+        unit: '%',
+        sub: 'Rp ' + _dashCompact(realSP2D) + ' \u2014 ' + sp2dPct + '% dari total pagu Rp ' + _dashCompact(paguTotal),
+        spark: realis
+      },
+      {
+        label: 'Hari Operasi Kapal & Pesawat',
+        value: totalHariOp,
+        unit: 'hari',
+        sub: hariKapal + ' Kapal (' + pctKapal + '%) \u00B7 ' + hariPesawat + ' Udara',
+        trend: trendHariOp,
+        minibars: hbTot
+      },
+      {
+        label: 'Armada Siap Operasi',
+        value: siap,
+        unit: 'kapal',
+        sub: kesiapanPct + '% siap dari ' + (totalArmada || (siap + tidakSiap)) + ' armada aktif',
+        donut: { segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ], center: totalArmada }
+      },
+      {
+        label: 'Divisi Melapor Minggu Ini',
+        value: nMelapor,
+        unit: '/ 7',
+        sub: Math.round(nMelapor / 7 * 100) + '% kepatuhan pelaporan aktif',
+        dots: melaporDetail
+      }
     ];
 
     var divisi = [
@@ -448,9 +503,6 @@ function dashboard_getOverview(token, filter) {
       'Operasi Kapal Pengawas dan Pesawat': { type: 'cols', caption: 'KII vs KIA (YTD)',
         series: [ { name: 'Ditangkap', tone: 'deep' }, { name: 'Dipantau', tone: 'light' } ],
         groups: [ { label: 'KII', vals: [kiiDitangkap, kiiDipantau] }, { label: 'KIA', vals: [kiaDitangkap, kiaDipantau] } ] },
-      'Perawatan': { type: 'donut', caption: 'Kondisi armada', sub: 'KAPAL',
-        segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' },
-                { label: 'Docking', val: dockingAktif, tone: 'warn' } ] },
       'Intelijen': { type: 'hbars', caption: 'Aktivitas intelijen periode ini',
         items: [ { label: 'Nota Dinas', val: notaDinas, tone: 'deep' },
                  { label: 'Pelanggaran Tx', val: pelanggarTx, tone: pelanggarTx > 0 ? 'warn' : 'soft' },
@@ -460,10 +512,7 @@ function dashboard_getOverview(token, filter) {
                   { name: 'Username', tone: 'light', data: _dashMonthlyJenis(pemRows, f, 'USERNAME') } ] },
       'Logistik': amStok5.length ? { type: 'cols', fmt: 'num', caption: 'Stok amunisi per jenis (butir)',
         series: [ { name: 'Stok', tone: 'deep' } ],
-        groups: amStok5.map(function (s) { return { label: s.label, vals: [s.val] }; }) } : null,
-      'Pengawakan': { type: 'waffle', caption: 'Komposisi personel AKN', segs: aknSegs },
-      'Kegiatan Pendukung': { type: 'heat', caption: 'Kegiatan per bulan', labels: months,
-        vals: _dashMonthlyCount(kegRows, f) }
+        groups: amStok5.map(function (s) { return { label: s.label, vals: [s.val] }; }) } : null
     };
     // Urutan + lebar (grid 6 kolom) disusun supaya tiap baris penuh: 4+2, 2+2+2, 2+4, 3+3.
     var layoutByTitle = {
@@ -979,6 +1028,16 @@ function _dashFmtDate(v) {
   return (dd < 10 ? '0' + dd : dd) + '-' + (mm < 10 ? '0' + mm : mm) + '-' + yyyy;
 }
 
+function _dashCompact(n) {
+  n = Number(n) || 0;
+  var a = Math.abs(n);
+  if (a >= 1e12) return String(Math.round(n / 1e12 * 10) / 10).replace('.', ',') + ' T';
+  if (a >= 1e9)  return String(Math.round(n / 1e9 * 10) / 10).replace('.', ',') + ' M';
+  if (a >= 1e6)  return String(Math.round(n / 1e6 * 10) / 10).replace('.', ',') + ' jt';
+  if (a >= 1e3)  return String(Math.round(n / 1e3 * 10) / 10).replace('.', ',') + ' rb';
+  return String(n);
+}
+
 function _dashKapalInfo(kapalId) {
   var rows = sheetToObjects(openMasterSheet(SHEET_MASTER.KAPAL));
   for (var i = 0; i < rows.length; i++) {
@@ -1025,12 +1084,25 @@ function app_getSyncState(token) {
       queueCount = cachedQueue !== null ? Number(cachedQueue) : null;
     }
 
+    var lastTxMeta = null;
+    var cachedMeta = cache.get('METADATA_LAST_TX');
+    if (cachedMeta) {
+      try { lastTxMeta = JSON.parse(cachedMeta); } catch (eM) {}
+    }
+    if (!lastTxMeta) {
+      try {
+        var propMeta = PropertiesService.getScriptProperties().getProperty('METADATA_LAST_TX');
+        if (propMeta) lastTxMeta = JSON.parse(propMeta);
+      } catch (eP) {}
+    }
+
     return {
       success: true,
       data: {
         txVersion: txVersion,
         unreadNotif: unreadNotif,
         queueCount: queueCount,
+        lastTxMetadata: lastTxMeta,
         serverTime: new Date().toISOString()
       }
     };

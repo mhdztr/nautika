@@ -3,61 +3,103 @@
    DESIGN TOKENS — DESIGN.md §2-4
    ============================================================ */
 :root {
-  /* Netral */
-  --n-bg-base:        #F4F7FE;
-  --n-surface-1:      #FFFFFF;
-  --n-surface-2:      #F9FAFB;
-  --n-surface-hover:  #F1F5F9;
-  --n-text-primary:   #2B3674;
-  --n-text-secondary: #4A5568;
-  --n-text-muted:     #A3AED0;
-  --n-border-subtle:  rgba(0,0,0,0.06);
+  /* Netral & Kanvas Dasar — DESIGN.md §3 */
+  --n-bg-base:               #F4F7FE;
+  --n-canvas-subtle:         #EDF2F9;
+  --n-surface-1:             rgba(255, 255, 255, 0.88);
+  --n-surface-2:             rgba(248, 250, 252, 0.80);
+  --n-surface-hover:         rgba(241, 245, 249, 0.90);
+  --n-text-primary:          #2B3674;   /* Deep Maritime Navy */
+  --n-text-secondary:        #4A5568;   /* Slate Neutral */
+  --n-text-muted:            #A3AED0;   /* Muted Hint & Placeholder */
+  --n-border-subtle:         rgba(0, 0, 0, 0.07);
+  --n-border-hairline:       rgba(0, 0, 0, 0.07);
+  --n-border-highlight:      rgba(255, 255, 255, 0.75); /* Inner Glass Edge */
+  --n-border-focused:        rgba(43, 54, 116, 0.35);
+  --n-border-focus-ring:     rgba(43, 54, 116, 0.35);
 
-  /* Aksen */
-  --n-primary:        #2B3674;   /* navy tua = warna sidebar (disetujui 22 Sep 2026) */
-  --n-primary-light:  #E4E7F2;   /* tint navy muda (variasi hue biru yang sama) */
+  /* Aksen Brand & Status Semantik — DESIGN.md §3 */
+  --n-primary:               #2B3674;   /* Solid Navy = rel sidebar */
+  --n-primary-hover:         #1F2756;
+  --n-primary-active:        #151C3F;
+  --n-primary-light:         #E4E7F2;   /* Tint Navy Muda */
+  --n-primary-tint:          rgba(43, 54, 116, 0.08);
 
-  /* Status semantik (DESIGN.md §3 — tidak ditambah warna lain) */
-  --n-ok:             #10B981;
-  --n-warn:           #F59E0B;
-  --n-crit:           #EF4444;
+  --n-ok:                    #10B981;
+  --n-status-success:        #10B981;
+  --n-status-success-bg:     rgba(16, 185, 129, 0.12);
+  --n-status-success-border: rgba(16, 185, 129, 0.25);
 
-  /* Apple Design Materials (DESIGN.md §3) */
-  --n-material-surface:      rgba(255, 255, 255, 0.82);
+  --n-warn:                  #F59E0B;
+  --n-status-warning:        #F59E0B;
+  --n-status-warning-bg:     rgba(245, 158, 11, 0.12);
+  --n-status-warning-border: rgba(245, 158, 11, 0.25);
+
+  --n-crit:                  #EF4444;
+  --n-status-critical:       #EF4444;
+  --n-status-critical-bg:    rgba(239, 68, 68, 0.12);
+  --n-status-critical-border:rgba(239, 68, 68, 0.25);
+
+  /* Apple Translucent Materials (Vibrancy) — DESIGN.md §3 */
+  --n-material-surface:      rgba(255, 255, 255, 0.84);
+  --n-material-glass:        rgba(255, 255, 255, 0.65);
   --n-material-glass-subtle: rgba(255, 255, 255, 0.65);
   --n-material-floating:     rgba(255, 255, 255, 0.94);
-  --n-material-header:       rgba(244, 247, 254, 0.85);
-  --n-border-hairline:       rgba(0, 0, 0, 0.07);
-  --n-border-focused:        rgba(43, 54, 116, 0.35);
+  --n-material-header:       rgba(244, 247, 254, 0.88);
+  --n-backdrop-blur:         blur(20px) saturate(180%);
+  --n-backdrop-blur-deep:    blur(32px) saturate(190%);
+  --n-backdrop-modal:        blur(12px) saturate(140%);
 
-  /* Shape & Concentric Radiuses — DESIGN.md §4 */
-  --n-r-sm:           10px;
-  --n-r-md:           14px;
-  --n-r-lg:           16px;
-  --n-r-pill:         99px;
+  /* Geometri Konsentris & Radius — DESIGN.md §4 */
+  --n-radius-outer-lg:       18px;
+  --n-radius-lg:             18px;
+  --n-r-lg:                  18px;
+  --n-radius-outer-md:       14px;
+  --n-radius-md:             14px;
+  --n-r-md:                  14px;
+  --n-radius-inner:          10px;
+  --n-radius-sm:             10px;
+  --n-r-sm:                  10px;
+  --n-radius-pill:           9999px;
+  --n-r-pill:                9999px;
 
-  /* Apple Layered Ambient Shadows (DESIGN.md §4) */
-  --n-shadow-1:       0 1px 2px rgba(0, 0, 0, 0.03), 0 6px 16px -2px rgba(43, 54, 116, 0.05);
-  --n-shadow-2:       0 3px 6px -1px rgba(0, 0, 0, 0.04), 0 12px 28px -4px rgba(43, 54, 116, 0.10);
-  --n-shadow-3:       0 16px 36px -4px rgba(0, 0, 0, 0.12), 0 32px 72px -12px rgba(43, 54, 116, 0.22);
-  --n-shadow-card:    var(--n-shadow-1);
+  /* Layered Ambient Shadows — DESIGN.md §4 */
+  --n-shadow-1:              0 1px 2px rgba(0, 0, 0, 0.03), 0 6px 16px -2px rgba(43, 54, 116, 0.05);
+  --n-shadow-2:              0 3px 6px -1px rgba(0, 0, 0, 0.04), 0 12px 28px -4px rgba(43, 54, 116, 0.10);
+  --n-shadow-3:              0 16px 36px -4px rgba(0, 0, 0, 0.12), 0 32px 72px -12px rgba(43, 54, 116, 0.22);
+  --n-shadow-card:           var(--n-shadow-1);
+  --n-shadow-inset-bevel:    inset 0 1px 0 rgba(255, 255, 255, 0.75);
 
-  /* Apple Spring Physics Curves (DESIGN.md §5c) */
-  --n-spring-snappy:  cubic-bezier(0.2, 0.8, 0.2, 1);
-  --n-spring-modal:   cubic-bezier(0.16, 1, 0.3, 1);
-  --n-spring-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Kurva & Waktu Pegas (Emil Kowalski & Apple) — DESIGN.md §5 */
+  --ease-out:                cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out:            cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer:            cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-bounce:            cubic-bezier(0.34, 1.56, 0.64, 1);
+  --n-spring-snappy:         cubic-bezier(0.23, 1, 0.32, 1);
+  --n-spring-modal:          cubic-bezier(0.16, 1, 0.3, 1);
+  --n-spring-bounce:         cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-press:               90ms;
+  --dur-dropdown:            180ms;
+  --dur-entrance:            240ms;
+  --dur-modal:               260ms;
 
   /* Layout */
-  --n-sidebar-w:      240px;
+  --n-sidebar-w:             248px;
 }
 
 /* ============================================================
-   RESET & GLOBAL TYPOGRAPHY (DESIGN.md §2)
+   RESET & GLOBAL TYPOGRAPHY (DESIGN.md §2, mobile-native)
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body {
+html {
   height: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-height: 100dvh;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: -0.005em;
   color: var(--n-text-primary);
@@ -65,7 +107,19 @@ html, body {
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+@media (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 button  { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 a { text-decoration: none; color: inherit; }
@@ -117,12 +171,16 @@ a { text-decoration: none; color: inherit; }
   background: var(--n-bg-base);
 }
 .auth-card {
-  background: var(--n-surface-1);
-  border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-card);
-  padding: 40px;
+  background: var(--n-material-surface);
+  backdrop-filter: var(--n-backdrop-blur);
+  -webkit-backdrop-filter: var(--n-backdrop-blur);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-outer-lg);
+  box-shadow: var(--n-shadow-3), var(--n-shadow-inset-bevel);
+  padding: 44px 40px;
   width: 100%;
-  max-width: 432px;
+  max-width: 440px;
+  animation: _staggerFadeIn 260ms var(--ease-out);
 }
 .auth-brand {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -147,11 +205,11 @@ a { text-decoration: none; color: inherit; }
   font-size: 0.875rem;
   color: var(--n-text-secondary);
 }
-.auth-foot a { color: var(--n-primary); font-weight: 500; cursor: pointer; }
+.auth-foot a { color: var(--n-primary); font-weight: 600; cursor: pointer; }
 .auth-foot a:hover { text-decoration: underline; }
 
 /* ============================================================
-   FORM ELEMENTS
+   FORM ELEMENTS — DESIGN.md §3, §4, §5
    ============================================================ */
 .form-grp {
   position: relative;
@@ -164,31 +222,33 @@ a { text-decoration: none; color: inherit; }
 .form-grp label {
   flex: 0 0 auto;
   display: block;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--n-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--n-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 6px;
+  letter-spacing: 0.06em;
+  margin-bottom: 7px;
 }
 .form-grp input,
 .form-grp select {
   width: 100%;
-  padding: 10px 13px;
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
+  padding: 11px 14px;
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  font-family: inherit;
   font-size: 0.9375rem;
   color: var(--n-text-primary);
-  background: var(--n-surface-2);
+  background: rgba(0, 0, 0, 0.02);
   outline: none;
-  transition: border-color 0.14s, background 0.14s;
+  transition: border-color 0.16s var(--ease-out), background 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
   appearance: none;
   -webkit-appearance: none;
 }
 .form-grp input:focus,
 .form-grp select:focus {
   border-color: var(--n-primary);
-  background: var(--n-surface-1);
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
 }
 .form-grp select {
   cursor: pointer;
@@ -275,80 +335,115 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
   justify-content: flex-end;
 }
-.n-list-row { margin-bottom: 10px; }
+.n-list-row {
+  margin-bottom: 10px;
+  animation: _listRowIn 180ms var(--ease-out);
+}
+@keyframes _listRowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .n-list-row input,
 .n-list-row select {
   width: 100%;
   padding: 10px 13px;
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  font-family: inherit;
   font-size: 0.9375rem;
   color: var(--n-text-primary);
-  background: var(--n-surface-2);
+  background: rgba(0, 0, 0, 0.02);
   outline: none;
-  transition: border-color 0.14s, background 0.14s;
+  transition: border-color 0.16s var(--ease-out), background 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
   appearance: none;
   -webkit-appearance: none;
 }
 .n-list-row input:focus,
-.n-list-row select:focus { border-color: var(--n-primary); background: var(--n-surface-1); }
+.n-list-row select:focus {
+  border-color: var(--n-primary);
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
+}
 .n-list-row select { cursor: pointer; }
 .n-list-add {
-  margin: 2px 0 14px;
-  padding: 6px 12px;
-  border: 1px dashed var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
-  background: none;
+  margin: 4px 0 16px;
+  padding: 8px 16px;
+  border: 1px dashed var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  background: rgba(43, 54, 116, 0.03);
   color: var(--n-primary);
+  font-family: inherit;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.16s var(--ease-out), border-color 0.16s var(--ease-out), transform 90ms var(--ease-out);
 }
-.n-list-add:hover { border-color: var(--n-primary); background: rgba(43,54,116,0.06); }
+@media (hover: hover) and (pointer: fine) {
+  .n-list-add:hover {
+    border-color: var(--n-primary);
+    background: var(--n-primary-tint);
+  }
+}
+.n-list-add:active {
+  transform: scale(0.97);
+}
 .n-list-del {
   box-sizing: border-box;
-  width: 45px;
-  min-height: 34px;
+  width: 44px;
+  min-height: 38px;
   align-self: stretch;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
-  background: var(--n-surface-2);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  background: rgba(0, 0, 0, 0.02);
   color: var(--n-text-muted);
   cursor: pointer;
-  transition: color 0.14s, border-color 0.14s, background 0.14s;
+  transition: color 0.14s var(--ease-out), border-color 0.14s var(--ease-out), background 0.14s var(--ease-out), transform 90ms var(--ease-out);
 }
-.n-list-del:hover { color: var(--n-crit); border-color: var(--n-crit); background: var(--n-surface-1); }
+@media (hover: hover) and (pointer: fine) {
+  .n-list-del:hover {
+    color: var(--n-crit);
+    border-color: var(--n-status-critical-border);
+    background: var(--n-status-critical-bg);
+  }
+}
+.n-list-del:active { transform: scale(0.95); }
 .n-derive-val {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.35rem;
+  font-weight: 800;
   color: var(--n-primary);
   line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
 }
 
-/* ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12) ──────────
-   Menggantikan typeahead Backlog B. Tampil sebagai dropdown (readonly +
-   chevron), panel berisi kotak cari + daftar, tombol hapus me-reset filter. */
+/* ── SEARCH DROPDOWN "Pilih…" (revisi Fase 12/16) ──────────
+   Dropdown kapal mengambang halus dengan backdrop blur, search filter,
+   dan smooth popover entrance. */
 .kdl-sel { position: relative; width: 100%; }
 .form-grp .kdl-field {
   width: 100%;
-  padding: 10px 13px;
+  padding: 11px 14px;
   padding-right: 58px;
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  font-family: inherit;
   font-size: 0.9375rem;
   color: var(--n-text-primary);
-  background: var(--n-surface-2);
+  background: rgba(0, 0, 0, 0.02);
   outline: none;
   cursor: pointer;
-  transition: border-color 0.14s, background 0.14s;
+  transition: border-color 0.16s var(--ease-out), background 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
 }
 .form-grp .kdl-field:focus {
   border-color: var(--n-primary);
-  background: var(--n-surface-1);
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
 }
 .kdl-field::placeholder { color: var(--n-text-muted); }
 .kdl-caret {
@@ -367,23 +462,32 @@ a { text-decoration: none; color: inherit; }
   cursor: pointer;
 }
 .kdl-panel {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
-  background: var(--n-surface-1);
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
-  box-shadow: var(--n-shadow-card);
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  background: var(--n-material-floating);
+  backdrop-filter: var(--n-backdrop-blur-deep);
+  -webkit-backdrop-filter: var(--n-backdrop-blur-deep);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  box-shadow: var(--n-shadow-2), var(--n-shadow-inset-bevel);
   display: none;
+  overflow: hidden;
+  animation: _dropdownPopIn 180ms var(--ease-out);
+}
+@keyframes _dropdownPopIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .kdl-panel.kdl-open { display: block; }
 .kdl-q {
   width: 100%;
-  padding: 10px 13px;
+  padding: 10px 14px;
   border: none;
-  border-bottom: 1px solid var(--n-border-subtle);
+  border-bottom: 1px solid var(--n-border-hairline);
   outline: none;
+  font-family: inherit;
   font-size: 0.875rem;
   color: var(--n-text-primary);
-  background: var(--n-surface-2);
+  background: rgba(0, 0, 0, 0.02);
 }
 .kdl-q::placeholder { color: var(--n-text-muted); }
 .kdl-list {
@@ -452,81 +556,109 @@ a { text-decoration: none; color: inherit; }
    BUTTONS (DESIGN.md §1.1, §4, §5c)
    ============================================================ */
 /* Tombol utama (submit form) di semua divisi + Index login/register.
-   Mengikuti standar Apple: tanpa 3D bevel 4px kuno, border hairline halus,
+   Mengikuti standar Apple: tanpa 3D bevel kuno, border hairline halus,
    elevasi ambient Level 1, dan kompresi sentuh fisik (:active scale 0.97). */
 .btn-primary {
   display: block; width: 100%;
-  padding: 12px 18px;
-  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.08));
-  border-radius: var(--n-r-sm);
+  padding: 12px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--n-radius-inner);
   background: var(--n-primary);
   color: #fff;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700;
+  font-family: inherit;
+  font-weight: 600;
   font-size: 0.9375rem;
   letter-spacing: -0.010em;
-  box-shadow: var(--n-shadow-1);
-  transition: transform 0.15s var(--n-spring-snappy), filter 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 90ms var(--ease-out), background 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
   margin-top: 8px;
+  user-select: none;
 }
-.btn-primary:hover:not(:disabled)  { filter: brightness(1.06); box-shadow: var(--n-shadow-2); }
-.btn-primary:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.92); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) {
+    background: var(--n-primary-hover);
+    box-shadow: var(--n-shadow-2);
+  }
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.97) !important;
+  background: var(--n-primary-active);
+}
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary:focus-visible { outline: 3px solid var(--n-primary-light); outline-offset: 2px; }
 
 .btn-ghost {
   display: block; width: 100%;
-  padding: 11px;
-  border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
+  padding: 11px 18px;
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
   background: transparent;
   color: var(--n-primary);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: inherit;
   font-weight: 600;
   font-size: 0.9375rem;
-  transition: background 0.14s, border-color 0.14s, transform 0.15s var(--n-spring-snappy);
+  transition: background 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
   margin-top: 8px;
+  user-select: none;
 }
-.btn-ghost:hover:not(:disabled) {
-  background: var(--n-primary-light);
-  border-color: var(--n-primary);
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--n-primary-light);
+    border-color: var(--n-primary);
+  }
+}
+.btn-ghost:active:not(:disabled) {
+  transform: scale(0.97) !important;
 }
 
 /* Tombol batalkan dalam modal — garansi outline indigo di atas kartu putih. */
 .btn-outline {
   display: block; width: 100%;
-  padding: 11px;
+  padding: 11px 18px;
   border: 1px solid var(--n-primary);
-  border-radius: var(--n-r-sm);
+  border-radius: var(--n-radius-inner);
   background: transparent;
   color: var(--n-primary);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: inherit;
   font-weight: 600;
   font-size: 0.9375rem;
-  transition: background 0.14s, border-color 0.14s, transform 0.15s var(--n-spring-snappy);
+  transition: background 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
   margin-top: 8px;
+  user-select: none;
 }
-.btn-outline:hover:not(:disabled) { background: var(--n-primary-light); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-outline:hover:not(:disabled) { background: var(--n-primary-light); }
+}
+.btn-outline:active:not(:disabled) { transform: scale(0.97) !important; }
 .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Tombol aksi mini dalam baris tabel (Revisi/Anulir) — pill outline. */
 .btn-mini {
   display: inline-block;
-  padding: 4px 11px;
-  border-radius: var(--n-r-pill);
-  border: 1px solid var(--n-primary);
-  background: transparent;
-  color: var(--n-primary);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 4px 12px;
+  border-radius: var(--n-radius-pill);
+  border: 1px solid var(--n-border-hairline);
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--n-text-primary);
+  font-family: inherit;
   font-size: 0.78rem;
-  font-weight: 500;
+  font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s var(--n-spring-snappy);
+  transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out), border-color 0.12s var(--ease-out), transform 90ms var(--ease-out);
   margin-right: 5px;
+  user-select: none;
 }
-.btn-mini:hover { background: var(--n-primary-light); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-mini:hover {
+    background: var(--n-primary-light);
+    border-color: var(--n-primary);
+    color: var(--n-primary);
+  }
+}
+.btn-mini:active:not(:disabled) { transform: scale(0.97) !important; }
 
-/* Apple Tactile Compression Feedback */
+/* Apple & Emil Kowalski Tactile Compression Feedback */
 .btn:active:not(:disabled),
 .btn-primary:active:not(:disabled),
 .btn-ghost:active:not(:disabled),
@@ -542,7 +674,7 @@ a { text-decoration: none; color: inherit; }
 .filter-mode-btn:active,
 .sub-tab-btn:active {
   transform: scale(0.97) !important;
-  transition: transform 90ms ease-out !important;
+  transition: transform 90ms var(--ease-out) !important;
 }
 
 /* ── IKON BUTTON (DESIGN.md §7) ───────────────────────────
@@ -827,17 +959,19 @@ a { text-decoration: none; color: inherit; }
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 8px 20px;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 9px 20px;
+  font-family: inherit;
   font-size: 0.875rem;
   font-weight: 500;
   color: rgba(255,255,255,0.78);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, transform 0.12s var(--n-spring-snappy);
+  transition: color 0.14s var(--ease-out), background 0.14s var(--ease-out), border-color 0.14s var(--ease-out);
   border-left: 3px solid transparent;
   user-select: none;
 }
-.nav-item:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
+@media (hover: hover) and (pointer: fine) {
+  .nav-item:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
+}
 .nav-item.active {
   background: rgba(255,255,255,0.12);
   color: #FFFFFF;
@@ -851,7 +985,7 @@ a { text-decoration: none; color: inherit; }
   border-top: 1px solid rgba(255,255,255,0.10);
 }
 .sb-user-name {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
   color: #FFFFFF;
@@ -867,42 +1001,45 @@ a { text-decoration: none; color: inherit; }
   width: 100%;
   padding: 7px 12px;
   border: 1px solid rgba(255,255,255,0.10);
-  border-radius: var(--n-r-sm);
+  border-radius: var(--n-radius-inner);
   background: transparent;
   color: #FFFFFF;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: inherit;
   font-size: 0.8rem;
   font-weight: 500;
   text-align: left;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.btn-logout:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; border-color: rgba(255,255,255,0.25); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-logout:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; border-color: rgba(255,255,255,0.25); }
+}
 
 /* ============================================================
    PAGE HEADER — sticky, translucent vibrancy (DESIGN.md §3, §5)
    ============================================================ */
 .page-header {
   position: sticky; top: 0; z-index: 40;
-  background: var(--n-material-header, rgba(244, 247, 254, 0.85));
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  padding: 20px 32px 0;
+  background: var(--n-material-header, rgba(244, 247, 254, 0.88));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  padding: 18px 32px 0;
+  border-bottom: 1px solid var(--n-border-hairline);
+  box-shadow: 0 4px 16px -4px rgba(43, 54, 116, 0.04);
 }
 .page-header-inner {
   display: flex; align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
+  padding-bottom: 16px;
 }
 /* h1.page-title: title only, no subtitle — DESIGN.md §1.6 */
 .page-title {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700;
-  font-size: 1.375rem;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 1.45rem;
   color: var(--n-text-primary);
   letter-spacing: -0.020em;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 /* ============================================================
@@ -916,35 +1053,41 @@ a { text-decoration: none; color: inherit; }
 }
 .filter-box {
   display: flex; align-items: center;
-  background: var(--n-material-glass-subtle, rgba(255, 255, 255, 0.65));
+  background: var(--n-material-glass, rgba(255, 255, 255, 0.65));
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
-  border-radius: var(--n-r-sm);
-  padding: 3px;
-  box-shadow: var(--n-shadow-1);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-inner);
+  padding: 3px 4px;
+  box-shadow: var(--n-shadow-1), var(--n-shadow-inset-bevel);
 }
 .filter-mode { display: flex; align-items: center; gap: 2px; }
 .filter-mode-btn {
   padding: 5px 12px;
   border: none;
   border-radius: 8px;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: inherit;
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   background: transparent;
   color: var(--n-text-secondary);
-  transition: background 0.14s, color 0.14s, transform 0.1s var(--n-spring-snappy);
+  transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out);
 }
-.filter-mode-btn:hover { background: var(--n-surface-hover); color: var(--n-text-primary); }
-.filter-mode-btn.active { background: var(--n-primary); color: #fff; }
+@media (hover: hover) and (pointer: fine) {
+  .filter-mode-btn:hover { background: rgba(0, 0, 0, 0.04); color: var(--n-text-primary); }
+}
+.filter-mode-btn.active {
+  background: var(--n-primary);
+  color: #fff;
+  box-shadow: var(--n-shadow-1);
+}
 .filter-mode-sep {
   width: 1px;
   align-self: stretch;
   margin: 4px 8px;
-  background: var(--n-border-subtle);
+  background: var(--n-border-hairline);
 }
 .filter-inputs { display: flex; align-items: center; gap: 5px; }
 .filter-sel,
@@ -1108,15 +1251,23 @@ a { text-decoration: none; color: inherit; }
 /* ============================================================
    CARD — DESIGN.md §3, §4, §7
    ============================================================ */
+/* ============================================================
+   CARD — DESIGN.md §3, §4, §7
+   ============================================================ */
 .n-card {
-  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
-  border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-1);
+  background: var(--n-material-surface);
+  backdrop-filter: var(--n-backdrop-blur);
+  -webkit-backdrop-filter: var(--n-backdrop-blur);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-outer-lg);
+  box-shadow: var(--n-shadow-1), var(--n-shadow-inset-bevel);
   padding: 24px;
-  transition: box-shadow 0.25s var(--n-spring-snappy);
+  transition: box-shadow 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .n-card:hover {
+    box-shadow: var(--n-shadow-2), var(--n-shadow-inset-bevel);
+  }
 }
 
 /* ============================================================
@@ -1129,24 +1280,50 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 24px;
 }
 .kpi-card {
-  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
-  border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-1);
-  padding: 18px 22px;
+  background: var(--n-material-surface);
+  backdrop-filter: var(--n-backdrop-blur);
+  -webkit-backdrop-filter: var(--n-backdrop-blur);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-outer-lg);
+  box-shadow: var(--n-shadow-1), var(--n-shadow-inset-bevel);
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
   min-height: 124px;
   box-sizing: border-box;
-  transition: box-shadow 0.25s var(--n-spring-snappy), transform 0.25s var(--n-spring-snappy);
+  transition: box-shadow 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+  animation: _staggerFadeIn 240ms var(--ease-out) backwards;
 }
-.kpi-card:hover {
-  box-shadow: var(--n-shadow-2);
+@media (hover: hover) and (pointer: fine) {
+  .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--n-shadow-2), var(--n-shadow-inset-bevel);
+  }
 }
+.kpi-card:active {
+  transform: scale(0.985);
+}
+
+.kpi-grid > .kpi-card:nth-child(1) { animation-delay: 0ms; }
+.kpi-grid > .kpi-card:nth-child(2) { animation-delay: 35ms; }
+.kpi-grid > .kpi-card:nth-child(3) { animation-delay: 70ms; }
+.kpi-grid > .kpi-card:nth-child(4) { animation-delay: 105ms; }
+.kpi-grid > .kpi-card:nth-child(5) { animation-delay: 140ms; }
+.kpi-grid > .kpi-card:nth-child(6) { animation-delay: 175ms; }
+
+@keyframes _staggerFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 .kpi-main {
   min-width: 0;
   display: flex;
@@ -1159,18 +1336,18 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
 }
 .kpi-label {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 0.72rem;
+  font-family: inherit;
+  font-size: 0.70rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--n-text-muted);
   margin-bottom: 10px;
 }
 .kpi-value {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: inherit;
   font-weight: 800;
-  font-size: 1.75rem;
+  font-size: 1.85rem;
   color: var(--n-text-primary);
   letter-spacing: -0.025em;
   line-height: 1.1;
@@ -1184,53 +1361,105 @@ a { text-decoration: none; color: inherit; }
   color: var(--n-text-secondary);
   margin-top: 6px;
 }
+.kpi-unit {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-left: 4px;
+  color: var(--n-text-secondary);
+  vertical-align: baseline;
+}
 
 /* ============================================================
-   STATUS BADGES — DESIGN.md §1.3 (semantic only, not decoration)
+   STATUS BADGES — DESIGN.md §1.3, §3.2 (soft tint, non-jarring)
    ============================================================ */
-.badge {
-  display: inline-flex; align-items: center;
-  padding: 3px 9px;
-  border-radius: var(--n-r-pill);
-  font-size: 0.72rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.badge-ok      { background: #ECFDF5; color: var(--n-ok); }
-.badge-warn    { background: #FFFBEB; color: var(--n-warn); }
-.badge-crit    { background: #FEF2F2; color: var(--n-crit); }
-.badge-neutral { background: var(--n-surface-2); color: var(--n-text-secondary); }
-.badge-super   { background: var(--n-primary-light); color: var(--n-primary); }
-
-/* Badge status pada tabel riwayat (Operasi/Intelijen/Pemantauan/Tata Usaha).
-   Kelas ini dipakai di Script_Main.html tapi sebelumnya tidak pernah didefinisikan. */
+.badge,
 .status-badge {
   display: inline-flex; align-items: center;
-  padding: 3px 9px;
-  border-radius: var(--n-r-pill);
+  padding: 4px 10px;
+  border-radius: var(--n-radius-pill);
   font-size: 0.72rem;
   font-weight: 600;
   white-space: nowrap;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.badge-ok,
+.status-badge.siap {
+  background: var(--n-status-success-bg);
+  color: #059669;
+  border: 1px solid var(--n-status-success-border);
+}
+
+.badge-warn,
+.status-badge.baseline {
+  background: var(--n-status-warning-bg);
+  color: #B45309;
+  border: 1px solid var(--n-status-warning-border);
+}
+
+.badge-crit,
+.status-badge.tidak-siap,
+.status-badge.dianulir {
+  background: var(--n-status-critical-bg);
+  color: #DC2626;
+  border: 1px solid var(--n-status-critical-border);
+}
+
+.badge-neutral,
+.status-badge.ditimpa {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--n-text-muted);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.badge-super,
+.status-badge.aktif {
+  background: var(--n-primary-tint);
+  color: var(--n-primary);
+  border: 1px solid rgba(43, 54, 116, 0.20);
 }
 
 /* ============================================================
-   TABLE
+   TABLE — DESIGN.md §4 (horizontal scroll containment, sticky headers)
    ============================================================ */
+.n-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--n-radius-inner);
+  border: 1px solid var(--n-border-hairline);
+  background: var(--n-material-surface);
+  box-shadow: var(--n-shadow-1);
+}
 .n-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .n-table th {
+  position: sticky;
+  top: 0;
   text-align: left;
-  padding: 8px 12px;
-  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--n-text-muted); font-weight: 600;
-  border-bottom: 1px solid var(--n-border-subtle);
+  padding: 10px 14px;
+  font-size: 0.70rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--n-border-hairline);
+  z-index: 2;
 }
 .n-table td {
-  padding: 11px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--n-border-subtle);
   vertical-align: middle;
   color: var(--n-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .n-table tr:last-child td { border-bottom: none; }
+.n-table tbody tr {
+  transition: background 0.12s var(--ease-out);
+}
 .n-table tbody tr:hover td { background: var(--n-surface-hover); }
 
 /* ── RIWAYAT DIVISI (seragam lintas modul) ──────────────────
@@ -1383,28 +1612,28 @@ a { text-decoration: none; color: inherit; }
    ============================================================ */
 .n-overlay {
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, 0.40);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: var(--n-backdrop-modal);
+  -webkit-backdrop-filter: var(--n-backdrop-modal);
   z-index: 200;
   display: flex; align-items: center; justify-content: center;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.22s var(--ease-out);
 }
 .n-overlay.n-hidden { display: none !important; }
 .n-modal {
-  background: var(--n-material-floating, rgba(255, 255, 255, 0.94));
-  backdrop-filter: blur(32px) saturate(190%);
-  -webkit-backdrop-filter: blur(32px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-3);
-  padding: 32px; width: 400px; max-width: 90vw;
+  background: var(--n-material-floating);
+  backdrop-filter: var(--n-backdrop-blur-deep);
+  -webkit-backdrop-filter: var(--n-backdrop-blur-deep);
+  border: 1px solid var(--n-border-hairline);
+  border-radius: var(--n-radius-outer-lg);
+  box-shadow: var(--n-shadow-3), var(--n-shadow-inset-bevel);
+  padding: 32px; width: 420px; max-width: 92vw;
   position: relative;   /* fallback overlay loading untuk modal tanpa .n-modal-form-scroll */
-  animation: n-modal-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: n-modal-enter 240ms var(--ease-out) forwards;
 }
 @keyframes n-modal-enter {
   from {
-    transform: scale(0.94) translateY(8px);
+    transform: scale(0.95) translateY(10px);
     opacity: 0;
   }
   to {
@@ -1413,12 +1642,131 @@ a { text-decoration: none; color: inherit; }
   }
 }
 .n-modal h2 {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: 700; font-size: 1.05rem;
+  font-family: inherit;
+  font-weight: 700; font-size: 1.15rem;
   letter-spacing: -0.015em;
   color: var(--n-text-primary);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
+
+/* ============================================================
+   NAUTIKA SONNER TOASTER ARCHITECTURE (ask-sonner & emil-design-eng)
+   Non-blocking floating stacked toast system with gesture dismiss
+   ============================================================ */
+#n-toaster {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: 380px;
+  width: calc(100vw - 32px);
+}
+@media (max-width: 600px) {
+  #n-toaster {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
+.sonner-toast {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: var(--n-radius-inner);
+  background: var(--n-material-floating);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid var(--n-border-hairline);
+  box-shadow: var(--n-shadow-3), var(--n-shadow-inset-bevel);
+  color: var(--n-text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  transform-origin: bottom right;
+  transition: transform 220ms var(--ease-out), opacity 200ms var(--ease-out);
+  touch-action: pan-x;
+  user-select: none;
+  overflow: hidden;
+}
+.sonner-toast.enter {
+  animation: sonnerEnter 240ms var(--ease-out) forwards;
+}
+.sonner-toast.exit {
+  animation: sonnerExit 180ms var(--ease-out) forwards;
+}
+@keyframes sonnerEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes sonnerExit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+}
+.sonner-toast-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sonner-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+.sonner-toast-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--n-text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.sonner-toast-desc {
+  font-size: 0.78rem;
+  color: var(--n-text-secondary);
+  margin-top: 2px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.sonner-toast-action {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--n-radius-pill);
+  border: 1px solid var(--n-border-hairline);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--n-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s var(--ease-out);
+}
+.sonner-toast-action:hover {
+  background: var(--n-primary-light);
+}
+.sonner-toast.success .sonner-toast-icon { color: var(--n-status-success); }
+.sonner-toast.error .sonner-toast-icon { color: var(--n-status-critical); }
+.sonner-toast.warning .sonner-toast-icon { color: var(--n-status-warning); }
+.sonner-toast.loading .sonner-toast-icon { color: var(--n-primary); }
 
 .n-modal-hd { width: 620px; max-width: 94vw; padding: 24px; }
 .n-modal-hd .n-modal-hd-head {
@@ -1832,16 +2180,35 @@ a { text-decoration: none; color: inherit; }
    Warna hanya dari token tema §3.
    ============================================================ */
 .ov-trend {
-  margin-top: 10px;
-  font-size: 0.78rem;
+  margin-top: 8px;
+  font-size: 0.75rem;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--n-radius-pill);
+  background: var(--n-surface-2);
   color: var(--n-text-secondary);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--n-border-subtle);
   letter-spacing: -0.01em;
 }
+.ov-trend.up {
+  color: #059669;
+  background: var(--n-status-success-bg);
+  border: 1px solid var(--n-status-success-border);
+}
+.ov-trend.down {
+  color: #DC2626;
+  background: var(--n-status-critical-bg);
+  border: 1px solid var(--n-status-critical-border);
+}
 .ov-trend-cmp {
-  font-weight: 400;
-  font-size: 0.73rem;
-  color: var(--n-text-muted);
+  font-weight: 500;
+  font-size: 0.70rem;
+  color: inherit;
+  opacity: 0.85;
 }
 .stk-wrap { margin-top: 8px; }
 .stk-bar {

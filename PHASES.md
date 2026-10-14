@@ -438,35 +438,35 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ---
 
-### Fase 16 — Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop
+### Fase 16 — Total UI Revision: Sintesis Seluruh Design Engineering Skills & Mission-Critical Maritime Cockpit
 
-- **Status**: **Selesai (14 Okt 2026)**.
+- **Status**: **Selesai (Completed)**.
 - **Dependensi**: Fase 15 Selesai.
-- **Tujuan**: Mengubah tampilan dan rasa interaksi Nautika secara drastis dari web aplikasi kaku/AI-slop menjadi standar Apple Human Interface Guidelines: permukaan translusen berkilau (*vibrancy*), tipografi terpadu dengan angka tabular anti-jitter, elevasi multi-layer halus, serta fisika pegas interaktif (*tactile spring physics*).
-- **Hasil Implementasi**:
-  1. **Pembersihan CSS Primitif & Eliminasi Elemen Kuno**:
-     - Tombol 3D bevel 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) pada `.btn-primary` di `html/Style.html` dihapus 100%, digantikan dengan 1px hairline border halus, shadow difus lembut, dan kompresi sentuh fisik.
-     - Seluruh kurva transisi linear diganti dengan token pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`).
-     - Respon kompresi sentuh haptic visual aktif (`:active` / `pointerdown`): `transform: scale(0.97)` diterapkan secara menyeluruh pada tombol (`.btn`, `.btn-primary`, `.btn-ghost`, `.btn-outline`, `.btn-mini`, `.btn-sm`, `.n-iconbtn`), navigasi sidebar (`.nav-item`), filter mode, dan sub-tab.
-  2. **Penyatuan Tipografi & Penegakan Tabular Numbers**:
-     - Ketergantungan font Poppins dihapus 100% dari seluruh berkas (`Index.html`, `Auth.html`, `Style.html`, `Script_Charts.html`). Seluruh aplikasi terpadu menggunakan satu keluarga font **Plus Jakarta Sans** dengan optical letter-spacing Apple.
-     - Penegakan mutlak `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` pada seluruh angka metrik KPI, tabel data, timestamp telemetri, timer, dan koordinat GPS untuk menjamin stabilitas tata letak bebas getaran horizontal (*zero layout jitter*).
-  3. **Translucent Glass Surfaces & Layered Ambient Elevation**:
-     - Seluruh kartu (`.n-card`, `.kpi-card`, `.chart-cell`, `.div-card`, `.auth-card`) dan panel header (`.page-header`, `.filter-box`) mengadopsi material translusen dengan saturasi optik: `rgba(255, 255, 255, 0.82)` + `backdrop-filter: blur(20px) saturate(180%)` dan batas tepi 1px crisp `rgba(0,0,0,0.07)`.
-     - Sistem bayangan multi-layer (Level 1 kartu, Level 2 floating dropdown, Level 3 modal) berdifusi halus tanpa bayangan hitam pekat kotor.
-     - Hukum geometri konsentris ($\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$) ditegakkan.
-  4. **Fisika Modal Terjangkar (Anchored Modal) & Gesture Sheet**:
-     - Modal dialog kini beranimasi pegas halus (`scale(0.94)` ke `1.0` via `cubic-bezier(0.16, 1, 0.3, 1)`) dengan backdrop blur 12px dan titik jangkar dinamis (*dynamic transform-origin*) yang berakar dari tombol pemicu klik.
-     - Panel drawer samping dilengkapi pegangan visual (`.sheet-grabber`) dan gestur sentuh *swipe-to-dismiss* (geser vertikal >80px langsung menutup dengan inersia, <80px memantul kembali).
-     - Pengaman aksesibilitas `@media (prefers-reduced-motion: reduce)` diterapkan di seluruh aplikasi.
-- **Verifikasi**: `node --check` dan verifikasi AST parser JavaScript pada `Script_Main.html` dan `Script_Charts.html` 100% lulus tanpa error syntax. Dependensi Fase 17 kini resmi lunas dan siap dikerjakan.
+- **Tujuan**: Melakukan perombakan total dari nol (*zero-to-one revision*) terhadap seluruh tampilan, geometri visual, fisika pegas, dan interaksi aplikasi Nautika. Mengubah sistem dari formulir web birokrasi biasa menjadi **Mission-Critical Maritime Cockpit** berstandar dunia (setara Linear/Vercel/Apple HIG) yang menyintesiskan secara penuh seluruh dokumen skill di `.agents/skills/`: `emil-design-eng`, `apple-design`, `animate`, `animation-performance`, `mobile-native`, `ask-sonner`, dan `break-ui`.
+- **Karakter & Filosofi Desain ("Mission-Critical Maritime Cockpit")**:
+  - **Five-Second Rule**: Operator dan Pimpinan dapat membaca metrik kunci, kesiapan armada, dan arah tren dalam $\le 5$ detik tanpa gangguan elemen dekoratif.
+  - **Permukaan Kaca Dingin & Geometri Konsentris**: Kanvas abu-kebiruan sejuk (`#F4F7FE`) dipadukan dengan kartu material translusen tebal (`backdrop-filter: blur(20px) saturate(180%)`), garis batas 1px crisp, dan inner highlight yang menangkap cahaya lembut. Sudut lengkung wajib mengikuti hukum konsentris matematis Apple: $\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$.
+  - **Angka Telemetri Digital (Tabular Instruments)**: Seluruh angka numerik (hari layar, BBM, nominal rupiah, jam terbang, koordinat) menggunakan `font-variant-numeric: tabular-nums` untuk mengeliminasi pergeseran tata letak (*zero layout jitter*).
+  - **Disiplin Sinyal Warna Anjungan**: 90% antarmuka bernuansa tenang Deep Navy (`#2B3674`) dan abu-abu netral. Warna cerah hanya menyala saat ada status fungsional (Hijau Emerald = Siap/Aman, Kuning Amber = Perhatian/Siap Pangkalan, Merah Ruby = Kritis/Harwat Galangan/Anulir).
+  - **Fisika Pegas Taktil & Anchored Modal**: Kompresi sentuh instan pada tombol (`scale(0.97)` via `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` dalam 90ms) dan modal dialog yang berakar dari posisi tombol pemicu (*origin-aware*).
+  - **HUD Sonner Toast Architecture**: Mengganti banner alert inline dan popup kaku dengan tumpukan notifikasi mengambang non-blocking di pojok kanan bawah yang mendukung alur *loading $\rightarrow$ success/error*, swipe-to-dismiss, dan stacking physics.
+  - **Mobile-Native Standard**: Mematikan tap highlight flash (`-webkit-tap-highlight-color: transparent`), mengunci hover hanya pada pointer halus mouse (`@media (hover: hover) and (pointer: fine)`), meniadakan tap delay 300ms (`touch-action: manipulation`), viewport dinamis `100dvh`, dan font form $\ge 16\text{px}$ pada layar sentuh.
+- **Hasil Eksekusi 8 Sub-Fase**:
+  1. **Sub-Fase 1 (Selesai)**: Overhaul [DESIGN.md](file:///home/pinefeast/Projects/nautika/DESIGN.md) (16 larangan Negative Prompt & token spesifikasi) dan perumusan [master_plan_total_ui_revision.md](file:///home/pinefeast/.gemini/antigravity-ide/brain/0c94f837-7f00-4c84-b347-7bfd2f196360/master_plan_total_ui_revision.md).
+  2. **Sub-Fase 2 (Selesai)**: Redesign Global Engine CSS ([Style.html](file:///home/pinefeast/Projects/nautika/html/Style.html)) — token material translusen, inner light edges, layered ambient navy shadows, spring curves, dan mobile-native rules.
+  3. **Sub-Fase 3 (Selesai)**: Rekayasa Shell & Navigasi Utama ([Index.html](file:///home/pinefeast/Projects/nautika/html/Index.html)) — Sidebar navy rel aktif solid 3px putih, floating telemetry header, wadah `#n-toaster`, dan auth cards.
+  4. **Sub-Fase 4 (Selesai)**: Engine Toast Sonner & Morphing Dialog ([Script_Main.html](file:///home/pinefeast/Projects/nautika/html/Script_Main.html)) — implementasi native Sonner Toast client-side, gestur swipe, wiring universal `_msg`, dan anchored modal origin observer.
+  5. **Sub-Fase 5 (Selesai)**: Overhaul Kartu KPI & Staggered View Transition — regenerator `_kpiHeadline` dengan tabular hero numbers, unit span, badge status tren semantik, dan transisi masuk cascade bertingkat (35ms delay).
+  6. **Sub-Fase 6 (Selesai)**: Overhaul Formulir & Dropdown Relasional ([html/views/*.html](file:///home/pinefeast/Projects/nautika/html/views)) — audit layout modul, token radius konsentris, dan token latar peta Leaflet `var(--n-surface-2)`.
+  7. **Sub-Fase 7 (Selesai)**: Standardisasi Tabel Riwayat & Data Grids — universal sticky glass header, soft-tint semantik badges, dan pembungkus `.n-table-wrap` berisolasi horizontal scroll.
+  8. **Sub-Fase 8 (Selesai)**: Audit Ketahanan Data Ekstrem (`break-ui`), verifikasi sintaksis 100% lulus pada seluruh berkas repo, dan kesiapan transisi ke Fase 17.
 
 ---
 
 ### Fase 17 — Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung
 
-- **Status**: **Siap Dikerjakan (Dependensi Fase 16 Telah Selesai)**.
-- **Dependensi**: Fase 16 Selesai (LUNAS).
+- **Status**: **Siap Dikerjakan (Menunggu Penyelesaian Fase 16 Total UI Revision)**.
+- **Dependensi**: Fase 16 Total UI Revision Selesai.
 - **Tujuan**: Memperbaiki model akuntansi anggaran negara, menambahkan telemetri pembaruan transaksi di header utama, merapikan halaman Ikhtisar sesuai standar SiMata (eliminasi visual bloat), serta menerapkan kompresi kanvas sisi klien untuk melindungi kuota Google Drive.
 - **Ruang Lingkup Deliverables**:
   1. **Rekonstruksi Model Keuangan Tata Usaha**:

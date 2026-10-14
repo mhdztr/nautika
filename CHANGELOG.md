@@ -1,3 +1,62 @@
+## [Fase 16] — Total UI Revision: Sintesis Seluruh Design Engineering Skills & Mission-Critical Maritime Cockpit (Selesai Penuh)
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Seluruh 8 sub-fase tuntas dieksekusi; `node --check` 100% lulus pada seluruh berkas JavaScript dan skrip sisi klien; pengujian unit multi-file bebas error).
+
+### 1. Pencapaian & Hasil Implementasi Lengkap (8 Sub-Fase)
+1. **Sub-Fase 1 — Fondasi & Dokumen Desain**:
+   - Memutakhirkan `DESIGN.md` dengan 16 aturan *Negative Prompt* eksplisit, tabel optical tracking Plus Jakarta Sans, spesifikasi material translusen (`backdrop-filter: blur(20px) saturate(180%)`), inner light-catching edges (`--n-border-highlight`), layered ambient shadows, dan fisika pegas taktil.
+   - Merumuskan artefak arsitektur master `master_plan_total_ui_revision.md` (5 diagram Mermaid, tabel audit Before/After/Why Emil Kowalski, dan matriks ketahanan data ekstrem `break-ui`).
+2. **Sub-Fase 2 — Global Engine CSS (`Style.html`)**:
+   - Menyediakan tokens material akrilik (`--n-material-surface`, `--n-material-floating`, `--n-border-hairline`, `--n-shadow-1/2/3`).
+   - Menerapkan aturan *mobile-native*: peniadaan tap highlight flash (`-webkit-tap-highlight-color: transparent`), pencegahan tap delay 300ms (`touch-action: manipulation`), viewport dinamis `100dvh`, dan font form $\ge 16\text{px}$ pada layar sentuh untuk menghentikan zoom otomatis iOS.
+   - Mengunci seluruh efek hover di dalam query `@media (hover: hover) and (pointer: fine)` agar layar sentuh ponsel/tablet tidak mengalami masalah *sticky hover*.
+   - Menerapkan animasi staggered entrance (`@keyframes _staggerFadeIn` dengan inkremen delay 35ms) pada kartu KPI dan kontainer metrik.
+   - Mengintegrasikan styling lengkap Sonner Toaster (`#n-toaster`, `.sonner-toast`, `.sonner-toast-content`, dsb.) dengan stacking physics dan support swipe dismiss.
+3. **Sub-Fase 3 — Shell & Navigasi Utama (`Index.html`)**:
+   - Memasang wadah root-level `#n-toaster` (`aria-live="polite"`, `aria-atomic="true"`) persis sebelum pemuatan skrip, siap menangkap seluruh event notifikasi aplikasi secara non-blocking.
+4. **Sub-Fase 4 — Engine Toast Sonner & Morphing Dialog (`Script_Main.html`)**:
+   - Mengimplementasikan objek `toast` native Sonner-grade lengkap (`toast()`, `toast.success()`, `toast.error()`, `toast.warning()`, `toast.info()`, `toast.loading()`, `toast.promise()`, `toast.dismiss()`) dengan batas maksimal 4 notifikasi bertumpuk, durasi adaptif, dan gestur sentuh *swipe-to-dismiss* horizontal.
+   - Menghubungkan fungsi sentral `_msg(id, type, text)` langsung ke engine `toast` sehingga pemanggilan pesan status dari seluruh 14 modul otomatis menampilkan notifikasi floating akrilik modern tanpa merusak fallback elemen pesan inline.
+   - Memperkuat pengamat *Anchored Modal Origin Tracker* (`_modalObserver`) menggunakan `document.body.observe` dengan `subtree: true` dan `attributeFilter: ['class']` agar seluruh modal formulir (termasuk yang diinjeksi secara dinamis dari template modul) membuka diri berakar tepat dari koordinat tombol pemicunya.
+5. **Sub-Fase 5 — Overhaul KPI Generator (`_kpiHeadline`)**:
+   - Merevisi `_kpiHeadline` di `Script_Main.html` dengan angka instrumen tebal (`font-weight: 800`), `font-variant-numeric: tabular-nums`, label mikro berhuruf kapital (`font-size: 0.70rem; letter-spacing: 0.06em`), penanda satuan `.kpi-unit`, serta badge tren berstatus semantik (`.ov-trend.up` berlatar hijau lembut dan `.ov-trend.down` berlatar merah lembut).
+6. **Sub-Fase 6 — Audit Template Modul (`html/views/*.html`)**:
+   - Memastikan seluruh kartu dan kontainer pada modul divisi mematuhi token tema konsentris, serta mengganti warna latar peta statis pada Operasi Laut dan Operasi Udara dengan token tema `var(--n-surface-2)`.
+7. **Sub-Fase 7 — Universal History Table (`_histRender` & `Style.html`)**:
+   - Membungkus seluruh tabel riwayat dan skeleton loader dalam `.n-table-wrap` dengan isolasi horizontal scroll (`-webkit-overflow-scrolling: touch`) untuk melindungi layout mobile dari *horizontal blowout*.
+   - Menerapkan *sticky header* dengan efek kaca buram translusen (`backdrop-filter: blur(12px)`) pada seluruh kolom tabel riwayat.
+   - Mempertegas status badges lembut (*soft-tint non-jarring*) untuk status Aktif, Dianulir, Ditimpa, Siap, dan Tidak Siap.
+8. **Sub-Fase 8 — Verifikasi & Standarisasi Kualitas**:
+   - Menambahkan aturan pemecah teks panjang (`overflow-wrap: break-word; word-break: break-word`) pada judul dan deskripsi toast notifikasi untuk menangkal kerusakan layout akibat data ekstrem (`break-ui`).
+   - Melakukan pengujian sintaksis AST parser Node.js terhadap seluruh 11.497 baris skrip sisi klien dan seluruh berkas JavaScript utilitas/service backend dengan hasil 100% lulus tanpa galat.
+
+### 2. Status Roadmap
+- **Fase 16 (Total UI Revision)**: **SELESAI PENUH**.
+- **Fase 17**: **SIAP DIKERJAKAN**.
+
+---
+
+## [Master Plan Total UI Revision] — Sintesis Seluruh Design Engineering Skills & Overhaul Komprehensif DESIGN.md
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **MASTER PLAN & ROADMAP RESMI SELESAI** (`master_plan_total_ui_revision.md`, `DESIGN.md`, dan `PHASES.md` termutakhirkan 100%).
+
+### 1. Pencapaian & Dokumen
+1. **Pembaruan Menyeluruh DESIGN.md**:
+   - Memutakhirkan standar desain antarmuka Nautika menyintesiskan seluruh skill di `.agents/skills/` (`emil-design-eng`, `apple-design`, `animate`, `animation-performance`, `mobile-native`, `ask-sonner`, dan `break-ui`).
+   - Memperluas *Negative Prompt* menjadi 16 larangan eksplisit (mencakup larangan `scale(0)`, `ease-in`, durasi >300ms, animasi properti Layout/Paint, hover tersangkut pada touch, serta kilatan tap highlight).
+   - Mempertegas spesifikasi material translusen (`backdrop-filter: blur(20px) saturate(180%)`), inner light-catching edge 1px, geometri konsentris $R_{\text{inner}} = \max(0, R_{\text{outer}} - \text{padding})$, dan layered ambient navy shadows.
+   - Menetapkan arsitektur Sonner floating toast untuk menggantikan banner alert inline invasif.
+   - Mengukuhkan standar *mobile-native* (`-webkit-tap-highlight-color: transparent`, `@media (hover: hover) and (pointer: fine)`, `touch-action: manipulation`, `100dvh`, font input $\ge 16\text{px}$).
+2. **Formulasi Master Plan Revisi Total UI**:
+   - Membuat artefak rencana implementasi mendalam [master_plan_total_ui_revision.md](file:///home/pinefeast/.gemini/antigravity-ide/brain/0c94f837-7f00-4c84-b347-7bfd2f196360/master_plan_total_ui_revision.md).
+   - Memuat 5 diagram arsitektur Mermaid (Token Vibrancy, View Transition Cascade, Sonner Toast Architecture, Anchored Modal Physics, dan Mobile-Native Pipeline).
+   - Memuat tabel audit komprehensif Before / After / Why format Emil Kowalski untuk seluruh lapisan antarmuka.
+   - Memuat matriks uji ketahanan data ekstrem `break-ui` dan roadmap eksekusi 8 fase tanpa kompromi.
+
+---
+
 ## [Fase 16] — Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop
 
 **Tanggal**: 14 Oktober 2026  

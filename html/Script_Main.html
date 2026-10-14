@@ -1718,7 +1718,7 @@ function _kpiHeadline(label, value, unit, sub, opt) {
   if (opt.trend && opt.trend.delta && hasData) {
     var d = Number(opt.trend.delta) || 0;
     if (d !== 0) {
-      trendHtml = '<div class="ov-trend">' +
+      trendHtml = '<div class="ov-trend ' + (d > 0 ? 'up' : 'down') + '">' +
         (d > 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d) +
         ' <span class="ov-trend-cmp">vs ' + _ovMonthLabel(opt.trend.prev) + '</span>' +
       '</div>';
@@ -1747,7 +1747,7 @@ function _kpiHeadline(label, value, unit, sub, opt) {
     '<div class="kpi-main">' +
       '<div class="kpi-label">' + label + '</div>' +
       '<div class="kpi-value">' + value +
-        (unit ? '<span style="font-size:0.95rem;font-weight:500;margin-left:3px;color:var(--n-text-secondary);">' + unit + '</span>' : '') +
+        (unit ? '<span class="kpi-unit">' + unit + '</span>' : '') +
       '</div>' +
       '<div class="kpi-sub">' + sub + '</div>' +
       trendHtml +
@@ -4664,12 +4664,262 @@ function _icoWatch() {
   _ICO_OBS.observe(document.body, { childList: true, subtree: true });
 }
 
+// ============================================================
+// NAUTIKA TOAST SYSTEM (ask-sonner & emil-design-eng)
+// Non-blocking, stacked, spring-animated, swipe-to-dismiss
+// ============================================================
+var toast = (function () {
+  var _toasts = [];
+  var _idCounter = 0;
+
+  function _getToaster() {
+    var el = document.getElementById('n-toaster');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'n-toaster';
+      el.setAttribute('aria-live', 'polite');
+      el.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function _createIcon(type) {
+    if (type === 'success') {
+      return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    }
+    if (type === 'error') {
+      return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    }
+    if (type === 'warning') {
+      return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    }
+    if (type === 'loading') {
+      return '<span class="n-spin-sm" style="width:16px;height:16px;border-width:2px;display:inline-block;"></span>';
+    }
+    return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+  }
+
+  function dismiss(id) {
+    var toaster = _getToaster();
+    if (!id) {
+      var all = toaster.querySelectorAll('.sonner-toast');
+      for (var i = 0; i < all.length; i++) dismiss(all[i].dataset.toastId);
+      return;
+    }
+    var el = toaster.querySelector('[data-toast-id="' + id + '"]');
+    if (!el) return;
+    el.classList.remove('enter');
+    el.classList.add('exit');
+    setTimeout(function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      _toasts = _toasts.filter(function (t) { return t.id !== id; });
+    }, 180);
+  }
+
+  function _spawn(title, opts) {
+    opts = opts || {};
+    var type = opts.type || 'info';
+    var duration = (opts.duration !== undefined) ? opts.duration : (type === 'loading' ? Infinity : 3500);
+    var id = opts.id || ('toast_' + (++_idCounter));
+    var toaster = _getToaster();
+
+    var existing = toaster.querySelector('[data-toast-id="' + id + '"]');
+    if (existing) {
+      existing.className = 'sonner-toast ' + type;
+      var iconWrap = existing.querySelector('.sonner-toast-icon');
+      if (iconWrap) iconWrap.innerHTML = _createIcon(type);
+      var titleWrap = existing.querySelector('.sonner-toast-title');
+      if (titleWrap) titleWrap.textContent = title;
+      var descWrap = existing.querySelector('.sonner-toast-desc');
+      if (opts.description) {
+        if (!descWrap) {
+          descWrap = document.createElement('div');
+          descWrap.className = 'sonner-toast-desc';
+          titleWrap.parentNode.appendChild(descWrap);
+        }
+        descWrap.textContent = opts.description;
+      } else if (descWrap) {
+        descWrap.parentNode.removeChild(descWrap);
+      }
+      if (existing._timer) clearTimeout(existing._timer);
+      if (duration !== Infinity && isFinite(duration)) {
+        existing._timer = setTimeout(function () { dismiss(id); }, duration);
+      }
+      return id;
+    }
+
+    var activeToasts = toaster.querySelectorAll('.sonner-toast');
+    if (activeToasts.length >= 4) {
+      dismiss(activeToasts[0].dataset.toastId);
+    }
+
+    var toastEl = document.createElement('div');
+    toastEl.className = 'sonner-toast enter ' + type;
+    toastEl.dataset.toastId = id;
+
+    var iconDiv = document.createElement('div');
+    iconDiv.className = 'sonner-toast-icon';
+    iconDiv.innerHTML = _createIcon(type);
+    toastEl.appendChild(iconDiv);
+
+    var contentDiv = document.createElement('div');
+    contentDiv.className = 'sonner-toast-content';
+
+    var titleDiv = document.createElement('div');
+    titleDiv.className = 'sonner-toast-title';
+    titleDiv.textContent = title;
+    contentDiv.appendChild(titleDiv);
+
+    if (opts.description) {
+      var descDiv = document.createElement('div');
+      descDiv.className = 'sonner-toast-desc';
+      descDiv.textContent = opts.description;
+      contentDiv.appendChild(descDiv);
+    }
+    toastEl.appendChild(contentDiv);
+
+    if (opts.action && opts.action.label) {
+      var actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = 'sonner-toast-action';
+      actionBtn.textContent = opts.action.label;
+      actionBtn.onclick = function (e) {
+        if (typeof opts.action.onClick === 'function') opts.action.onClick(e);
+        dismiss(id);
+      };
+      toastEl.appendChild(actionBtn);
+    }
+
+    var startX = 0, currentX = 0, swiping = false;
+    toastEl.addEventListener('touchstart', function (e) {
+      startX = e.touches[0].clientX;
+      swiping = true;
+      toastEl.style.transition = 'none';
+    }, { passive: true });
+
+    toastEl.addEventListener('touchmove', function (e) {
+      if (!swiping) return;
+      currentX = e.touches[0].clientX;
+      var dx = currentX - startX;
+      if (dx > 0) {
+        toastEl.style.transform = 'translateX(' + dx + 'px)';
+        toastEl.style.opacity = Math.max(0.2, 1 - (dx / 200));
+      }
+    }, { passive: true });
+
+    toastEl.addEventListener('touchend', function () {
+      if (!swiping) return;
+      swiping = false;
+      toastEl.style.transition = 'transform 200ms var(--ease-out), opacity 200ms var(--ease-out)';
+      var dx = currentX - startX;
+      if (dx > 70) {
+        dismiss(id);
+      } else {
+        toastEl.style.transform = '';
+        toastEl.style.opacity = '';
+      }
+    });
+
+    toaster.appendChild(toastEl);
+    _toasts.push({ id: id, element: toastEl });
+
+    if (duration !== Infinity && isFinite(duration)) {
+      toastEl._timer = setTimeout(function () { dismiss(id); }, duration);
+    }
+
+    return id;
+  }
+
+  function show(title, opts) {
+    return _spawn(title, opts);
+  }
+
+  show.success = function (title, opts) {
+    opts = opts || {};
+    opts.type = 'success';
+    return _spawn(title, opts);
+  };
+
+  show.error = function (title, opts) {
+    opts = opts || {};
+    opts.type = 'error';
+    return _spawn(title, opts);
+  };
+
+  show.warning = function (title, opts) {
+    opts = opts || {};
+    opts.type = 'warning';
+    return _spawn(title, opts);
+  };
+
+  show.info = function (title, opts) {
+    opts = opts || {};
+    opts.type = 'info';
+    return _spawn(title, opts);
+  };
+
+  show.loading = function (title, opts) {
+    opts = opts || {};
+    opts.type = 'loading';
+    opts.duration = Infinity;
+    return _spawn(title, opts);
+  };
+
+  show.promise = function (promise, msgs) {
+    msgs = msgs || {};
+    var id = show.loading(msgs.loading || 'Memproses\u2026');
+    if (promise && typeof promise.then === 'function') {
+      promise.then(function (res) {
+        var s = typeof msgs.success === 'function' ? msgs.success(res) : (msgs.success || 'Selesai');
+        show.success(s, { id: id });
+        return res;
+      }).catch(function (err) {
+        var e = typeof msgs.error === 'function' ? msgs.error(err) : (msgs.error || (err && err.message) || 'Terjadi kesalahan');
+        show.error(e, { id: id });
+        throw err;
+      });
+    }
+    return id;
+  };
+
+  show.dismiss = dismiss;
+
+  show.getActiveToasts = function () {
+    return _toasts.slice();
+  };
+
+  return show;
+})();
+
+if (typeof window !== 'undefined') {
+  window.toast = toast;
+}
+
 function _msg(id, type, text) {
   var el = document.getElementById(id);
-  if (!el) return;
-  if (!type) { el.className = 'n-msg'; el.textContent = ''; return; }
-  el.className  = 'n-msg ' + type + ' show';
-  el.textContent = text;
+  if (el) {
+    if (!type) {
+      el.className = 'n-msg';
+      el.textContent = '';
+    } else {
+      el.className  = 'n-msg ' + type + ' show';
+      el.textContent = text;
+    }
+  }
+  // Elevated floating Sonner toast (ask-sonner / emil-design-eng)
+  if (type && text && typeof toast !== 'undefined') {
+    var t = String(type).toLowerCase();
+    if (t === 'ok' || t === 'success') {
+      toast.success(text);
+    } else if (t === 'err' || t === 'error') {
+      toast.error(text);
+    } else if (t === 'warn' || t === 'warning') {
+      toast.warning(text);
+    } else if (t === 'info' || t === 'loading') {
+      toast.info(text);
+    }
+  }
 }
 
 function _setLoading(btn, loading) {
@@ -4893,10 +5143,11 @@ function _initOverlayClose() {
     }, true);
 
     var _modalObserver = new MutationObserver(function (mutations) {
-      mutations.forEach(function (m) {
+      for (var i = 0; i < mutations.length; i++) {
+        var m = mutations[i];
         if (m.type === 'attributes' && m.attributeName === 'class') {
           var target = m.target;
-          if (target.classList.contains('n-overlay') && !target.classList.contains('n-hidden')) {
+          if (target && target.classList && target.classList.contains('n-overlay') && !target.classList.contains('n-hidden')) {
             var modal = target.querySelector('.n-modal');
             if (modal && _lastClickOrigin) {
               var r = modal.getBoundingClientRect();
@@ -4906,11 +5157,9 @@ function _initOverlayClose() {
             }
           }
         }
-      });
+      }
     });
-    document.querySelectorAll('.n-overlay').forEach(function (ov) {
-      _modalObserver.observe(ov, { attributes: true });
-    });
+    _modalObserver.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
   } catch (e) { /* silent origin helper */ }
 }
 
@@ -5107,7 +5356,7 @@ function _histRender(wrapId, cfg, rows, prefixHtml) {
     return;
   }
 
-  var t = '<table class="n-table"><thead><tr>';
+  var t = '<div class="n-table-wrap"><table class="n-table"><thead><tr>';
   cfg.columns.forEach(function (c) { t += '<th>' + _esc(c) + '</th>'; });
   t += '<th>Dikirim</th><th>Status</th><th>Aksi</th></tr></thead><tbody>';
 
@@ -5126,7 +5375,7 @@ function _histRender(wrapId, cfg, rows, prefixHtml) {
     }
   });
 
-  wrap.innerHTML = pre + t + '</tbody></table>';
+  wrap.innerHTML = pre + t + '</tbody></table></div>';
 }
 
 // ── LOADING INDICATORS ────────────────────────────────────
@@ -5155,7 +5404,7 @@ function _tableSkeleton(rows, cols) {
     h += '</tr>';
   }
   h += '</tbody>';
-  return '<table class="n-table n-table-full">' + h + '</table>';
+  return '<div class="n-table-wrap"><table class="n-table n-table-full">' + h + '</table></div>';
 }
 
 // ── LAMPIRAN INLINE (Fase 10 revisi) ─────────────────────

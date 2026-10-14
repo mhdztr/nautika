@@ -39,7 +39,7 @@ function _loadCharts(cb) {
     Chart.register(_CHART_VALUE_PLUGIN);
     Chart.register(_CHART_LINEEND_PLUGIN);
     Chart.register(_CHART_DONUT_PLUGIN);
-    Chart.defaults.font.family = "'Poppins', sans-serif";
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
     Chart.defaults.font.size   = 12;
     Chart.defaults.color       = _CHART_COLORS.textSecondary;
     Chart.defaults.borderColor = '#E2E8F0';
@@ -170,7 +170,7 @@ var _CHART_VALUE_PLUGIN = {
     var ctx = chart.ctx;
     var fmt = cfg.formatter || _chartNum;
     ctx.save();
-    ctx.font = '600 11px Poppins, sans-serif';
+    ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
     ctx.fillStyle = cfg.color || _CHART_COLORS.textSecondary;
     ctx.textBaseline = 'middle';
     chart.data.datasets.forEach(function (ds, di) {
@@ -205,7 +205,7 @@ var _CHART_LINEEND_PLUGIN = {
     var ctx = chart.ctx;
     var fmt = cfg.formatter || _chartNum;
     ctx.save();
-    ctx.font = '600 11px Poppins, sans-serif';
+    ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     chart.data.datasets.forEach(function (ds, di) {
@@ -243,7 +243,7 @@ var _CHART_DONUT_PLUGIN = {
     ctx.save();
     // Label persen di tiap segmen (hanya bila segmen cukup besar)
     if (cfg.showPct !== false && total > 0) {
-      ctx.font = '600 11px Poppins, sans-serif';
+      ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -267,11 +267,11 @@ var _CHART_DONUT_PLUGIN = {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = _CHART_COLORS.textPrimary;
-      ctx.font = '700 22px Poppins, sans-serif';
+      ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
       ctx.fillText(String(cfg.center), cx, cy - (cfg.centerSub ? 8 : 0));
       if (cfg.centerSub) {
         ctx.fillStyle = _CHART_COLORS.textMuted;
-        ctx.font = '500 11px Poppins, sans-serif';
+        ctx.font = '500 11px "Plus Jakarta Sans", sans-serif';
         ctx.fillText(String(cfg.centerSub), cx, cy + 12);
       }
     }
@@ -296,8 +296,8 @@ function _chartBase(opts, extra) {
         padding: 10,
         cornerRadius: 8,
         displayColors: false,
-        titleFont: { family: "'Poppins', sans-serif", weight: '600' },
-        bodyFont: { family: "'Poppins', sans-serif" }
+        titleFont: { family: "'Plus Jakarta Sans', sans-serif", weight: '600' },
+        bodyFont: { family: "'Plus Jakarta Sans', sans-serif" }
       }
     }
   };

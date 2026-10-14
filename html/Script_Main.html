@@ -284,6 +284,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Overlay click-to-close: klik di luar .n-modal menutup popup,
   // dengan konfirmasi jika ada field yang sudah diisi.
   try { _initOverlayClose(); } catch (e) { /* tidak boleh halt app */ }
+  try { _initSheetGestures(); } catch (e) { /* gesture fallback */ }
 
   // Fallback safety: jika dalam 15 detik callback tidak pernah dipanggil
   // (GAS RPC error, sandbox restriction, dsb), paksa sembunyikan loading.
@@ -4880,6 +4881,72 @@ function _initOverlayClose() {
       closeModal(overlay.id);
     }
   });
+
+  // ── APPLE DESIGN: ANCHORED MODAL ORIGIN TRACKER ─────────────
+  try {
+    var _lastClickOrigin = null;
+    document.addEventListener('pointerdown', function (e) {
+      var btn = e.target.closest('button, .btn, .btn-primary, .btn-mini, .n-iconbtn, a');
+      if (btn) {
+        _lastClickOrigin = { x: e.clientX, y: e.clientY };
+      }
+    }, true);
+
+    var _modalObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          var target = m.target;
+          if (target.classList.contains('n-overlay') && !target.classList.contains('n-hidden')) {
+            var modal = target.querySelector('.n-modal');
+            if (modal && _lastClickOrigin) {
+              var r = modal.getBoundingClientRect();
+              var ox = Math.max(16, Math.min(r.width - 16, _lastClickOrigin.x - r.left));
+              var oy = Math.max(16, Math.min(r.height - 16, _lastClickOrigin.y - r.top));
+              modal.style.transformOrigin = ox + 'px ' + oy + 'px';
+            }
+          }
+        }
+      });
+    });
+    document.querySelectorAll('.n-overlay').forEach(function (ov) {
+      _modalObserver.observe(ov, { attributes: true });
+    });
+  } catch (e) { /* silent origin helper */ }
+}
+
+// ── APPLE DESIGN: GESTURE SHEET SWIPE-TO-DISMISS ────────────
+function _initSheetGestures() {
+  try {
+    var drawer = document.getElementById('dr-drawer');
+    if (!drawer) return;
+    var startY = 0, currentY = 0, isDragging = false;
+    drawer.addEventListener('touchstart', function (e) {
+      if (e.target.closest('.sheet-grabber') || (e.target.closest('.n-drawer-hd') && drawer.scrollTop <= 0)) {
+        startY = e.touches[0].clientY;
+        isDragging = true;
+        drawer.style.transition = 'none';
+      }
+    }, { passive: true });
+    drawer.addEventListener('touchmove', function (e) {
+      if (!isDragging) return;
+      currentY = e.touches[0].clientY;
+      var dy = currentY - startY;
+      if (dy > 0) {
+        drawer.style.transform = 'translateY(' + dy + 'px)';
+      }
+    }, { passive: true });
+    drawer.addEventListener('touchend', function () {
+      if (!isDragging) return;
+      isDragging = false;
+      drawer.style.transition = 'transform 0.34s cubic-bezier(0.16, 1, 0.3, 1)';
+      var dy = currentY - startY;
+      if (dy > 80) {
+        closeApprovalDrawer();
+      } else {
+        drawer.style.transform = '';
+      }
+    });
+  } catch (e) { /* silent gesture helper */ }
 }
 
 // ── MODAL LIHAT RIWAYAT (detail submission, berlaku semua modul) ──

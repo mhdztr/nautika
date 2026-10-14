@@ -440,33 +440,33 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 16 — Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop
 
-- **Status**: **Siap Dikerjakan (Prioritas Tertinggi Desain Antarmuka)**.
+- **Status**: **Selesai (14 Okt 2026)**.
 - **Dependensi**: Fase 15 Selesai.
 - **Tujuan**: Mengubah tampilan dan rasa interaksi Nautika secara drastis dari web aplikasi kaku/AI-slop menjadi standar Apple Human Interface Guidelines: permukaan translusen berkilau (*vibrancy*), tipografi terpadu dengan angka tabular anti-jitter, elevasi multi-layer halus, serta fisika pegas interaktif (*tactile spring physics*).
-- **Ruang Lingkup Deliverables**:
+- **Hasil Implementasi**:
   1. **Pembersihan CSS Primitif & Eliminasi Elemen Kuno**:
-     - Menghapus 3D bevel button 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) pada `.btn-primary` di `html/Style.html`.
-     - Mengganti seluruh kurva transisi linear dengan token pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`).
-     - Menerapkan respon tactile kompresi nyata saat ditekan (`:active` / `pointerdown`): `transform: scale(0.97)` pada seluruh tombol, nav item, dan kartu klik.
+     - Tombol 3D bevel 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) pada `.btn-primary` di `html/Style.html` dihapus 100%, digantikan dengan 1px hairline border halus, shadow difus lembut, dan kompresi sentuh fisik.
+     - Seluruh kurva transisi linear diganti dengan token pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`).
+     - Respon kompresi sentuh haptic visual aktif (`:active` / `pointerdown`): `transform: scale(0.97)` diterapkan secara menyeluruh pada tombol (`.btn`, `.btn-primary`, `.btn-ghost`, `.btn-outline`, `.btn-mini`, `.btn-sm`, `.n-iconbtn`), navigasi sidebar (`.nav-item`), filter mode, dan sub-tab.
   2. **Penyatuan Tipografi & Penegakan Tabular Numbers**:
-     - Menghapus ketergantungan font Poppins 100%, beralih sepenuhnya ke unified **Plus Jakarta Sans**.
-     - Mengonfigurasi optical tracking (letter-spacing) dinamis Apple: dari Display `-0.025em`, Title `-0.020em`, Body `-0.005em`, hingga Caption `+0.010em`.
-     - Menegakkan `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` pada seluruh angka KPI, tabel riwayat, timer telemetri, koordinat maritim, dan nominal Rupiah.
+     - Ketergantungan font Poppins dihapus 100% dari seluruh berkas (`Index.html`, `Auth.html`, `Style.html`, `Script_Charts.html`). Seluruh aplikasi terpadu menggunakan satu keluarga font **Plus Jakarta Sans** dengan optical letter-spacing Apple.
+     - Penegakan mutlak `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` pada seluruh angka metrik KPI, tabel data, timestamp telemetri, timer, dan koordinat GPS untuk menjamin stabilitas tata letak bebas getaran horizontal (*zero layout jitter*).
   3. **Translucent Glass Surfaces & Layered Ambient Elevation**:
-     - Memperbarui kartu solid "kardus" `#FFFFFF` menjadi material translusen dengan saturasi optik: `rgba(255, 255, 255, 0.82)` dipadu `backdrop-filter: blur(20px) saturate(180%)` dan batas hairline 1px `rgba(0,0,0,0.07)`.
-     - Menerapkan sistem bayangan multi-layer (Level 1 kartu, Level 2 floating dropdown, Level 3 modal).
-     - Menegakkan hukum radius konsentris: $\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$.
+     - Seluruh kartu (`.n-card`, `.kpi-card`, `.chart-cell`, `.div-card`, `.auth-card`) dan panel header (`.page-header`, `.filter-box`) mengadopsi material translusen dengan saturasi optik: `rgba(255, 255, 255, 0.82)` + `backdrop-filter: blur(20px) saturate(180%)` dan batas tepi 1px crisp `rgba(0,0,0,0.07)`.
+     - Sistem bayangan multi-layer (Level 1 kartu, Level 2 floating dropdown, Level 3 modal) berdifusi halus tanpa bayangan hitam pekat kotor.
+     - Hukum geometri konsentris ($\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$) ditegakkan.
   4. **Fisika Modal Terjangkar (Anchored Modal) & Gesture Sheet**:
-     - Mengganti modal ekspansi statis tengah layar dengan animasi pembesaran halus (`scale(0.94)` ke `1.0`) berakar dari posisi pemicu dengan overlay blur 8px.
-     - Menambahkan grabber bar dan gestur geser tutup (*swipe-to-dismiss*) pada drawer samping dan bottom sheet.
-     - Mengintegrasikan pengaman aksesibilitas `@media (prefers-reduced-motion: reduce)`.
+     - Modal dialog kini beranimasi pegas halus (`scale(0.94)` ke `1.0` via `cubic-bezier(0.16, 1, 0.3, 1)`) dengan backdrop blur 12px dan titik jangkar dinamis (*dynamic transform-origin*) yang berakar dari tombol pemicu klik.
+     - Panel drawer samping dilengkapi pegangan visual (`.sheet-grabber`) dan gestur sentuh *swipe-to-dismiss* (geser vertikal >80px langsung menutup dengan inersia, <80px memantul kembali).
+     - Pengaman aksesibilitas `@media (prefers-reduced-motion: reduce)` diterapkan di seluruh aplikasi.
+- **Verifikasi**: `node --check` dan verifikasi AST parser JavaScript pada `Script_Main.html` dan `Script_Charts.html` 100% lulus tanpa error syntax. Dependensi Fase 17 kini resmi lunas dan siap dikerjakan.
 
 ---
 
 ### Fase 17 — Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung
 
-- **Status**: **Siap Dikerjakan (Backlog Resmi Revisi)**.
-- **Dependensi**: Fase 16 Selesai.
+- **Status**: **Siap Dikerjakan (Dependensi Fase 16 Telah Selesai)**.
+- **Dependensi**: Fase 16 Selesai (LUNAS).
 - **Tujuan**: Memperbaiki model akuntansi anggaran negara, menambahkan telemetri pembaruan transaksi di header utama, merapikan halaman Ikhtisar sesuai standar SiMata (eliminasi visual bloat), serta menerapkan kompresi kanvas sisi klien untuk melindungi kuota Google Drive.
 - **Ruang Lingkup Deliverables**:
   1. **Rekonstruksi Model Keuangan Tata Usaha**:

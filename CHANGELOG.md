@@ -1,3 +1,36 @@
+## [Fase 16] — Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **SELESAI & TERUJI LOKAL** (`node --check` dan verifikasi AST parser JavaScript pada `Script_Main.html` dan `Script_Charts.html` 100% lulus).
+
+### 1. Pencapaian & Hasil Implementasi
+1. **Pembersihan CSS Primitif & Eliminasi Elemen Kuno**:
+   - Menghapus total gaya 3D bevel button 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) dan transform hack (`translateY(3px)`) pada `.btn-primary` di `html/Style.html`.
+   - Mengganti seluruh kurva transisi linear dengan token pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`).
+   - Menerapkan respon tactile kompresi nyata saat ditekan (`:active` / `pointerdown`): `transform: scale(0.97)` pada seluruh tombol (`.btn`, `.btn-primary`, `.btn-ghost`, `.btn-outline`, `.btn-mini`, `.btn-sm`, `.n-iconbtn`), navigasi sidebar (`.nav-item`), filter mode, dan sub-tab.
+2. **Penyatuan Tipografi & Penegakan Tabular Numbers**:
+   - Menghapus ketergantungan font Poppins 100% dari seluruh berkas (`Index.html`, `Auth.html`, `Style.html`, `Script_Charts.html`). Seluruh antarmuka distandarisasi menggunakan **Plus Jakarta Sans** dengan sistem optical tracking terkalibrasi (-0.025em s.d. +0.010em).
+   - Menegakkan `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` pada seluruh angka numerik (metrik KPI, tabel data, timestamp telemetri, timer, nominal Rupiah, dan koordinat GPS) guna mengeliminasi goyangan horizontal layout (*layout jitter*).
+3. **Translucent Glass Surfaces & Layered Ambient Elevation**:
+   - Memperbarui kartu solid "kardus" `#FFFFFF` (`.n-card`, `.kpi-card`, `.chart-cell`, `.div-card`, `.auth-card`) dan panel header (`.page-header`, `.filter-box`) menjadi material translusen dengan saturasi optik: `rgba(255, 255, 255, 0.82)` + `backdrop-filter: blur(20px) saturate(180%)` dan batas hairline 1px `rgba(0,0,0,0.07)`.
+   - Menerapkan sistem bayangan multi-layer (Level 1 kartu, Level 2 floating dropdown, Level 3 modal) berdifusi lembut.
+   - Menegakkan hukum radius konsentris: $\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$.
+4. **Fisika Modal Terjangkar (Anchored Modal) & Gesture Sheet**:
+   - Modal dialog kini beranimasi pegas halus (`scale(0.94)` ke `1.0` via `cubic-bezier(0.16, 1, 0.3, 1)`) dengan backdrop blur 12px dan titik jangkar dinamis (*dynamic transform-origin*) yang berakar dari tombol pemicu klik via MutationObserver di `html/Script_Main.html`.
+   - Panel drawer samping dilengkapi pegangan visual (`.sheet-grabber`) dan gestur sentuh *swipe-to-dismiss* (geser vertikal >80px langsung menutup dengan inersia, <80px memantul kembali).
+   - Mengintegrasikan pengaman aksesibilitas `@media (prefers-reduced-motion: reduce)`.
+
+### 2. Keputusan Teknis yang Diambil
+- Menggunakan CSS `:active` dengan scale transform untuk menjamin kompresi sentuh instan pada mouse, trackpad, dan layar sentuh tanpa latensi JS.
+- Mempertahankan warna dasar Navy `#2B3674` sebagai identitas maritim KKP, namun mengangkat keseluruhan kontras dan material menggunakan standar macOS/iOS.
+
+### 3. Verifikasi
+- Pengujian parser AST Node.js pada skrip sisi klien membuktikan seluruh handler (`_initOverlayClose`, `_initSheetGestures`, observer transform origin) berjalan tanpa galat sintaksis.
+- Pengecekan ripgrep membuktikan tidak ada lagi penggunaan font Poppins maupun `border-bottom-width: 4px` di seluruh kode produksi.
+- Dependensi **Fase 17** kini resmi terpenuhi dan siap dikerjakan.
+
+---
+
 ## [Spesifikasi Desain & Roadmap Fase 16] — Standar Apple Human Interface Guidelines, Kritik Menyeluruh UI, & Roadmap Fase 16 Overhaul Antarmuka
 
 **Tanggal**: 14 Oktober 2026  

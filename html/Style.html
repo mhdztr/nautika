@@ -12,30 +12,54 @@
   --n-text-secondary: #4A5568;
   --n-text-muted:     #A3AED0;
   --n-border-subtle:  rgba(0,0,0,0.06);
+
   /* Aksen */
   --n-primary:        #2B3674;   /* navy tua = warna sidebar (disetujui 22 Sep 2026) */
   --n-primary-light:  #E4E7F2;   /* tint navy muda (variasi hue biru yang sama) */
+
   /* Status semantik (DESIGN.md §3 — tidak ditambah warna lain) */
   --n-ok:             #10B981;
   --n-warn:           #F59E0B;
   --n-crit:           #EF4444;
-  /* Shape — DESIGN.md §4 */
-  --n-shadow-card:    0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
-  --n-r-sm:           12px;
+
+  /* Apple Design Materials (DESIGN.md §3) */
+  --n-material-surface:      rgba(255, 255, 255, 0.82);
+  --n-material-glass-subtle: rgba(255, 255, 255, 0.65);
+  --n-material-floating:     rgba(255, 255, 255, 0.94);
+  --n-material-header:       rgba(244, 247, 254, 0.85);
+  --n-border-hairline:       rgba(0, 0, 0, 0.07);
+  --n-border-focused:        rgba(43, 54, 116, 0.35);
+
+  /* Shape & Concentric Radiuses — DESIGN.md §4 */
+  --n-r-sm:           10px;
+  --n-r-md:           14px;
   --n-r-lg:           16px;
   --n-r-pill:         99px;
+
+  /* Apple Layered Ambient Shadows (DESIGN.md §4) */
+  --n-shadow-1:       0 1px 2px rgba(0, 0, 0, 0.03), 0 6px 16px -2px rgba(43, 54, 116, 0.05);
+  --n-shadow-2:       0 3px 6px -1px rgba(0, 0, 0, 0.04), 0 12px 28px -4px rgba(43, 54, 116, 0.10);
+  --n-shadow-3:       0 16px 36px -4px rgba(0, 0, 0, 0.12), 0 32px 72px -12px rgba(43, 54, 116, 0.22);
+  --n-shadow-card:    var(--n-shadow-1);
+
+  /* Apple Spring Physics Curves (DESIGN.md §5c) */
+  --n-spring-snappy:  cubic-bezier(0.2, 0.8, 0.2, 1);
+  --n-spring-modal:   cubic-bezier(0.16, 1, 0.3, 1);
+  --n-spring-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
+
   /* Layout */
   --n-sidebar-w:      240px;
 }
 
 /* ============================================================
-   RESET
+   RESET & GLOBAL TYPOGRAPHY (DESIGN.md §2)
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   height: 100%;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.005em;
   color: var(--n-text-primary);
   background: var(--n-bg-base);
   font-size: 15px;
@@ -425,32 +449,28 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================================
-   BUTTONS
+   BUTTONS (DESIGN.md §1.1, §4, §5c)
    ============================================================ */
 /* Tombol utama (submit form) di semua divisi + Index login/register.
-   Dipertegas agar "jelas tombol": isi solid indigo, tepi bawah tebal
-   (raised), shadow satu level token resmi (§4), weight 700. Tanpa warna
-   baru — border/shadow pakai overlay neutral rgba hitam. */
+   Mengikuti standar Apple: tanpa 3D bevel 4px kuno, border hairline halus,
+   elevasi ambient Level 1, dan kompresi sentuh fisik (:active scale 0.97). */
 .btn-primary {
   display: block; width: 100%;
-  padding: 13px 18px;
-  border: 1px solid rgba(0,0,0,0.12);
-  border-bottom-width: 4px;
-  border-bottom-style: solid;
-  border-bottom-color: rgba(0,0,0,0.25);
+  padding: 12px 18px;
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.08));
   border-radius: var(--n-r-sm);
   background: var(--n-primary);
   color: #fff;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
   font-size: 0.9375rem;
-  letter-spacing: 0.01em;
-  box-shadow: var(--n-shadow-card);
-  transition: filter 0.14s, transform 0.06s;
+  letter-spacing: -0.010em;
+  box-shadow: var(--n-shadow-1);
+  transition: transform 0.15s var(--n-spring-snappy), filter 0.15s ease, box-shadow 0.15s ease;
   margin-top: 8px;
 }
-.btn-primary:hover:not(:disabled)  { filter: brightness(0.94); }
-.btn-primary:active:not(:disabled) { filter: brightness(0.9); border-bottom-width: 1px; transform: translateY(3px); }
+.btn-primary:hover:not(:disabled)  { filter: brightness(1.06); box-shadow: var(--n-shadow-2); }
+.btn-primary:active:not(:disabled) { transform: scale(0.97); filter: brightness(0.92); }
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary:focus-visible { outline: 3px solid var(--n-primary-light); outline-offset: 2px; }
 
@@ -461,10 +481,10 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-sm);
   background: transparent;
   color: var(--n-primary);
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 600;
   font-size: 0.9375rem;
-  transition: background 0.14s, border-color 0.14s;
+  transition: background 0.14s, border-color 0.14s, transform 0.15s var(--n-spring-snappy);
   margin-top: 8px;
 }
 .btn-ghost:hover:not(:disabled) {
@@ -480,10 +500,10 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-sm);
   background: transparent;
   color: var(--n-primary);
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 600;
   font-size: 0.9375rem;
-  transition: background 0.14s, border-color 0.14s;
+  transition: background 0.14s, border-color 0.14s, transform 0.15s var(--n-spring-snappy);
   margin-top: 8px;
 }
 .btn-outline:hover:not(:disabled) { background: var(--n-primary-light); }
@@ -497,14 +517,33 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid var(--n-primary);
   background: transparent;
   color: var(--n-primary);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s var(--n-spring-snappy);
   margin-right: 5px;
 }
 .btn-mini:hover { background: var(--n-primary-light); }
+
+/* Apple Tactile Compression Feedback */
+.btn:active:not(:disabled),
+.btn-primary:active:not(:disabled),
+.btn-ghost:active:not(:disabled),
+.btn-outline:active:not(:disabled),
+.btn-mini:active:not(:disabled),
+.btn-sm:active:not(:disabled),
+.btn-logout:active,
+.n-iconbtn:active:not(:disabled),
+.n-iconbtn-sm:active:not(:disabled),
+.n-iconbtn-x:active:not(:disabled),
+.nav-item:active,
+.n-tab:active,
+.filter-mode-btn:active,
+.sub-tab-btn:active {
+  transform: scale(0.97) !important;
+  transition: transform 90ms ease-out !important;
+}
 
 /* ── IKON BUTTON (DESIGN.md §7) ───────────────────────────
    Satu bahasa ikon untuk seluruh situs: outline SVG 24-grid, stroke
@@ -777,7 +816,7 @@ a { text-decoration: none; color: inherit; }
 
 .sb-section-label {
   padding: 13px 20px 4px;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -789,12 +828,12 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   padding: 8px 20px;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.875rem;
   font-weight: 500;
   color: rgba(255,255,255,0.78);
   cursor: pointer;
-  transition: color 0.12s, background 0.12s;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.12s var(--n-spring-snappy);
   border-left: 3px solid transparent;
   user-select: none;
 }
@@ -831,7 +870,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: var(--n-r-sm);
   background: transparent;
   color: #FFFFFF;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.8rem;
   font-weight: 500;
   text-align: left;
@@ -840,27 +879,29 @@ a { text-decoration: none; color: inherit; }
 .btn-logout:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; border-color: rgba(255,255,255,0.25); }
 
 /* ============================================================
-   PAGE HEADER — sticky, title + filter
+   PAGE HEADER — sticky, translucent vibrancy (DESIGN.md §3, §5)
    ============================================================ */
 .page-header {
   position: sticky; top: 0; z-index: 40;
-  background: var(--n-bg-base);
-  padding: 24px 32px 0;
+  background: var(--n-material-header, rgba(244, 247, 254, 0.85));
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  padding: 20px 32px 0;
 }
 .page-header-inner {
   display: flex; align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--n-border-subtle);
+  border-bottom: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
 }
 /* h1.page-title: title only, no subtitle — DESIGN.md §1.6 */
 .page-title {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
   font-size: 1.375rem;
   color: var(--n-text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.020em;
   line-height: 1.3;
 }
 
@@ -875,25 +916,27 @@ a { text-decoration: none; color: inherit; }
 }
 .filter-box {
   display: flex; align-items: center;
-  background: var(--n-surface-1);
-  border: 1px solid var(--n-border-subtle);
+  background: var(--n-material-glass-subtle, rgba(255, 255, 255, 0.65));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
   border-radius: var(--n-r-sm);
   padding: 3px;
-  box-shadow: var(--n-shadow-card);
+  box-shadow: var(--n-shadow-1);
 }
 .filter-mode { display: flex; align-items: center; gap: 2px; }
 .filter-mode-btn {
   padding: 5px 12px;
   border: none;
   border-radius: 8px;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   background: transparent;
   color: var(--n-text-secondary);
-  transition: background 0.14s, color 0.14s;
+  transition: background 0.14s, color 0.14s, transform 0.1s var(--n-spring-snappy);
 }
 .filter-mode-btn:hover { background: var(--n-surface-hover); color: var(--n-text-primary); }
 .filter-mode-btn.active { background: var(--n-primary); color: #fff; }
@@ -910,8 +953,9 @@ a { text-decoration: none; color: inherit; }
   padding: 0 8px;
   border: 1px solid var(--n-border-subtle);
   border-radius: 8px;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
   color: var(--n-text-primary);
   background: var(--n-surface-1);
   outline: none;
@@ -1062,17 +1106,21 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================================
-   CARD — DESIGN.md §4, §7
+   CARD — DESIGN.md §3, §4, §7
    ============================================================ */
 .n-card {
-  background: var(--n-surface-1);
+  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
   border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-card);
+  box-shadow: var(--n-shadow-1);
   padding: 24px;
+  transition: box-shadow 0.25s var(--n-spring-snappy);
 }
 
 /* ============================================================
-   KPI CARD — DESIGN.md §7 (no colorful icon, number is focus)
+   KPI CARD — DESIGN.md §3, §4, §7 (translucent vibrancy, number is focus)
    ============================================================ */
 .kpi-grid {
   display: grid;
@@ -1081,9 +1129,12 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 24px;
 }
 .kpi-card {
-  background: var(--n-surface-1);
+  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
   border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-card);
+  box-shadow: var(--n-shadow-1);
   padding: 18px 22px;
   display: flex;
   align-items: center;
@@ -1091,6 +1142,10 @@ a { text-decoration: none; color: inherit; }
   gap: 18px;
   min-height: 124px;
   box-sizing: border-box;
+  transition: box-shadow 0.25s var(--n-spring-snappy), transform 0.25s var(--n-spring-snappy);
+}
+.kpi-card:hover {
+  box-shadow: var(--n-shadow-2);
 }
 .kpi-main {
   min-width: 0;
@@ -1104,24 +1159,28 @@ a { text-decoration: none; color: inherit; }
   align-items: center;
 }
 .kpi-label {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--n-text-muted);
   margin-bottom: 10px;
 }
 .kpi-value {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 800;
   font-size: 1.75rem;
   color: var(--n-text-primary);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
 }
 .kpi-sub {
   font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
   color: var(--n-text-secondary);
   margin-top: 6px;
 }
@@ -1213,11 +1272,11 @@ a { text-decoration: none; color: inherit; }
 .btn-sm {
   padding: 4px 11px;
   border-radius: var(--n-r-pill);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, transform 0.1s var(--n-spring-snappy);
 }
 .btn-sm-ok   { background: #ECFDF5; color: var(--n-ok);   border: 1px solid #A7F3D0; margin-right: 5px; }
 .btn-sm-ok:hover   { background: #D1FAE5; }
@@ -1238,12 +1297,12 @@ a { text-decoration: none; color: inherit; }
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.845rem;
   font-weight: 500;
   color: var(--n-text-secondary);
   cursor: pointer;
-  transition: color 0.14s, border-color 0.14s;
+  transition: color 0.14s, border-color 0.14s, transform 0.1s var(--n-spring-snappy);
   white-space: nowrap;
 }
 .n-tab:hover { color: var(--n-primary); }
@@ -1278,29 +1337,37 @@ a { text-decoration: none; color: inherit; }
 
 /* ============================================================
    DRAWER KANAN — panel geser persetujuan registrasi
-   Dijalankan KADIV/approver lewat banner; mesin render sama dengan
-   halaman "Kelola Akun" (ka-*) — lihat Script_Main.html.
-   Reuse token existing; tanpa warna baru.
    ============================================================ */
 .n-drawer {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: 560px; max-width: 94vw;
-  background: var(--n-surface-1);
-  border-left: 1px solid var(--n-border-subtle);
-  box-shadow: var(--n-shadow-card);
+  background: var(--n-material-floating, rgba(255, 255, 255, 0.95));
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border-left: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
+  box-shadow: var(--n-shadow-3);
   z-index: 210;
   display: flex; flex-direction: column;
   transform: translateX(105%);
-  transition: transform 0.25s ease;
+  transition: transform 0.34s var(--n-spring-modal);
 }
 .n-drawer.n-open { transform: translateX(0); }
+.sheet-grabber {
+  width: 36px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: var(--n-r-pill);
+  margin: 10px auto 4px;
+  display: block;
+  flex-shrink: 0;
+}
 .n-drawer-hd {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 18px 22px;
-  border-bottom: 1px solid var(--n-border-subtle);
+  border-bottom: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
 }
 .n-drawer-hd h2 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.95rem; font-weight: 600;
   color: var(--n-text-primary); margin: 0;
 }
@@ -1312,25 +1379,43 @@ a { text-decoration: none; color: inherit; }
 .n-overlay.n-z-drawer { z-index: 205; cursor: pointer; }
 
 /* ============================================================
-   MODAL
+   MODAL — Apple anchored spring dialog & backdrop blur
    ============================================================ */
 .n-overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.22);
+  background: rgba(15, 23, 42, 0.40);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   z-index: 200;
   display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.25s ease;
 }
 .n-overlay.n-hidden { display: none !important; }
 .n-modal {
-  background: var(--n-surface-1);
+  background: var(--n-material-floating, rgba(255, 255, 255, 0.94));
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--n-r-lg);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  box-shadow: var(--n-shadow-3);
   padding: 32px; width: 400px; max-width: 90vw;
   position: relative;   /* fallback overlay loading untuk modal tanpa .n-modal-form-scroll */
+  animation: n-modal-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes n-modal-enter {
+  from {
+    transform: scale(0.94) translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 .n-modal h2 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700; font-size: 1.05rem;
+  letter-spacing: -0.015em;
   color: var(--n-text-primary);
   margin-bottom: 16px;
 }
@@ -1472,13 +1557,20 @@ a { text-decoration: none; color: inherit; }
   gap: 16px;
 }
 .div-card {
-  background: var(--n-surface-1);
+  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
   border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-card);
+  box-shadow: var(--n-shadow-1);
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  transition: box-shadow 0.25s var(--n-spring-snappy);
+}
+.div-card:hover {
+  box-shadow: var(--n-shadow-2);
 }
 .div-card-title {
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -1535,7 +1627,7 @@ a { text-decoration: none; color: inherit; }
 .div-metric-val.muted {
   font-weight: 400;
   color: var(--n-text-muted);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.88rem;
 }
 .div-metric-unit {
@@ -1594,7 +1686,7 @@ a { text-decoration: none; color: inherit; }
   border-top: 1px solid var(--n-border-subtle);
 }
 .div-card-foot-cap {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1644,9 +1736,10 @@ a { text-decoration: none; color: inherit; }
    ============================================================ */
 .content-section { margin-bottom: 28px; }
 .content-section-hd {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 700;
   font-size: 0.9375rem;
+  letter-spacing: -0.015em;
   color: var(--n-text-primary);
   margin-bottom: 14px;
 }
@@ -1660,11 +1753,17 @@ a { text-decoration: none; color: inherit; }
   gap: 16px;
 }
 .chart-cell {
-  background: var(--n-surface-1);
-  border: 1px solid var(--n-border-subtle);
+  background: var(--n-material-surface, rgba(255, 255, 255, 0.82));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--n-border-hairline, rgba(0,0,0,0.07));
   border-radius: var(--n-r-lg);
-  box-shadow: var(--n-shadow-card);
+  box-shadow: var(--n-shadow-1);
   padding: 18px 18px 16px;
+  transition: box-shadow 0.25s var(--n-spring-snappy);
+}
+.chart-cell:hover {
+  box-shadow: var(--n-shadow-2);
 }
 .chart-cell-hd {
   display: flex;
@@ -1674,9 +1773,10 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 12px;
 }
 .chart-cell-title {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 600;
   font-size: 0.875rem;
+  letter-spacing: -0.010em;
   color: var(--n-text-primary);
 }
 .chart-cell-sub {
@@ -2459,6 +2559,38 @@ a { text-decoration: none; color: inherit; }
   #ov-div-grid { grid-template-columns: 1fr; }
   #ov-div-grid > .s2, #ov-div-grid > .s3, #ov-div-grid > .s4, #ov-div-grid > .s6,
   #ov-div-grid > .s2:nth-child(6) { grid-column: span 1; }
+}
+
+/* ============================================================
+   TABULAR NUMBERS & REDUCED MOTION (DESIGN.md §2.2, §5c.5)
+   ============================================================ */
+.kpi-value,
+.kpi-sub,
+.div-metric-val,
+.n-table td,
+.n-table th,
+.n-badge,
+.status-badge,
+.filter-date,
+.filter-sel,
+.n-derive-val,
+.stat-val,
+.timestamp-label,
+#sync-indicator,
+.coord-val,
+.table-num {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 </style>

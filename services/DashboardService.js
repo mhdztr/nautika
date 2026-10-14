@@ -323,30 +323,47 @@ function dashboard_getOverview(token, filter) {
         label: 'Realisasi Anggaran (SP2D)',
         value: sp2dPct,
         unit: '%',
-        sub: 'Rp ' + _dashCompact(realSP2D) + ' \u2014 ' + sp2dPct + '% dari total pagu Rp ' + _dashCompact(paguTotal),
-        spark: realis
+        sub: 'Realisasi Rp ' + _dashCompact(realSP2D) + ' \u00B7 Pagu Rp ' + _dashCompact(paguTotal),
+        foot: {
+          left:  { lbl: 'Realisasi', val: 'Rp ' + _dashCompact(realSP2D) },
+          right: { lbl: 'Pagu',      val: 'Rp ' + _dashCompact(paguTotal) }
+        },
+        pct: sp2dPct
       },
       {
-        label: 'Hari Operasi Kapal & Pesawat',
+        label: 'Hari Operasi Armada',
         value: totalHariOp,
         unit: 'hari',
-        sub: hariKapal + ' Kapal (' + pctKapal + '%) \u00B7 ' + hariPesawat + ' Udara',
+        sub: 'Kapal ' + hariKapal + ' hari \u00B7 Udara ' + hariPesawat + ' hari',
+        foot: {
+          left:  { lbl: 'Kapal', val: hariKapal + ' hari' },
+          right: { lbl: 'Udara', val: hariPesawat + ' hari' }
+        },
         trend: trendHariOp,
-        minibars: hbTot
+        pct: pctKapal,
+        pctKapal: pctKapal
       },
       {
         label: 'Armada Siap Operasi',
         value: siap,
         unit: 'kapal',
-        sub: kesiapanPct + '% siap dari ' + (totalArmada || (siap + tidakSiap)) + ' armada aktif',
-        donut: { segs: [ { label: 'Siap', val: siap, tone: 'ok' }, { label: 'Tidak Siap', val: tidakSiap, tone: 'crit' } ], center: totalArmada }
+        sub: 'Siap ' + siap + ' kapal \u00B7 Total ' + (totalArmada || (siap + tidakSiap)) + ' armada',
+        foot: {
+          left:  { lbl: 'Siap',  val: siap + ' kapal' },
+          right: { lbl: 'Total', val: (totalArmada || (siap + tidakSiap)) + ' armada' }
+        },
+        pct: kesiapanPct
       },
       {
-        label: 'Divisi Melapor Minggu Ini',
+        label: 'Kepatuhan Pelaporan',
         value: nMelapor,
         unit: '/ 7',
-        sub: Math.round(nMelapor / 7 * 100) + '% kepatuhan pelaporan aktif',
-        dots: melaporDetail
+        sub: 'Melapor ' + nMelapor + ' divisi \u00B7 Belum ' + Math.max(0, 7 - nMelapor) + ' divisi',
+        foot: {
+          left:  { lbl: 'Melapor', val: nMelapor + ' divisi', tone: nMelapor >= 5 ? 'ok' : 'warn' },
+          right: { lbl: 'Belum',   val: Math.max(0, 7 - nMelapor) + ' divisi', tone: (7 - nMelapor) > 0 ? 'warn' : 'ok' }
+        },
+        pct: Math.round(nMelapor / 7 * 100)
       }
     ];
 

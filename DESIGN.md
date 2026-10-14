@@ -11,7 +11,7 @@ Nama produk: **Nautika**. Tidak ada subtitle/tagline di bawah nama produk maupun
 
 ## 1. Negative Prompt — Larangan Keras (Strict Anti-Slop & Anti-Outdated)
 
-Setiap komponen yang dibangun **wajib bebas** dari 16 cacat desain berikut:
+Setiap komponen yang dibangun **wajib bebas** dari 17 cacat desain berikut:
 
 1. **DILARANG tombol 3D bevel / hard bottom border** (misal: `border-bottom: 4px solid rgba(0,0,0,0.25)` atau efek tombol timbul tebal). Seluruh tombol berasa *tactile* melalui kompresi pegas aktif (`transform: scale(0.97)` via `--ease-out` pada `:active`/`pointerdown`).
 2. **DILARANG tabrakan multi-font (font collision)** (seperti Poppins bercampur Plus Jakarta Sans). Seluruh antarmuka 100% menggunakan **Plus Jakarta Sans** dengan tabel optical tracking yang presisi.
@@ -29,6 +29,7 @@ Setiap komponen yang dibangun **wajib bebas** dari 16 cacat desain berikut:
 14. **DILARANG efek hover tersangkut pada perangkat layar sentuh**. Seluruh deklarasi `:hover` wajib dibungkus kueri kapabilitas: `@media (hover: hover) and (pointer: fine)`.
 15. **DILARANG kilatan abu-abu browser saat tap di ponsel**. Wajib mematikan `-webkit-tap-highlight-color: transparent` pada root.
 16. **DILARANG animasi properti pemicu Layout & Paint**. Hanya menganimasikan properti GPU Compositor: `transform` dan `opacity` (serta `clip-path` berkinerja tinggi). Jangan pernah menganimasikan `width`, `height`, `margin`, `padding`, `top`, atau `left`.
+17. **DILARANG huruf kapital penuh abu-abu pudar (washed-out all-caps AI-slop trope)** (seperti `text-transform: uppercase; color: var(--n-text-muted)` dengan tracking renggang pada judul kartu, label form, info row, dan header tabel). Pola visual ini terbukti merusak keterbacaan, tampak artifisial, dan tidak ergonomis untuk sistem kokpit operasional. Seluruh label metrik, header tabel, form label, dan penunjuk data WAJIB menggunakan Title Case atau Sentence Case alami dengan kontras tinggi Slate Navy (`var(--n-text-secondary)` / `#4A5568`), bobot tegas (`font-weight: 600`), dan tracking optik rapat natural (`-0.01em` hingga `-0.005em`).
 
 ---
 
@@ -49,6 +50,9 @@ Tracking optik disesuaikan secara dinamis berbanding terbalik dengan ukuran font
 | **Body Medium / Interactive** | `13px`–`14px` | 500 (Medium) | `-0.005em` | Input form, tombol aksi |
 | **Caption / Micro Footnote** | `11px`–`12px` | 500 (Medium) | `+0.010em` | Label status, timestamp telemetri |
 | **Micro Badge / Code** | `10px`–`11px` | 600 (Semi Bold) | `+0.025em` | Tag WPP, kode registrasi |
+
+> [!IMPORTANT]
+> **Aturan Kapitalisasi Baku**: Seluruh judul kartu, subhead metrik, label formulir, header tabel, dan label navigasi WAJIB menggunakan **Title Case** atau **Sentence Case** alami dengan kontras tinggi (`var(--n-text-secondary)`). DILARANG menggunakan `text-transform: uppercase` yang dipadukan dengan warna abu-abu pudar (`var(--n-text-muted)`).
 
 ### 2.2 Aturan Baku Tabular Numbers
 Semua elemen yang merender angka numerik (angka KPI, persentase serapan, nominal Rupiah, jam layar/terbang, koordinat GPS, timer live) **WAJIB** memiliki deklarasi CSS:

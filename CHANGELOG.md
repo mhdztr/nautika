@@ -1,3 +1,49 @@
+## [Hotfix/Refinement UI] — Pemusnahan Tipografi Kapital Abu-Abu (Systemwide Anti-Slop) & Rekonstruksi Kartu KPI Cockpit
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Pemusnahan total tipografi kapital abu-abu pudar systemwide, unifikasi tata letak kartu KPI 4-tingkat vertikal, adopsi Negative Prompt #17 di `DESIGN.md`, dan 100% lulus validasi AST Node.js).
+
+### 1. Perubahan & Peningkatan Sistem
+
+1. **Rekonstruksi Tata Letak Kartu KPI (`html/Style.html`, `html/Script_Main.html`, `services/DashboardService.js`)**:
+   - **Arsitektur Vertikal 4-Tingkat**: Mengubah tata letak kartu headline dari perataan horizontal (`space-between` yang memisahkan angka dan widget secara terfragmentasi) menjadi tumpukan vertikal berbobot (*vertical cockpit card*):
+     - **Tingkat 1 (`.kpi-head`)**: Label metrik Title Case alami (`font-size: 0.8125rem; font-weight: 600; color: var(--n-text-secondary)`) berdampingan dengan badge tren operasional (`.ov-trend`).
+     - **Tingkat 2 (`.kpi-value`)**: Hero tabular metric dengan presisi instrumen maritim (`font-size: 1.85rem; font-weight: 800; tabular-nums`).
+     - **Tingkat 3 (`.kpi-track`)**: Indikator horizontal ramping 5px (`.kpi-track-fill`) dengan status semantik (`.success`, `.warning`, `.crit`), menjamin keseragaman visual di seluruh kartu metrik.
+     - **Tingkat 4 (`.kpi-sub`)**: Subline operasional berkontras jelas yang menyajikan konteks capaian terhadap pagu atau target riil.
+   - **Eliminasi Visual Mengambang Sisi Kanan**: Menghilangkan mikro-visualisasi yang tidak seimbang di sisi kanan (sparkline acak, minibars putus-putus, donat 6-irisan redundan, deretan titik kosong) yang sebelumnya menimbulkan kesan berantakan dan membingungkan pengguna.
+   - **Kompensasi Helper Server-Side**: Memperbaiki fungsi pembantu pemadat angka `_dashCompact(n)` pada `DashboardService.js` untuk mengeliminasi ketergantungan klien `_ovCompact` sehingga subline server-side bebas galat `ReferenceError`.
+   - **Perbaikan Scaling & Anti-Wrap Badge Tren (`.ov-trend`)**: Mengatasi masalah scaling di mana badge tren merah membengkak dan pecah menjadi 2 baris ("▼" dan "141" terpisah serta "vs September" dan "2026" terpisah) akibat kekurangan ruang horizontal. Menerapkan `white-space: nowrap`, `flex-shrink: 0`, font `0.6875rem`, format nama bulan ringkas (`vs Sep`), tooltip deskripsi penuh, serta menormalkan padding kartu menjadi `16px 18px` dan `kpi-label` non-wrapping sehingga seluruh kartu memiliki ketinggian dan baseline metrik yang presisi.
+   - **Keseragaman Indikator Progres Seluruh 4 Kartu**: Memperbaiki passing parameter pada `_ovRenderData` agar seluruh objek `h` (termasuk `pct` dan `pctKapal`) diteruskan penuh ke `_kpiHeadline`, dilengkapi fallback parser otomatis untuk kartu satuan `kapal` dan `hari` sehingga tidak ada kartu yang kehilangan track bar.
+   - **Rekonstruksi Subtext Bawah Menjadi 2-Kolom Key-Value Terstruktur (`.kpi-foot`)**: Menghilangkan paragraf/kalimat panjang yang membungkus canggung dan menyisakan kata-kata gantung ("5 jt", "udara", "armada", "melapor"). Menggantinya dengan layout micro-spec 2-kolom terstruktur (kiri: metrik primer, kanan: pembanding/total) dengan label abu-abu halus dan angka tegas bernilai tabular (`tabular-nums`), dilengkapi highlight status semantik (ok/warn/crit). Semua kartu kini 100% rapi dalam 1 baris horizontal tanpa wrapping liar.
+   - **Unifikasi & Anti-Clutter Header Status (`#sync-indicator` + `.sync-popover`)**: Menyatukan dua elemen teks terpisah di header (`#telemetry-timestamp` dan `#sync-indicator`) menjadi satu status pill interaktif yang elegan. Dilengkapi ikon SVG sinkronisasi (berputar halus saat proses sinkronisasi) dan micro-popover melayang saat di-hover yang memuat detail waktu transaksi data (`Data per: DD MMM YYYY · HH:mm WIB`), status sinkronisasi server, dan aksi klik untuk periksa pembaruan, sehingga header bebas dari visual clutter.
+
+2. **Pemusnahan Tipografi Kapital Abu-Abu Pudar Systemwide (`html/Style.html`, `html/Auth.html`, `html/views/TataUsaha.html`, `html/Script_Main.html`)**:
+   - Mematikan deklarasi `text-transform: uppercase` dan mengganti warna pudar `var(--n-text-muted)` pada seluruh komponen:
+     - Label formulir (`.form-grp label`, `.form-group label`)
+     - Header tabel data (`.n-table th`, `.approval-table th`)
+     - Label bagian sidebar (`.sb-section-label`)
+     - Baris informasi detail (`.info-row .lbl`, `.n-modal-hd-scroll .hd-k`)
+     - Caption footer kartu dan legenda stack (`.div-card-foot-cap`, `.stk-caption`, `.stk-item`)
+     - Sumbu diagram dan label donat SVG (`.vz-col-lbl`, `.vz-line-x`, `.vz-heat-lbl`, `_ovDonut`)
+   - Seluruh teks kini tampil dalam format **Title Case** atau **Sentence Case** alami berbobot semi-bold/medium (`font-weight: 500–600`) dengan kontras tajam Slate Navy (`var(--n-text-secondary)` / `#4A5568`), bebas dari kesan "AI-slop".
+
+3. **Rekonstruksi Kartu Akun Pengguna & Drop-Up Popover Menu (`html/Index.html`, `html/Style.html`, `html/Script_Main.html`)**:
+   - **Kartu Akun Proper (`.sb-user-card`)**: Menggantikan teks telanjang dan tombol logout terbuka di pojok kiri bawah sidebar dengan kartu profil terstruktur yang elegan:
+     - **Default Profile Avatar (`.sb-avatar`)**: Lingkaran avatar 34px bergradien halus dengan border transparan dan siluet ikon pengguna (SVG) baku, dilengkapi indikator presensi aktif berwarna zamrud (`.sb-status-dot`, *Emerald Active*).
+     - **Tipografi Identitas Terstruktur (`.sb-user-info`)**: Menampilkan nama pengguna dengan bobot semi-bold putih (`font-weight: 600`) dan peran/role dalam warna sekunder yang jelas, dilengkapi ikon chevron interaktif (`.sb-user-chevron`) yang berotasi 180° saat menu terbuka.
+   - **Menu Popover Melayang Drop-Up (`.sb-user-menu`)**:
+     - Menyembunyikan tombol logout dan aksi sekunder di balik menu drop-up yang melayang ke atas (`bottom: calc(100% + 8px)`), menghindari pemotongan di bawah layar (mengadopsi UX desktop modern Slack/Linear).
+     - **Header Profil Kaya (`.sb-menu-header`)**: Menampilkan avatar, nama lengkap pengguna, email resmi, dan badge pill peran (`.sb-role-badge`).
+     - **Navigasi Cepat & Kontrol Sesi**: Menampilkan tautan cepat ke Admin Panel (khusus Superadmin/Direktur), Notifikasi sistem, garis pemisah halus (`.sb-menu-divider`), dan tombol **Keluar** berwarna crimson lembut (`.sb-menu-item.danger`) dengan hover efek merah tegas.
+     - **Dismissibility & Aksesibilitas**: Menu otomatis tertutup dengan klik di luar area (`click outside`) maupun penekanan tombol `Escape`, dengan animasi transisi pegas halus (`_dropUpFade`).
+
+4. **Pembaruan Desain & Standar Rekayasa Antarmuka (`DESIGN.md`)**:
+   - Menambahkan **Negative Prompt #17** di §1 yang secara eksplisit melarang penggunaan huruf kapital penuh abu-abu pudar (`text-transform: uppercase; color: var(--n-text-muted)`).
+   - Menambahkan aturan kapitalisasi baku pada §2.1 yang mewajibkan Title Case/Sentence Case berbobot tegas pada seluruh antarmuka sistem.
+
+---
+
 ## [Fase 17] — Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung
 
 **Tanggal**: 14 Oktober 2026  

@@ -132,21 +132,25 @@ function _fmtSyncTime(ts) {
 }
 
 /**
- * Render Live Header Telemetry Timestamp (Fase 17)
- * Menampilkan waktu transaksi terakhir ("Data per: DD MMM YYYY · HH:mm WIB")
- * Memberi status peringatan kuning (is-stale) jika usia data > 7 hari.
+ * Render Live Header Telemetry & Sync Status Terpadu (Fase 17 Refinement)
+ * Menyajikan status sinkronisasi satu-pintu dengan ikon SVG dan hover popover.
+ * Tidak ada teks ganda/clutter di header.
  */
 function _updateTelemetryTimestampUI() {
-  var el = document.getElementById('telemetry-timestamp');
-  if (!el) return;
+  var syncEl = document.getElementById('sync-indicator');
+  if (!syncEl) return;
+  var txt = syncEl.querySelector('.sync-indicator-text');
+  var popStatus = syncEl.querySelector('.sync-pop-status');
+  var popData = document.getElementById('sync-pop-data');
+
   var meta = APP_SYNC.lastTxMetadata;
   if (!meta || !meta.timestamp) {
-    el.style.display = 'none';
+    if (popData) popData.textContent = 'Data per: Memuat\u2026';
     return;
   }
   var d = new Date(meta.timestamp);
   if (isNaN(d.getTime())) {
-    el.style.display = 'none';
+    if (popData) popData.textContent = 'Data per: Belum tersedia';
     return;
   }
   var monthsShort = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -160,15 +164,22 @@ function _updateTelemetryTimestampUI() {
   var ageDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
   var isStale = ageDays > 7;
 
-  el.style.display = 'inline-flex';
+  if (popData) {
+    popData.textContent = 'Data per: ' + dateStr + (meta.sheet ? ' (' + meta.sheet + ')' : '');
+  }
+
   if (isStale) {
-    el.className = 'telemetry-timestamp is-stale';
-    el.title = 'Peringatan: Data terakhir diperbarui ' + Math.floor(ageDays) + ' hari yang lalu (> 7 hari). Perlu pembaruan laporan.';
-    el.innerHTML = '<span class="telemetry-dot"></span><span>Data per: ' + _esc(dateStr) + ' (Usang)</span>';
+    syncEl.classList.add('is-stale');
+    if (txt) txt.textContent = 'Data Usang';
+    if (popStatus) popStatus.textContent = 'Data Perlu Pembaruan';
+    syncEl.title = 'Peringatan: Data terakhir diperbarui ' + Math.floor(ageDays) + ' hari yang lalu (> 7 hari). Klik untuk memeriksa pembaruan.';
   } else {
-    el.className = 'telemetry-timestamp';
-    el.title = 'Waktu transaksi data terakhir tercatat di sistem: ' + (meta.sheet ? _esc(meta.sheet) : 'Transaksi');
-    el.innerHTML = '<span class="telemetry-dot"></span><span>Data per: ' + _esc(dateStr) + '</span>';
+    syncEl.classList.remove('is-stale');
+    if (txt && !syncEl.classList.contains('is-syncing') && !syncEl.classList.contains('is-deferred')) {
+      txt.textContent = 'Tersinkron';
+    }
+    if (popStatus) popStatus.textContent = 'Sistem Tersinkron';
+    syncEl.title = 'Sistem Tersinkron \u00B7 Data per: ' + dateStr + '. Klik untuk memeriksa pembaruan.';
   }
 }
 
@@ -176,22 +187,23 @@ function _syncUpdateIndicator(state, detailText) {
   var el = document.getElementById('sync-indicator');
   if (!el) return;
   var txt = el.querySelector('.sync-indicator-text');
+  var popStatus = el.querySelector('.sync-pop-status');
 
   el.classList.remove('is-syncing', 'is-deferred');
 
   if (state === 'syncing') {
     el.classList.add('is-syncing');
     if (txt) txt.textContent = 'Menyinkronkan\u2026';
+    if (popStatus) popStatus.textContent = 'Memeriksa data ke server\u2026';
     el.title = 'Sedang memeriksa versi data ke server\u2026';
   } else if (state === 'deferred') {
     el.classList.add('is-deferred');
     if (txt) txt.textContent = 'Ada Pembaruan';
-    el.title = 'Data baru tersedia di server. Pembaruan ditunda karena formulir sedang aktif, dan akan dimuat otomatis saat formulir ditutup.';
+    if (popStatus) popStatus.textContent = 'Data Baru Tersedia di Server';
+    el.title = 'Data baru tersedia di server. Ditunda selama formulir aktif.';
   } else {
     // synced
-    var timeStr = APP_SYNC.lastSyncTime ? (' (' + _fmtSyncTime(APP_SYNC.lastSyncTime) + ')') : '';
-    if (txt) txt.textContent = detailText || 'Tersinkron';
-    el.title = 'Data tersinkron dengan server' + timeStr + '. Klik untuk memeriksa pembaruan sekarang.';
+    _updateTelemetryTimestampUI();
   }
 }
 
@@ -1030,10 +1042,28 @@ function _initApp() {
 
 // ── SIDEBAR ───────────────────────────────────────────────
 function _renderSidebar() {
-  var user = APP.user;
-  // Footer
-  document.getElementById('sb-user-name').textContent = user.nama;
-  document.getElementById('sb-user-role').textContent = ROLE_LABEL[user.role] || user.role;
+  var user = APP.user || {};
+  // Footer trigger card & popover menu
+  var nameEl = document.getElementById('sb-user-name');
+  if (nameEl) nameEl.textContent = user.nama || 'Pengguna';
+  var roleEl = document.getElementById('sb-user-role');
+  if (roleEl) roleEl.textContent = ROLE_LABEL[user.role] || user.role || '—';
+
+  var menuName = document.getElementById('sb-menu-name');
+  if (menuName) menuName.textContent = user.nama || 'Pengguna';
+  var menuEmail = document.getElementById('sb-menu-email');
+  if (menuEmail) menuEmail.textContent = user.email || '—';
+  var menuRole = document.getElementById('sb-menu-role');
+  if (menuRole) menuRole.textContent = ROLE_LABEL[user.role] || user.role || 'Pengguna';
+
+  var adminItem = document.getElementById('sb-menu-admin-item');
+  if (adminItem) {
+    if (user.role === 'SUPERADMIN' || user.role === 'DIREKTUR') {
+      adminItem.classList.remove('n-hidden');
+    } else {
+      adminItem.classList.add('n-hidden');
+    }
+  }
 
   // Nav
   var nav = document.getElementById('sb-nav');
@@ -1053,6 +1083,53 @@ function _renderSidebar() {
     });
   });
   nav.innerHTML = html;
+}
+
+// ── USER ACCOUNT MENU (Drop-Up Popover) ───────────────────
+function _toggleUserMenu(e) {
+  if (e) e.stopPropagation();
+  var menu = document.getElementById('sb-user-menu');
+  var card = document.getElementById('sb-user-card');
+  if (!menu || !card) return;
+
+  var isOpen = !menu.classList.contains('n-hidden');
+  if (isOpen) {
+    _closeUserMenu();
+  } else {
+    menu.classList.remove('n-hidden');
+    card.classList.add('is-active');
+    setTimeout(function () {
+      document.addEventListener('click', _userMenuOutsideClickHandler);
+      document.addEventListener('keydown', _userMenuKeyHandler);
+    }, 0);
+  }
+}
+
+function _closeUserMenu() {
+  var menu = document.getElementById('sb-user-menu');
+  var card = document.getElementById('sb-user-card');
+  if (menu) menu.classList.add('n-hidden');
+  if (card) card.classList.remove('is-active');
+  document.removeEventListener('click', _userMenuOutsideClickHandler);
+  document.removeEventListener('keydown', _userMenuKeyHandler);
+}
+
+function _userMenuOutsideClickHandler(e) {
+  var footer = document.getElementById('sb-footer');
+  if (footer && !footer.contains(e.target)) {
+    _closeUserMenu();
+  }
+}
+
+function _userMenuKeyHandler(e) {
+  if (e.key === 'Escape' || e.keyCode === 27) {
+    _closeUserMenu();
+  }
+}
+
+function _handleMenuNav(viewId) {
+  _closeUserMenu();
+  _routeTo(viewId);
 }
 
 function _updateActiveNav(viewId) {
@@ -1109,10 +1186,21 @@ function _renderPageHeader(viewId) {
     '<div class="page-header-inner">' +
       '<h1 class="page-title">' + _esc(_viewTitle(viewId)) + '</h1>' +
       '<div class="filter-periode">' +
-        '<div id="telemetry-timestamp" class="telemetry-timestamp" title="Waktu transaksi data terakhir tercatat di sistem"></div>' +
-        '<div id="sync-indicator" class="sync-indicator" onclick="_triggerManualSync()" title="Data sinkron dengan server. Klik untuk memeriksa pembaruan sekarang.">' +
-          '<span class="sync-indicator-dot"></span>' +
+        '<div id="sync-indicator" class="sync-indicator" onclick="_triggerManualSync()" title="Data tersinkron dengan server. Klik untuk periksa pembaruan.">' +
+          '<span class="sync-icon-wrap">' +
+            '<svg class="sync-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.19"/>' +
+            '</svg>' +
+          '</span>' +
           '<span class="sync-indicator-text">Tersinkron</span>' +
+          '<div class="sync-popover">' +
+            '<div class="sync-pop-head">' +
+              '<span class="sync-pop-dot"></span>' +
+              '<span class="sync-pop-status">Sistem Tersinkron</span>' +
+            '</div>' +
+            '<div class="sync-pop-data" id="sync-pop-data">Data per: &mdash;</div>' +
+            '<div class="sync-pop-action">Klik untuk periksa pembaruan</div>' +
+          '</div>' +
         '</div>' +
         (filterHtml ? '<div class="filter-box">' + filterHtml + '</div>' : '') +
         '<span id="filter-busy" class="filter-busy" title="Memuat data&hellip;"></span>' +
@@ -1460,8 +1548,7 @@ function _ovRenderData(d) {
   if (kpiRow) {
     if (d.headline && d.headline.length) {
       kpiRow.innerHTML = d.headline.map(function (h) {
-        return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub,
-          { ring: h.ring, spark: h.spark, minibars: h.minibars, donut: h.donut, dots: h.dots, trend: h.trend });
+        return _kpiHeadline(h.label, _ovNum(h.value, h.unit), h.unit, h.sub, h);
       }).join('');
     } else {
       kpiRow.innerHTML = '<div class="chart-empty">Belum ada laporan pada rentang terpilih — ' +
@@ -1758,45 +1845,99 @@ function _fmtTs(ts) {
 function _kpiHeadline(label, value, unit, sub, opt) {
   opt = opt || {};
   var hasData = value !== '\u2014';
+
+  // 1. Header baris atas: Judul Title Case + Trend Badge di sudut kanan atas (kompak & single-line)
   var trendHtml = '';
   if (opt.trend && opt.trend.delta && hasData) {
     var d = Number(opt.trend.delta) || 0;
     if (d !== 0) {
-      trendHtml = '<div class="ov-trend ' + (d > 0 ? 'up' : 'down') + '">' +
-        (d > 0 ? '\u25B2' : '\u25BC') + ' ' + Math.abs(d) +
-        ' <span class="ov-trend-cmp">vs ' + _ovMonthLabel(opt.trend.prev) + '</span>' +
+      var isUp = d > 0;
+      var arrow = isUp ? '\u25B2' : '\u25BC';
+      var numStr = (isUp ? '+' : '') + _idNum(d);
+      var prevShort = _ovMonthShort(opt.trend.prev);
+      var prevFull = _ovMonthLabel(opt.trend.prev);
+      var tip = 'Perubahan ' + numStr + ' dibanding ' + prevFull;
+      trendHtml = '<div class="ov-trend ' + (isUp ? 'up' : 'down') + '" title="' + _esc(tip) + '">' +
+        arrow + ' ' + Math.abs(d) +
+        (prevShort ? ' <span class="ov-trend-cmp">vs ' + _esc(prevShort) + '</span>' : '') +
       '</div>';
     }
   }
 
-  var vis = '';
-  if (!hasData) {
-    vis = '';
-  } else if (opt.ring) {
-    vis = '<div class="kpi-vis">' + _ovRing(Number(opt.ring.pct) || 0, 68) + '</div>';
-  } else if (opt.donut && opt.donut.segs) {
-    var donut = _ovDonut(opt.donut.segs, 76, _idNum(opt.donut.center !== undefined ? opt.donut.center : _ovSegTotal(opt.donut.segs)));
-    if (donut) vis = '<div class="kpi-vis">' + donut + '</div>';
-  } else if (opt.spark) {
-    var sp = _ovSpark(opt.spark, 'var(--n-primary)', 'rgba(43,54,116,0.14)');
-    if (sp) vis = '<div class="kpi-vis">' + sp + '</div>';
-  } else if (opt.minibars) {
-    var mb = _ovMiniBars(opt.minibars, 'var(--n-primary)');
-    if (mb) vis = '<div class="kpi-vis">' + mb + '</div>';
-  } else if (opt.dots) {
-    vis = '<div class="kpi-vis">' + _ovDots(opt.dots) + '</div>';
+  // 2. Indikator kemajuan kontekstual (sleek horizontal track 5px)
+  var trackHtml = '';
+  if (hasData) {
+    var pct = null;
+    var barClass = '';
+    if (opt.pct !== undefined && opt.pct !== null) {
+      pct = Math.max(0, Math.min(100, Number(opt.pct) || 0));
+    } else if (unit === '%') {
+      pct = Math.max(0, Math.min(100, parseFloat(String(value).replace(',', '.')) || 0));
+    } else if (unit === '/ 7') {
+      pct = Math.max(0, Math.min(100, (Number(value) || 0) / 7 * 100));
+    } else if (opt.pctKapal !== undefined) {
+      pct = Math.max(0, Math.min(100, Number(opt.pctKapal) || 0));
+    } else if (opt.donut && opt.donut.segs && opt.donut.center) {
+      var siapVal = 0;
+      (opt.donut.segs || []).forEach(function(s){ if (s.tone === 'ok') siapVal = Number(s.val) || 0; });
+      pct = opt.donut.center > 0 ? Math.max(0, Math.min(100, (siapVal / opt.donut.center) * 100)) : 0;
+    } else if (unit === 'kapal') {
+      var mTot = String(sub || '').match(/dari\s+(\d+)\s+armada/i);
+      var tot = mTot ? Number(mTot[1]) : 0;
+      if (tot > 0) pct = Math.max(0, Math.min(100, (Number(value) || 0) / tot * 100));
+    } else if (unit === 'hari') {
+      var mPct = String(sub || '').match(/\((\d+)%\)/);
+      if (mPct) pct = Number(mPct[1]) || 0;
+    }
+
+    if (pct !== null) {
+      if (pct >= 80) barClass = 'success';
+      else if (pct >= 40) barClass = '';
+      else barClass = 'warning';
+      trackHtml = '<div class="kpi-track"><div class="kpi-track-fill ' + barClass + '" style="width:' + pct.toFixed(1) + '%;"></div></div>';
+    }
+  }
+
+  // 3. Subtext bawah terstruktur (dua kolom key-value, anti-wrap, bukan teks slap acak)
+  var footHtml = '';
+  if (opt.foot && opt.foot.left && opt.foot.right) {
+    var lTone = opt.foot.left.tone ? ' ' + opt.foot.left.tone : '';
+    var rTone = opt.foot.right.tone ? ' ' + opt.foot.right.tone : '';
+    footHtml = '<div class="kpi-foot">' +
+      '<div class="kpi-foot-item">' +
+        (opt.foot.left.lbl ? '<span class="kpi-foot-lbl">' + _esc(opt.foot.left.lbl) + '</span> ' : '') +
+        '<span class="kpi-foot-val' + lTone + '">' + _esc(opt.foot.left.val) + '</span>' +
+      '</div>' +
+      '<div class="kpi-foot-item right">' +
+        (opt.foot.right.lbl ? '<span class="kpi-foot-lbl">' + _esc(opt.foot.right.lbl) + '</span> ' : '') +
+        '<span class="kpi-foot-val' + rTone + '">' + _esc(opt.foot.right.val) + '</span>' +
+      '</div>' +
+    '</div>';
+  } else if (sub) {
+    // Parser fallback cerdas jika data lama/view lain mengirim string dengan pemisah "·"
+    var parts = String(sub).split(/\s*[·\u00B7]\s*/);
+    if (parts.length >= 2) {
+      footHtml = '<div class="kpi-foot">' +
+        '<div class="kpi-foot-item"><span class="kpi-foot-val">' + _esc(parts[0]) + '</span></div>' +
+        '<div class="kpi-foot-item right"><span class="kpi-foot-val">' + _esc(parts[1]) + '</span></div>' +
+      '</div>';
+    } else {
+      footHtml = '<div class="kpi-foot">' +
+        '<div class="kpi-foot-item"><span class="kpi-foot-lbl">' + _esc(sub) + '</span></div>' +
+      '</div>';
+    }
   }
 
   return '<div class="kpi-card">' +
-    '<div class="kpi-main">' +
-      '<div class="kpi-label">' + label + '</div>' +
-      '<div class="kpi-value">' + value +
-        (unit ? '<span class="kpi-unit">' + unit + '</span>' : '') +
-      '</div>' +
-      '<div class="kpi-sub">' + sub + '</div>' +
+    '<div class="kpi-head">' +
+      '<div class="kpi-label" title="' + _esc(label) + '">' + _esc(label) + '</div>' +
       trendHtml +
     '</div>' +
-    vis +
+    '<div class="kpi-value">' + value +
+      (unit ? '<span class="kpi-unit">' + _esc(unit) + '</span>' : '') +
+    '</div>' +
+    trackHtml +
+    footHtml +
   '</div>';
 }
 
@@ -1871,7 +2012,7 @@ function _ovDonut(segs, size, center, subLabel) {
     return el;
   }).join('');
   var subText = (subLabel && size > 100) ? (
-    '<text x="' + cx + '" y="' + (cy + 17) + '" text-anchor="middle" font-size="9" font-weight="700" letter-spacing="0.08em" fill="var(--n-text-muted)">' + _esc(subLabel) + '</text>'
+    '<text x="' + cx + '" y="' + (cy + 17) + '" text-anchor="middle" font-size="10" font-weight="600" letter-spacing="-0.01em" fill="var(--n-text-secondary)">' + _esc(subLabel) + '</text>'
   ) : '';
   var numY = (subLabel && size > 100) ? (cy - 3) : cy;
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' + arcs +
@@ -1919,7 +2060,7 @@ function _ovSegTotal(segs) {
 function _ovPlotDonut(segs, size, subLabel) {
   var total = _ovSegTotal(segs);
   if (total <= 0) return '';
-  var donut = _ovDonut(segs, size || 160, _idNum(total), subLabel || 'KAPAL');
+  var donut = _ovDonut(segs, size || 160, _idNum(total), subLabel || 'Kapal');
   var legend = segs.filter(function (s) { return (Number(s.val) || 0) > 0; }).map(function (s) {
     var pct = Math.round((Number(s.val) || 0) / total * 100);
     return '<div class="legend-row">' +

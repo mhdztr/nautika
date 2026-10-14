@@ -17,6 +17,10 @@ Tipe data ditulis ringkas: `text`, `number`, `date`, `bool`, `enum(...)`, `ref(S
 | Homebase_UPT | text |
 | StatusAktif | bool |
 | JenisKapal | enum dari `Opsi` grup `KAPAL_JENIS` (`KAPAL_PUSAT`, `SPEEDBOAT`), nullable |
+| KelasKapal | enum(`BESAR_GT100`, `SEDANG`, `KECIL`), nullable — penanda 34 Kapal Pengawas Ukuran Besar |
+| PanjangMeter | number, nullable |
+| WPPDefault | ref(WPP), nullable |
+| PangkalanHomebase | text, nullable |
 
 > `Kapal.JenisKapal` (Fase 14 Item 6) menentukan kapal mana yang boleh dipilih untuk
 > tiap `HariOperasi_Kategori` di `TX_OperasiLaut`. **Kolom kosong = tidak dibatasi**:
@@ -49,6 +53,21 @@ Tipe data ditulis ringkas: `text`, `number`, `date`, `bool`, `enum(...)`, `ref(S
 | NamaResmi | text |
 | NamaDashboard | text |
 | Kode | text |
+
+### `Master_Paket`
+Daftar paket pekerjaan per divisi (barang, jasa, fisik, pemeliharaan).
+| Kolom | Tipe |
+|---|---|
+| PaketID | text (PK, mis. `PKT-TU-2026-001`) |
+| DivisiID | ref(Divisi) |
+| TahunAnggaran | number (mis. `2026`) |
+| NamaPaket | text |
+| KategoriPaket | enum(`BARANG`, `JASA_KONSULTASI`, `JASA_LAINNYA`, `KONSTRUKSI`) |
+| SumberDana | enum(`REGULER`, `ABT`) |
+| PaguAnggaran | number |
+| KodeAkunMak | text |
+| PICTimja | text |
+| StatusAktif | bool |
 
 ### `Users`
 | Kolom | Tipe |
@@ -119,11 +138,30 @@ Kolom standar +
 |---|---|
 | PaguReguler | number |
 | PaguABT | number |
-| RealisasiSP2D_Minggu | number |
-| RealisasiAkrual_Minggu | number |
+| RealisasiSP2D_Minggu | number (legacy/gabungan) |
+| RealisasiAkrual_Minggu | number (legacy/gabungan) |
+| RealisasiSP2D_Reguler_Minggu | number |
+| RealisasiSP2D_ABT_Minggu | number |
+| RealisasiAkrual_Reguler_Minggu | number |
+| RealisasiAkrual_ABT_Minggu | number |
 | CatatanRevisiPagu | text, nullable (wajib diisi jika Pagu berubah dari versi sebelumnya) |
 
-*Dihitung sistem (bukan kolom disimpan, dihitung on-read):* PaguTotal, Realisasi Akumulatif SP2D/Akrual, Sisa SP2D/Akrual, %SP2D, %Akrual.
+*Dihitung sistem (bukan kolom disimpan, dihitung on-read):* PaguTotal, Realisasi Akumulatif SP2D/Akrual per Sumber Dana (Reguler & ABT), Sisa SP2D/Akrual, %SP2D Reguler/ABT, %Serapan Konsolidasi Nasional.
+
+### `TX_Paket_Progres`
+Progres pelaksanaan paket pekerjaan berkala.
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| PaketID | ref(Master_Paket) |
+| TahapPekerjaan | enum(`PERSIAPAN`, `PEMILIHAN`, `KONTRAK`, `PELAKSANAAN`, `BAST`, `SELESAI`) |
+| NilaiKontrak | number |
+| RekananPenyedia | text |
+| NomorKontrak | text, nullable |
+| ProgresFisikPct | number (0-100) |
+| RealisasiKeuangan | number |
+| KendalaKeterangan | text, nullable |
+| EvidenceUrl | text, nullable |
 
 **`revisiPagu` (output KPI, on-read, tanpa kolom baru)** — berapa kali Pagu sudah direvisi, tampil di bawah baris Pagu pada form TU dan modal revisi.
 Definisi: jumlah transisi nilai `(PaguReguler, PaguABT)` pada baris `ACTIVE` yang berbeda dari baris `ACTIVE` sebelumnya, dibaca kronologis. Baris pertama = pagu awal, bukan revisi.
@@ -163,6 +201,38 @@ Kolom standar +
 | AsalNegara | text, nullable (wajib jika ItemType=KIA pada Operasi Laut) |
 | WPPCode | ref(WPP), nullable (wajib jika ItemType=RUMPON — lokasi WPP ditertibkan, lihat PRD §5.3) |
 | Lokasi | text, nullable (opsional — koordinat/deskripsi lokasi, khusus RUMPON) |
+
+### `TX_OperasiLaut_Tangkapan`
+Pencatatan spesifik per kapal tangkapan (mendukung smart bulk import Excel).
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| TanggalTangkapan | date |
+| KapalPenangkapID | ref(Kapal) |
+| NamaKapalIlegal | text |
+| KebangsaanBendera | text |
+| TonaseGT | number |
+| Latitude | number |
+| Longitude | number |
+| MuatanIkanKg | number |
+| JenisPelanggaran | text |
+| EstimasiValuasi | number |
+| PangkalanAdhoc | text |
+| StatusKasus | enum(`PROSES_PEMERIKSAAN`, `PENYIDIKAN`, `P21`, `INKRACHT`) |
+
+### `TX_Kapal_Posisi`
+Snapshot telemetri posisi terakhir kapal untuk peta taktis.
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| KapalID | ref(Kapal) |
+| TanggalUpdate | date |
+| Latitude | number |
+| Longitude | number |
+| StatusKondisi | enum(`OPERASIONAL`, `SIAP_OPS`, `TIDAK_SIAP`) |
+| WPPCode | ref(WPP), nullable |
+| LokasiPelabuhan | text, nullable |
+| HariOperasiYTD | number |
 
 ### `TX_OperasiUdara`
 Kolom standar +
@@ -367,3 +437,45 @@ Kolom standar (DivisiID tidak dipakai untuk scope-restrict, tapi tetap diisi = d
 | Pesan | text |
 | IsRead | bool |
 | CreatedAt | date |
+
+---
+
+## Nautika_Reporting_Looker (Data Mart Reporting)
+
+Spreadsheet pelaporan khusus yang diperbarui secara periodik (ETL trigger) untuk konsumsi Looker Studio, bebas dari baris `SUPERSEDED` dan `VOID`.
+
+### `Mart_Ikhtisar_Nasional`
+| Kolom | Tipe |
+|---|---|
+| Periode | text (YYYY-MM-WW) |
+| BulanTahun | text (YYYY-MM) |
+| TotalPagu_Reguler | number |
+| TotalPagu_ABT | number |
+| TotalRealisasi_SP2D_Reguler | number |
+| TotalRealisasi_SP2D_ABT | number |
+| PctSerapan_Nasional | number |
+| TotalHariLayar_Nasional | number |
+| TotalTangkapan_KIA | number |
+| TotalTangkapan_KII | number |
+| TotalRumpon_Ditertibkan | number |
+| TotalValuasi_Penyelamatan | number |
+| Armada_Siap_Pct | number |
+
+### `Mart_Kinerja_Armada_34Kapal`
+| Kolom | Tipe |
+|---|---|
+| Triwulan | text (YYYY-TW1..4) |
+| KapalID | text |
+| NamaKapal | text |
+| KelasKapal | text |
+| PangkalanHomebase | text |
+| WPP_Penugasan | text |
+| HariOperasi_Aktual | number |
+| Target_HariOperasi | number |
+| Jumlah_KIA_Ditangkap | number |
+| Jumlah_KII_Ditindak | number |
+| Jumlah_Rumpon_Tertib | number |
+| Volume_Riksa_Kapal | number |
+| Total_Valuasi_MiliarRp | number |
+| Skor_Akhir_TW | number |
+| Peringkat_TW | number |

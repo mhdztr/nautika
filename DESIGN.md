@@ -1,63 +1,108 @@
-# DESIGN.md — Nautika Design System
+# DESIGN.md — Nautika Design System (Apple Interface Guidelines & Strict Anti-Slop)
 
-Menggantikan `design.md` versi lama sepenuhnya. Arah: **SaaS pastel modern, tapi dibersihkan dari kecenderungan AI-slop.** Referensi visual yang disetujui: screenshot Executive Overview (sidebar putih, kartu abu-muda `#F4F7FE`, aksen indigo) — dipakai sebagai baseline, bukan hasil akhir. Keputusan user 22 Sep 2026 mengubah aksen (indigo `#4318FF`) menjadi navy yang sama dengan sidebar (`#2B3674`) — lihat §3.
+Menggantikan `design.md` versi lama sepenuhnya. Arah: **Apple Human Interface Guidelines yang diadaptasi untuk Mission-Critical Maritime Web Application, dibersihkan total dari kecenderungan AI-slop dan elemen visual kuno.** 
+
+Referensi visual dasar: sidebar navy (`#2B3674`), kanvas abu-muda pastel (`#F4F7FE`), material translusen dengan vibrancy (`backdrop-filter: blur(20px)`), dan fisika pegas interaktif (*spring physics*).
 
 Nama produk: **Nautika**. Tidak ada subtitle/tagline di bawah nama produk maupun di bawah judul halaman mana pun.
 
 ---
 
-## 1. Negative Prompt — Wajib Dihindari
+## 1. Negative Prompt — Wajib Dihindari Keras (Anti-Slop & Anti-Outdated)
 
-Ini daftar ciri "AI-slop" yang harus aktif dicegah, bukan hanya dihindari secara pasif:
+Daftar larangan keras ciri visual amatir, AI-slop, dan elemen skeuomorphic usang yang harus aktif dicegah secara konsisten:
 
-1. **Tidak ada 1-warna-per-stat-card.** Pola lama: tiap kartu KPI punya ikon warna berbeda (pink, orange, cyan, ungu...) di kotak bulat kecil. Ini dihapus total. Ikon (jika dipakai) monokrom netral abu/navy, atau kartu tanpa ikon sama sekali — angka dan label yang jadi fokus.
-2. **Tidak ada gradient blob/mesh dekoratif** di background card, header, atau elemen apa pun.
-3. **Tidak ada badge/pill warna-warni tanpa makna status.** Badge hanya dipakai untuk status yang benar-benar berarti (mis. "Tidak Siap" merah, "Selesai" hijau) — bukan dekorasi.
-4. **Tidak ada shadow berlapis/melayang berlebihan.** Satu level shadow tipis untuk elevasi kartu (lihat §4), titik.
-5. **Tidak ada warna acak per kategori di chart.** Semua chart tunduk pada palet terbatas (§3).
-6. **Tidak ada subtitle di bawah judul.** Judul halaman berdiri sendiri, langsung diikuti konten (garis pemisah tipis boleh).
-7. **Tidak ada copywriting motivational/filler** di UI ("Selamat datang kembali!", dsb) — bahasa lugas, fungsional.
-8. **Tidak ada ikon 3D/emoji** di dalam interface produksi.
+1. **Tidak ada tombol 3D bevel / hard bottom border** (misal: `border-bottom: 4px solid rgba(0,0,0,0.25)`). Gaya usang era 2012 ini dilarang total! Seluruh tombol harus berasa *tactile* melalui active press compression (`transform: scale(0.97)` via spring physics), bukan bevel tebal kaku.
+2. **Tidak ada tabrakan dua font (dual-font collision)** (seperti Poppins untuk body/tabel vs Plus Jakarta Sans untuk heading). Seluruh elemen UI distandarisasi 100% menggunakan **Plus Jakarta Sans** dengan sistem optical tracking (letter-spacing) yang ketat.
+3. **Tidak ada angka non-tabular pada metrik/tabel/waktu** (`font-variant-numeric: normal`). Semua angka metrik, timestamp, timer, koordinat lintang/bujur, persentase, dan nominal rupiah WAJIB memakai `font-variant-numeric: tabular-nums` untuk mencegah horizontal jitter/goyangan saat data berganti.
+4. **Tidak ada permukaan "kardus mati" (flat cardboard UI)** (kartu solid `#FFFFFF` kaku tanpa kedalaman optik di atas kanvas abu). Komponen mengadopsi material translusen dengan saturasi lembut (*subtle translucency*) via `backdrop-filter: blur(20px) saturate(180%)` dan batas tepi 1px ultra-halus (`rgba(0,0,0,0.06)`).
+5. **Tidak ada modal "teleport" tanpa titik jangkar fisik**. Modal dilarang muncul tiba-tiba dari tengah layar dengan easing linear kaku. Modal wajib menganimasikan pembesaran skala halus (`scale(0.94)` ke `1.0`) berakar dari elemen pemicunya (*origin anchor*).
+6. **Tidak ada drawer/bottom sheet kaku tanpa swipe-to-dismiss**. Sheet dan drawer samping wajib memiliki grabber visual dan mendukung gestur geser tutup yang mengikuti inersia jari/kursor.
+7. **Tidak ada border radius yang melanggar hukum konsentris** (misal kartu luar 16px tetapi elemen input di dalamnya 16px). Berlaku aturan: `outer_radius - padding = inner_radius`.
+8. **Tidak ada 1-warna-per-stat-card.** Pola lama: tiap kartu KPI punya ikon warna berbeda (pink, orange, cyan, ungu...) di kotak bulat kecil. Ini dihapus total. Ikon (jika dipakai) monokrom netral abu/navy, atau kartu tanpa ikon sama sekali — angka dan label yang jadi fokus.
+9. **Tidak ada gradient blob/mesh dekoratif** di background card, header, atau elemen apa pun.
+10. **Tidak ada badge/pill warna-warni tanpa makna status.** Badge hanya dipakai untuk status yang benar-benar berarti (mis. "Tidak Siap" merah, "Selesai" hijau) — bukan dekorasi.
+11. **Tidak ada shadow berlapis hitam pekat/melayang kotor.** Menggunakan layered ambient shadow Apple yang sangat lembut dan natural (§4).
+12. **Tidak ada warna acak per kategori di chart.** Semua chart tunduk pada palet terbatas (§3).
+13. **Tidak ada subtitle di bawah judul.** Judul halaman berdiri sendiri, langsung diikuti konten (garis pemisah tipis boleh).
+14. **Tidak ada copywriting motivational/filler** di UI ("Selamat datang kembali!", dsb) — bahasa lugas, fungsional.
+15. **Tidak ada ikon 3D/emoji** di dalam interface produksi.
 
-## 2. Typography
+---
 
-Dipertahankan dari sistem lama (bagian ini sudah benar):
-- **Primary (heading, judul, angka metrik utama)**: Plus Jakarta Sans — 600/700/800
-- **Secondary (body, tabel, navigasi)**: Poppins — 400/500/600
+## 2. Typography — Unified Plus Jakarta Sans & Optical Sizing
 
-Tidak memakai font monospace (arahan "Tactical" dari iterasi lama dibuang total).
+Seluruh antarmuka Nautika menggunakan satu keluarga font berkinerja tinggi: **Plus Jakarta Sans**. Font Poppins dihapus sepenuhnya demi kesatuan visual dan konsistensi rendering.
 
-## 3. Palet Warna — Dibatasi Ketat
+### 2.1 Skala Tipografi & Tracking (Letter-Spacing) Apple
+Untuk menjaga legibilitas optik prima pada berbagai hierarki, letter-spacing disesuaikan secara dinamis:
 
-### Netral (dominan — porsi terbesar UI)
+| Peran Tipografi | Ukuran | Bobot (Weight) | Tracking (Letter-Spacing) | Guna |
+|---|---|---|---|---|
+| **Display / Hero Metric** | `32px`–`38px` | 800 (Extra Bold) | `-0.025em` | Angka KPI utama, stat hero ikhtisar |
+| **Page Title** | `22px`–`24px` | 700 (Bold) | `-0.020em` | Judul modul utama (tanpa subtitle) |
+| **Section Header** | `17px`–`18px` | 700 (Bold) | `-0.015em` | Judul sub-konteks, header panel |
+| **Card Title / Subhead** | `14px`–`15px` | 600 (Semi Bold) | `-0.010em` | Label kartu KPI, header kolom tabel |
+| **Body Regular** | `13px`–`14px` | 400 (Regular) | `-0.005em` | Teks paragraf, sel tabel data |
+| **Body Medium** | `13px`–`14px` | 500 (Medium) | `-0.005em` | Input form, teks interaktif |
+| **Caption / Footnote** | `11px`–`12px` | 500 (Medium) | `+0.010em` | Label status, timestamp telemetri, hint |
+| **Micro Badge** | `10px`–`11px` | 600 (Semi Bold) | `+0.020em` | Tag status kompak, kode WPP |
+
+### 2.2 Aturan Baku Tabular Numbers
+- Seluruh angka numerik (KPI metric, nominal Rupiah, jam terbang, hari layar, persentase serapan, koordinat GPS, timestamp last-updated) **WAJIB** memiliki properti CSS:
+  ```css
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+  ```
+- Mencegah pergeseran lebar tata letak (*layout jump*) saat angka diperbarui via live telemetry atau filter data.
+
+---
+
+## 3. Palet Warna & Translucent Materials (Vibrancy)
+
+### 3.1 Netral & Material Translusen
+| Token | Nilai / CSS | Karakter Optik & Penggunaan |
+|---|---|---|
+| `--n-bg-base` | `#F4F7FE` | Kanvas dasar sistem (latar belakang belakang layar) |
+| `--n-material-surface` | `rgba(255, 255, 255, 0.82)` | Kartu KPI, kontainer tabel data, panel form (`backdrop-filter: blur(20px) saturate(180%)`) |
+| `--n-material-glass-subtle`| `rgba(255, 255, 255, 0.65)` | Panel filter, input background idle, mini cards |
+| `--n-material-floating` | `rgba(255, 255, 255, 0.92)` | Modal popup, dropdown menu, context drawer (`backdrop-filter: blur(32px)`) |
+| `--n-material-header` | `rgba(244, 247, 254, 0.85)` | Navbar atas fixed (`backdrop-filter: blur(16px) saturate(160%)`) |
+| `--n-text-primary` | `#2B3674` | Teks utama, angka dominan (Deep Maritime Navy) |
+| `--n-text-secondary` | `#4A5568` | Teks keterangan, sub-data, deskripsi pekerjaan |
+| `--n-text-muted` | `#A3AED0` | Label sekunder, placeholder input, divider hint |
+| `--n-border-hairline` | `rgba(0, 0, 0, 0.07)` | Garis batas kartu & pembatas tipis (1px crisp) |
+| `--n-border-focused` | `rgba(43, 54, 116, 0.35)` | Focus ring halus dengan spread 3px |
+
+### 3.2 Aksen & Status Semantik
 | Token | Hex | Guna |
 |---|---|---|
-| `--n-bg-base` | `#F4F7FE` | Kanvas dasar |
-| `--n-surface-1` | `#FFFFFF` | Kartu, panel |
-| `--n-surface-2` | `#F9FAFB` | Permukaan sekunder |
-| `--n-surface-hover` | `#F1F5F9` | Hover state |
-| `--n-text-primary` | `#2B3674` | Teks utama |
-| `--n-text-secondary` | `#4A5568` | Sub-teks |
-| `--n-text-muted` | `#A3AED0` | Label, teks tersier |
-| `--n-border-subtle` | `rgba(0,0,0,0.06)` | Garis pemisah tipis |
+| `--n-primary` | `#2B3674` | Brand Navy — Tombol utama, rel sidebar, status aktif, line chart utama |
+| `--n-primary-light` | `#E4E7F2` | Tint navy muda — Latar hover, seleksi aktif, badge informasi |
+| `--n-status-success` | `#10B981` | Siap Operasi / Selesai / Pagu Aman |
+| `--n-status-warning` | `#F59E0B` | Perhatian / Siap Pangkalan / Mendekati Batas |
+| `--n-status-critical` | `#EF4444` | Tidak Siap / Harwat Galangan / Pelanggaran / Anulir |
 
-### Aksen — maksimal 2 warna aktif + 3 warna status semantik
-> Keputusan user 22 Sep 2026: warna aksen = **navy yang sama dengan sidebar** agar matching. Semua variasi aksen lain (tints, seri chart) adalah **variasi hue biru itu** (via opacity/tint), bukan hue baru.
-| Token | Hex | Guna |
-|---|---|---|
-| `--n-primary` | `#2B3674` | Aksen brand (navy sidebar) — elemen interaktif, aktif/selected, tombol utama. Dulu `#4318FF` (indigo), diganti atas keputusan user |
-| `--n-primary-light` | `#E4E7F2` | Tint navy muda untuk background elemen primary (hover, badge, msg.info). Dulu `#E9E3FF` (lavender) |
-| `--n-status-success` | `#10B981` | Tercapai/aman/naik positif |
-| `--n-status-warning` | `#F59E0B` | Perlu perhatian/mendekati batas |
-| `--n-status-critical` | `#EF4444` | Kritis/tidak siap/bahaya |
+---
 
-**Aturan pemakaian**: warna aksen selain nilai di atas **tidak dipakai** di komponen produksi. Chart multi-series memakai **gradasi/opacity dari navy `#2B3674`** (`rgba(43,54,116,…)`), bukan hue berbeda; status tetap 3 warna semantik. Warna brand masuk tunjangan logo/branding yang menyatu dengan sidebar.
+## 4. Shape, Concentricity & Layered Elevation
 
-## 4. Shape & Elevation
+### 4.1 Hukum Geometri Konsentris (Concentric Radius)
+Elemen anak yang berada di dalam elemen induk bersudut lengkung wajib mengikuti rumus radius konsentris:
+$$\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$$
+Contoh:
+- Kartu Kontainer (Outer): `border-radius: 16px`, `padding: 16px` $\rightarrow$ Tombol/Input di dalamnya: `border-radius: 8px`–`10px` (bukan 16px lagi).
+- Input Search di dalam Filter Box (`padding: 6px`): `border-radius: 10px` $\rightarrow$ Input search: `border-radius: 6px`.
 
-- Radius: `--n-radius-sm: 12px` (input, ikon kecil), `--n-radius-lg: 16px` (kartu, kontainer chart), `--n-radius-pill: 99px` (badge, avatar)
-- Shadow: **satu level saja** — `--n-shadow-card: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)`. Tidak ada shadow kedua untuk hover — hover cukup ganti `--n-surface-hover` atau border, tanpa elevasi tambahan yang berlebihan.
-- Border: garis pemisah pakai `--n-border-subtle` tipis, bukan shadow tebal, untuk memisahkan section.
+### 4.2 Layered Ambient Shadows (Apple Soft Lighting)
+Tidak ada shadow hitam pekat satu lapis. Menggunakan difusi multi-layer:
+- **Level 1 (Card / Container)**:
+  `box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 6px 16px -2px rgba(43, 54, 116, 0.05);`
+- **Level 2 (Dropdown / Popover Floating)**:
+  `box-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.04), 0 12px 28px -4px rgba(43, 54, 116, 0.10);`
+- **Level 3 (Modal Dialog / Command Sheet)**:
+  `box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.12), 0 32px 72px -12px rgba(43, 54, 116, 0.22);`
 
 ## 5. Negative Space (dipertahankan dari sistem lama — ini sudah benar)
 
@@ -77,6 +122,74 @@ Tidak memakai font monospace (arahan "Tactical" dari iterasi lama dibuang total)
 - **Footer**: nama user putih; role `rgba(255,255,255,0.6)`; tombol Keluar border `rgba(255,255,255,0.10)` + teks putih, hover `rgba(255,255,255,0.08)`.
 - **Garis pemisah** antar elemen rel: `rgba(255,255,255,0.10)`; scrollbar rel mengikuti.
 - **Larangan (§1 tetap berlaku)**: tanpa gradient; tanpa shadow tambahan; tanpa ikon berwarna/emoji; tanpa badge warna-warni; aksen aktif = putih (di atas rel navy). Kontras teks-putih-di-atas-navy ≈ ≥9:1 (aks.-aman).
+
+## 5c. Physics & Fluid Motion (Apple Spring System)
+
+Antarmuka Nautika harus terasa hidup, responsif, dan memiliki bobot fisik (*tangible & tactile*), bukan sekadar perubahan state CSS linear yang kaku.
+
+### 5c.1 Token Pegas Fisik (Spring Curves)
+CSS transitions wajib menggunakan kurva aproksimasi pegas alami Apple (menggantikan `linear` dan `ease-in-out` generik):
+- **Snappy Spring (Interaksi Cepat)**:
+  ```css
+  --n-spring-snappy: cubic-bezier(0.2, 0.8, 0.2, 1) 280ms;
+  ```
+  Digunakan untuk: hover button, switch filter, segmented control, sub-tab change.
+- **Modal & Sheet Spring (Perpindahan Spasial)**:
+  ```css
+  --n-spring-modal: cubic-bezier(0.16, 1, 0.3, 1) 340ms;
+  ```
+  Digunakan untuk: pembukaan dialog modal, slide drawer, floating popover, banner alert.
+- **Micro-Bounce Spring (Penegasan Status)**:
+  ```css
+  --n-spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1) 320ms;
+  ```
+  Digunakan untuk: indikator sukses simpan, penambahan counter notifikasi, centang checklist.
+
+### 5c.2 Tactile Active Compression (Haptic Feedback Visual)
+Setiap tombol, kartu klik, dan opsi interaktif **WAJIB** memberikan umpan balik kompresi saat ditekan (`:active` / `pointerdown`):
+```css
+.btn:active,
+.btn-primary:active,
+.n-iconbtn:active,
+.nav-item:active {
+  transform: scale(0.97);
+  transition: transform 90ms ease-out;
+}
+.kdl-option:active {
+  transform: scale(0.985);
+}
+```
+*Aturan*: Tombol tidak boleh memiliki bevel 3D statis 4px di bawahnya. Rasa penekanan muncul dari kompresi skala dinamis.
+
+### 5c.3 Anchored Modal Presentation
+- Modal **DILARANG** beranimasi linear dari tengah tanpa arah asal.
+- Saat dibuka, modal berakar dari posisi tombol pemicu (*transform-origin* terhitung dinamis atau berpusat proporsional):
+  - State awal: `transform: scale(0.94) translateY(8px); opacity: 0;`
+  - State aktif: `transform: scale(1.0) translateY(0); opacity: 1; transition: var(--n-spring-modal);`
+- Latar belakang modal (*backdrop overlay*) menggunakan material blur:
+  ```css
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  ```
+
+### 5c.4 Gesture Sheet & Swipe-to-Dismiss
+- Pada tampilan drawer samping atau bottom sheet ponsel:
+  - Header panel dilengkapi pegangan visual (*grabber*): strip bulat `width: 36px; height: 5px; background: rgba(0,0,0,0.18); border-radius: 99px; margin: 8px auto;`.
+  - Mendukung penutupan alami lewat gestur geser: jika digeser ke bawah/luar $\ge 80\text{px}$, elemen meluncur keluar mengikuti momentum inersia; jika $< 80\text{px}$, elemen memantul kembali ke posisi awal via spring bounce.
+
+### 5c.5 Aksesibilitas (Reduced Motion)
+Wajib mematuhi preferensi sistem pengguna:
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+```
 
 ## 6. Chart Style Guide
 

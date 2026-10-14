@@ -1,3 +1,69 @@
+## [Spesifikasi Desain & Roadmap Fase 16] — Standar Apple Human Interface Guidelines, Kritik Menyeluruh UI, & Roadmap Fase 16 Overhaul Antarmuka
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **SELESAI DIDOKUMENTASIKAN DI SELURUH REPO MASTER** (`DESIGN.md`, `PHASES.md`, `PRD.md`, `ARCHITECTURE.md`).
+
+### 1. Hasil Audit & Reformasi Desain Antarmuka (Apple Design Foundations)
+1. **Eliminasi Total Unsur Kuno & AI-Slop**:
+   - Menghapus tombol 3D bevel 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) yang usang era 2012, digantikan dengan active press tactile compression (`transform: scale(0.97)` via spring physics).
+   - Menghapus tabrakan dua font (Poppins vs Plus Jakarta Sans), menstandarisasi 100% antarmuka pada satu keluarga font **Plus Jakarta Sans** dengan optical tracking terkalibrasi (-0.025em s.d. +0.010em).
+   - Menegakkan aturan mutlak `font-variant-numeric: tabular-nums` pada seluruh angka numerik (KPI, jam layar/terbang, Rupiah, koordinat maritim, telemetri live) guna mengeliminasi goyangan horizontal layout (*jitter*).
+2. **Material Translusen (Vibrancy) & Elevasi Konsentris**:
+   - Memodifikasi kartu dari kardus padat `#FFFFFF` menjadi material tembus pandang bersaturasi lembut (`rgba(255, 255, 255, 0.82)` + `backdrop-filter: blur(20px) saturate(180%)`) dan hairline border 1px.
+   - Mengadopsi layered ambient shadow Apple (Level 1 kartu, Level 2 floating dropdown, Level 3 modal).
+   - Menegakkan hukum geometri konsentris: $\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$.
+3. **Fisika Pegas & Dinamika Spasial Terjangkar**:
+   - Menerapkan token kurva aproksimasi pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`) menggantikan kurva transisi linear.
+   - Mengubah modal dialog dari ekspansi tengah layar menjadi anchored scale-up (`scale(0.94)` ke `1.0`) berakar dari tombol pemicu dengan overlay blur 8px.
+   - Menetapkan spesifikasi gestur geser tutup (*swipe-to-dismiss*) untuk bottom sheet dan drawer mobile.
+
+### 2. Penyesuaian Roadmap Fase
+- Menetapkan **Fase 16** sebagai **Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop**.
+- Menyesuaikan penomoran fase fungsional berikutnya:
+  - **Fase 17**: Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung.
+  - **Fase 18**: Peta Taktis 34 Kapal Pengawas Ukuran Besar, Interlock Validasi Laik Laut, & Scoring Engine Kapal Terbaik Triwulanan.
+  - **Fase 19**: Smart Bulk Import Engine Excel (High-Volume Ingestion) & Modular Sub-Context Divisi Teknis.
+  - **Fase 20**: Sistem Monitoring Paket Pekerjaan Lintas Divisi & Modular Sub-Context Divisi Pendukung.
+  - **Fase 21**: Pipeline Data Mart Looker Studio, Ekspor/Backfill Laporan Historis, & Finalisasi PRD Timja.
+
+---
+
+## [Perencanaan Master & Spesifikasi Teknis] — Cetak Biru 13 Butir Revisi: Nomenklatur Resmi, Modular Sub-Context & Split History 8 Divisi, Peta Taktis 34 Kapal Besar, Model APBN Reguler vs ABT, Kapal Terbaik TW, Smart Import Excel, Data Mart Looker Studio, & Roadmap Fase 16–20
+
+**Tanggal**: 14 Oktober 2026  
+**Status**: **SELESAI DIDOKUMENTASIKAN DI SELURUH MD UTAMA** (`PRD.md`, `DATA_SCHEMA.md`, `ARCHITECTURE.md`, `PHASES.md`). Siap dieksekusi bertahap per fase.
+
+### 1. Pencapaian & Keputusan Strategis Pemangku Kepentingan
+1. **Standarisasi Nomenklatur Resmi Kedinasan & Label Singkat Antarmuka**:
+   - Menyelaraskan seluruh unit kerja dengan struktur resmi KKP: Suku Bagian Tata Usaha, Sub Direktorat Operasi Kapal Pengawasan dan Pesawat (membawahi Operasi Laut & Udara), serta 5 Tim Kerja Teknis (Intelijen, Pelayanan, Perawatan, Logistik, Pengawakan).
+   - Label antarmuka untuk unit SPKP/VMS resmi diganti dari **"Pemantauan"** menjadi **"Pelayanan"**.
+2. **Dekonstruksi Form "Gabrug" Menjadi Modular Sub-Context & Split History (8 Divisi)**:
+   - Menghapus formulir mingguan raksasa tunggal per divisi. Setiap modul dipecah menjadi 2–4 sub-tab konteks mandiri dengan form ringkas dan tabel riwayat independen (*Split History Grid*).
+3. **Peta Taktis 34 Kapal Pengawas Ukuran Besar (Screenshot 2 & 3)**:
+   - Mengunci referensi armada taktis pada 34 kapal besar: 26 operasional di WPP penugasan, 6 siap di pangkalan (Jakarta & Batam), dan 2 pemeliharaan di galangan (Jakarta & Lamongan).
+   - Interlock validasi laik laut: status `TIDAK_SIAP` di Perawatan otomatis mengunci kapal dari form hari layar di Operasi Laut.
+4. **Formula Penilaian Kapal Terbaik Triwulanan (Ship of the Period TW I–IV)**:
+   - Mengukur kinerja operasional murni di laut: Hari Layar (40%), Poin Penindakan KIA/KII/Rumpon (35%), Volume Riksa (15%), dan Valuasi Penyelamatan (10%).
+5. **Rekonstruksi Model Akuntansi Anggaran Reguler vs ABT**:
+   - Memisahkan Pagu Reguler vs ABT serta Realisasi SP2D vs Akrual dalam matriks 2x2 pada Tata Usaha dan Ikhtisar.
+6. **Penyelarasan Desain Ikhtisar dengan Pola Data-First SiMata**:
+   - Mengeliminasi *unnecessary visual bloat / clutter* (waffle chart, heatmap mikro seluler, donut ad-hoc).
+   - Mengadopsi action toolbar, kartu metrik `X — Y% dari total`, dan Executive Monitoring Data Grid 8 unit kerja.
+7. **Infrastruktur Data Mart Looker Studio & Smart Bulk Import SheetJS**:
+   - Pendirian spreadsheet Data Mart `Nautika_Reporting_Looker` untuk laporan eksekutif dan PDF terjadwal.
+   - Perancangan Smart Bulk Import Engine berbasis SheetJS di sisi klien untuk menangani ratusan kapal tangkapan/riksa per bulan.
+8. **Strategi Kapasitas Google Drive Multi-Tier**:
+   - Tier 1: Kompresi kanvas sisi klien (maks 1600px, JPEG 0.8) mereduksi ukuran foto bukti ~80% (<500 KB) dan kebijakan tautan video.
+   - Tier 2 (Menyusul): Arsitektur Storage Node receiver pada akun Google kedua.
+
+### 2. Dokumen yang Dimodifikasi
+- [PRD.md](file:///home/pinefeast/Projects/nautika/PRD.md): Pembaruan Section 4 (nomenklatur Pelayanan), Section 5.1 (Ikhtisar SiMata), Section 5.2 (Reguler vs ABT & Paket), Section 5.3 (Ops Laut sub-konteks), Section 5.6 (Pelayanan), Section 5.7 (Perawatan interlock), penambahan Section 5.12–5.16 (Kapal Terbaik, Peta Taktis 34 Kapal, Import Engine, Looker Studio, Storage Drive).
+- [DATA_SCHEMA.md](file:///home/pinefeast/Projects/nautika/DATA_SCHEMA.md): Penambahan atribut `KelasKapal`/`PanjangMeter`/`PangkalanHomebase` pada Master Kapal, tabel `Master_Paket`, pemisahan kolom Reguler vs ABT pada `TX_TataUsaha`, tabel `TX_Paket_Progres`, `TX_OperasiLaut_Tangkapan`, `TX_Kapal_Posisi`, dan skema Data Mart `Nautika_Reporting_Looker`.
+- [ARCHITECTURE.md](file:///home/pinefeast/Projects/nautika/ARCHITECTURE.md): Penambahan struktur spreadsheet ke-4 Data Mart, arsitektur modular sub-context & split history, interlock laik laut, smart bulk import SheetJS, dan manajemen storage multi-tier.
+- [PHASES.md](file:///home/pinefeast/Projects/nautika/PHASES.md): Penambahan roadmap resmi Fase 16 sampai Fase 20 sebelum tahap akhir audit DoD.
+
+---
+
 ## [Fase 15b] — Modular Silent Reloaders & Auto-Sync Transaksi Site-Wide (14 Modul, Anti-Flicker, dan Preservasi Scroll)
 
 **Tanggal**: 12 Oktober 2026  

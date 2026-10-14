@@ -28,10 +28,11 @@ Data referensi, jarang berubah, dipakai sebagai lookup lintas modul.
 
 | Sheet | Isi |
 |---|---|
-| `Kapal` | Master armada — `KapalID`, Nama, Kelas, Homebase/UPT, StatusAktif, JenisKapal (enum Opsi `KAPAL_JENIS`) |
+| `Kapal` | Master armada — `KapalID`, Nama, Kelas, Homebase/UPT, StatusAktif, JenisKapal (enum Opsi `KAPAL_JENIS`), KelasKapal (`BESAR_GT100`/`SEDANG`/`KECIL`), PanjangMeter, WPPDefault, PangkalanHomebase |
 | `Kawasan_Konservasi` | `KawasanID`, Nama, Provinsi, Latitude (opsional), Longitude (opsional) |
 | `WPP` | `WPPCode`, NamaWilayah (sinkron manual dari `wpp_final.geojson` via `master_syncWpp` — **Fase 6 menggantikan auto-seed darurat**; saat sheet masih kosong, `master_getWppList` mengembalikan konstanta `WPP_NRI` sebagai fallback read-only tanpa menulis apa pun, lihat `CHANGELOG.md` Fase 6) |
 | `Divisi` | `DivisiID`, NamaResmi, NamaDashboard, Kode |
+| `Master_Paket` | `PaketID`, `DivisiID`, `TahunAnggaran`, `NamaPaket`, `KategoriPaket`, `SumberDana`, `PaguAnggaran`, `KodeAkunMak`, `PICTimja`, `StatusAktif` |
 | `Users` | `UserID`, Nama, Email, **NIP**, PasswordHash, DivisiID, Role, Status (`PENDING/APPROVED/REJECTED/NONAKTIF`), ApprovedBy, RegisteredAt, ApprovedAt. `NIP` wajib & unik, disimpan sebagai digit saja; kolom kosong hanya mungkin pada akun lama sebelum kolom ini ada (lihat `DATA_SCHEMA.md` §`Users`). |
 | `Opsi` | Daftar pilihan dinamis untuk dropdown modul — kolom `Kode` (AMUNISI/BBM/KOM_PERSONIL/AWAK_KATEGORI), `Urutan`, `Label`, `Aktif`. Sumber otoritatif enum `JenisAmunisi`, `JenisBbm`, `KomponenPersonil`, `KategoriPengawakan` (keputusan revisi Fase 9/10, lihat `CHANGELOG.md`). Di-seed `Setup.js`; fallback default via `getOpsiList`. |
 
@@ -40,14 +41,17 @@ Data transaksional mingguan — satu sheet per modul, semua **append-only dengan
 
 | Sheet | Modul |
 |---|---|
-| `TX_TataUsaha` | Tata Usaha |
+| `TX_TataUsaha` | Tata Usaha (Pagu & Realisasi SP2D/Akrual terpisah Reguler vs ABT) |
+| `TX_Paket_Progres` | Tata Usaha — Progres pelaksanaan paket pekerjaan |
 | `TX_OperasiLaut` | Operasi Laut |
 | `TX_OperasiLaut_Detail` | Operasi Laut — rincian per-item (kapal ditangkap KII/KIA, rumpon ditertibkan) |
+| `TX_OperasiLaut_Tangkapan` | Operasi Laut — rincian kapal tangkapan (bulk import) |
+| `TX_Kapal_Posisi` | Operasi Laut & Perawatan — snapshot koordinat posisi kapal pengawas |
 | `TX_OperasiUdara` | Operasi Udara |
 | `TX_OperasiUdara_Detail` | Operasi Udara — rincian per-item pemantauan udara (KII/KIA/Objek SDK) |
 | `TX_Intelijen` | Intelijen |
 | `TX_Intelijen_Detail` | Intelijen — rincian per-kejadian (kategori non-kawasan) |
-| `TX_Pemantauan` | Pemantauan |
+| `TX_Pemantauan` | Pelayanan (SPKP / VMS & Marabahaya) |
 | `TX_Perawatan_Kesiapan` | Perawatan — status kesiapan kapal |
 | `TX_Perawatan_Docking` | Perawatan — progres docking |
 | `TX_Perawatan_Item` | Perawatan — item pekerjaan pemeliharaan (many-to-one ke submission mingguan) |
@@ -269,4 +273,43 @@ Setiap modul memiliki fungsi reloader non-destruktif yang terdaftar di registry 
 - `overview`: me-reload data agregasi `_ovLoadData()`.
 - Modul divisi (Tata Usaha, Operasi Laut, Operasi Udara, Intelijen, Pemantauan, Perawatan, Logistik, Pengawakan, Kegiatan, Riwayat): me-reload KPI card dan tabel riwayat tanpa me-reset filter periode global dan tanpa merusak state peta Leaflet.
 - Peta Leaflet (Operasi & Ikhtisar): tidak mengunduh ulang GeoJSON 10MB; hanya memperbarui layer data intensitas/choropleth dan memanggil `invalidateSize()`.
+
+### 3.4 `Nautika_Reporting_Looker` (Data Mart Reporting)
+Spreadsheet khusus yang bertindak sebagai Data Mart untuk konsumsi Looker Studio dan ekspor PDF resmi pimpinan.
+- **Arsitektur ETL**: Script cron job GAS (atau webhook pasca-transaksi) mengekstrak data dari `TX_*` (hanya baris `ACTIVE`), mengagregasi YTD/TW/Bulanan, dan menulis tabel flat bersih via `Range.setValues()`.
+- **Keamanan & RBAC**: Mencegah kebocoran data mentah ber-`SUPERSEDED`/`VOID` dan mengisolasi akses BI Google Workspace tanpa mengekspos token sesi internal Nautika.
+
+---
+
+## 13. Arsitektur Sub-Context Modular & Split History Grid
+Untuk mengatasi beban kognitif form mingguan raksasa ("form gabrug"), setiap modul divisi didekonstruksi menjadi sub-konteks mandiri:
+- Setiap sub-konteks memiliki form ringkas tersendiri dan tabel riwayat independen (*Split History Grid*) berpola DataTables SiMata (pencarian, sorting, pagination, dan status badge).
+- Transaksi tetap mematuhi prinsip append-only versioning standar Nautika (`RowID`, `Periode`, `SubmittedBy`, `Status`).
+
+## 14. Interlock Validasi Laik Laut Antar-Modul
+Integrasi data lintas divisi ditegakkan secara server-side:
+- Modul **Perawatan** menjadi sumber kebenaran status kesiapan teknis armada.
+- Jika kapal berstatus `TIDAK_SIAP` (docking atau rusak di galangan/pangkalan), sistem **mengunci otomatis** kapal tersebut dari form input hari layar di **Operasi Laut**.
+
+## 15. Smart Bulk Import Engine (High-Volume Ingestion)
+- **Client-Side Parsing**: Memanfaatkan library SheetJS pada browser untuk membaca berkas `.xlsx` atau paste clipboard TSV tanpa membebani kuota server GAS.
+- **Fuzzy Header Recognition**: Memetakan kolom secara otomatis berdasarkan kamus sinonim istilah perikanan dan kelautan.
+- **Atomic Batch Insert**: Menulis hingga ratusan baris sekaligus via `Range.setValues()` dalam 1 kali lock `LockService`, mereduksi waktu eksekusi dari menit menjadi < 4 detik.
+
+## 16. Manajemen Kapasitas Storage Google Drive (Multi-Tier)
+- **Tier 1 (Client-Side Compression)**: Gambar dikompresi di browser via HTML5 Canvas menjadi maksimal 1600px JPEG kualitas 0.8 (ukuran turun dari ~6MB menjadi <500KB). File video besar diarahkan via tautan Google Drive / YouTube privat.
+- **Tier 2 (Storage Node Microservice)**: Arsitektur multi-akun Google untuk mengalihkan unggahan ke akun Google kedua (`superadmin2`) melalui Web App receiver berbasis HMAC signature saat kapasitas akun utama mencapai 85%.
+
+## 17. Arsitektur Frontend & Interaction Engine (Apple Design Guidelines)
+- **Unified Typography & Tabular Alignment**:
+  - Seluruh elemen antarmuka menggunakan **Plus Jakarta Sans** via Google Web Fonts, menonaktifkan font Poppins sepenuhnya.
+  - Seluruh komponen perender angka (`_renderKpi`, `_histRender`, `_ovMap`, data tables) mengunci properti CSS `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` guna menjamin stabilitas tata letak bebas jitter saat pembaruan data real-time.
+- **Translucent Vibrancy & Concentric Elevation**:
+  - Sistem token CSS material berbasis translusensi (`rgba(255, 255, 255, 0.82)`) dipadu `backdrop-filter: blur(20px) saturate(180%)` untuk kartu dan kontainer data.
+  - Penegakan hukum radius konsentris ($\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$) pada seluruh form dan kartu komponen.
+- **Spring Physics & Tactile Interaction Runtime**:
+  - Pemuatan token kurva pegas aproksimasi Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`) menggantikan kurva transisi linear.
+  - Active haptic visual compression (`transform: scale(0.97)`) pada event `:active` / `pointerdown` untuk tombol dan navigasi.
+  - Anchored modal presentation: animasi modal dialog membesar secara mulus (`scale(0.94)` ke `1.0`) berakar dari posisi tombol pemicu (*trigger origin*) dengan backdrop blur 8px.
+  - Sheet swipe gesture handler: deteksi sentuhan/geseran vertikal pada drawer dan bottom sheet untuk swipe-to-dismiss berkecepatan inersia dengan spring snap back.
 

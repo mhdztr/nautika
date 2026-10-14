@@ -438,6 +438,130 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ---
 
+### Fase 16 — Master UI/UX Overhaul: Apple Design System, Tactile Physics & Eliminasi Total AI-Slop
+
+- **Status**: **Siap Dikerjakan (Prioritas Tertinggi Desain Antarmuka)**.
+- **Dependensi**: Fase 15 Selesai.
+- **Tujuan**: Mengubah tampilan dan rasa interaksi Nautika secara drastis dari web aplikasi kaku/AI-slop menjadi standar Apple Human Interface Guidelines: permukaan translusen berkilau (*vibrancy*), tipografi terpadu dengan angka tabular anti-jitter, elevasi multi-layer halus, serta fisika pegas interaktif (*tactile spring physics*).
+- **Ruang Lingkup Deliverables**:
+  1. **Pembersihan CSS Primitif & Eliminasi Elemen Kuno**:
+     - Menghapus 3D bevel button 4px (`border-bottom: 4px solid rgba(0,0,0,0.25)`) pada `.btn-primary` di `html/Style.html`.
+     - Mengganti seluruh kurva transisi linear dengan token pegas Apple (`--n-spring-snappy`, `--n-spring-modal`, `--n-spring-bounce`).
+     - Menerapkan respon tactile kompresi nyata saat ditekan (`:active` / `pointerdown`): `transform: scale(0.97)` pada seluruh tombol, nav item, dan kartu klik.
+  2. **Penyatuan Tipografi & Penegakan Tabular Numbers**:
+     - Menghapus ketergantungan font Poppins 100%, beralih sepenuhnya ke unified **Plus Jakarta Sans**.
+     - Mengonfigurasi optical tracking (letter-spacing) dinamis Apple: dari Display `-0.025em`, Title `-0.020em`, Body `-0.005em`, hingga Caption `+0.010em`.
+     - Menegakkan `font-variant-numeric: tabular-nums` dan `font-feature-settings: "tnum"` pada seluruh angka KPI, tabel riwayat, timer telemetri, koordinat maritim, dan nominal Rupiah.
+  3. **Translucent Glass Surfaces & Layered Ambient Elevation**:
+     - Memperbarui kartu solid "kardus" `#FFFFFF` menjadi material translusen dengan saturasi optik: `rgba(255, 255, 255, 0.82)` dipadu `backdrop-filter: blur(20px) saturate(180%)` dan batas hairline 1px `rgba(0,0,0,0.07)`.
+     - Menerapkan sistem bayangan multi-layer (Level 1 kartu, Level 2 floating dropdown, Level 3 modal).
+     - Menegakkan hukum radius konsentris: $\text{Radius Inner} = \max(0, \text{Radius Outer} - \text{Padding})$.
+  4. **Fisika Modal Terjangkar (Anchored Modal) & Gesture Sheet**:
+     - Mengganti modal ekspansi statis tengah layar dengan animasi pembesaran halus (`scale(0.94)` ke `1.0`) berakar dari posisi pemicu dengan overlay blur 8px.
+     - Menambahkan grabber bar dan gestur geser tutup (*swipe-to-dismiss*) pada drawer samping dan bottom sheet.
+     - Mengintegrasikan pengaman aksesibilitas `@media (prefers-reduced-motion: reduce)`.
+
+---
+
+### Fase 17 — Fondasi Anggaran APBN (Reguler vs ABT), Header Live Telemetry, Simplifikasi Ikhtisar SiMata & Kompresi Kanvas Bukti Dukung
+
+- **Status**: **Siap Dikerjakan (Backlog Resmi Revisi)**.
+- **Dependensi**: Fase 16 Selesai.
+- **Tujuan**: Memperbaiki model akuntansi anggaran negara, menambahkan telemetri pembaruan transaksi di header utama, merapikan halaman Ikhtisar sesuai standar SiMata (eliminasi visual bloat), serta menerapkan kompresi kanvas sisi klien untuk melindungi kuota Google Drive.
+- **Ruang Lingkup Deliverables**:
+  1. **Rekonstruksi Model Keuangan Tata Usaha**:
+     - Memperbaiki kalkulasi di `services/TataUsahaService.js` dan `services/DashboardService.js` agar memisahkan Pagu Reguler vs Pagu ABT serta Realisasi SP2D vs Akrual (matriks 2x2).
+     - Menghitung persentase serapan nasional yang sah: `(Total SP2D Reguler + ABT) / (Total Pagu Reguler + ABT) * 100`.
+  2. **Live Header Timestamp Telemetry**:
+     - Memperbarui `bumpTxVersion()` di `utils/Lock.js` untuk mencatat metadata pembaruan terakhir (`METADATA_LAST_TX`) di `PropertiesService`.
+     - Mengirimkan metadata ke klien lewat polling zero-sheet-read `app_getSyncState`.
+     - Menampilkan indikator *"Data per: <Tanggal Jam WIB> | <Modul>"* pada navbar atas, dengan alert kuning jika data belum diperbarui >7 hari.
+  3. **Simplifikasi Ikhtisar Selaras SiMata**:
+     - Mengeliminasi *unnecessary visual bloat / clutter*: menghapus mini-waffle chart, heatmap seluler mikro, dan grafik donat ad-hoc yang tumpang tindih.
+     - Menyusun halaman dalam 3 blok piramida: 4 KPI Card SiMata (`X — Y% dari total`), Peta Taktis 34 Kapal Besar, dan Executive Monitoring Data Grid 8 unit kerja dengan status chip yang rapi.
+  4. **Kompresi Kanvas Sisi Klien (Storage Protection Tier 1)**:
+     - Mengimplementasikan fungsi kompresi gambar berbasis HTML5 Canvas di browser pada `html/Script_Main.html`.
+     - Setiap foto bukti dukung otomatis di-resize menjadi maksimal lebar 1600px dengan kualitas JPEG 0.8 sebelum diunggah (mereduksi ukuran ~80% dari ~6MB menjadi <500KB).
+     - Kebijakan video: mewajibkan penempelan tautan Google Drive / YouTube privat untuk berkas video >20MB.
+
+---
+
+### Fase 18 — Peta Taktis 34 Kapal Pengawas Ukuran Besar, Interlock Validasi Laik Laut, & Scoring Engine Kapal Terbaik Triwulanan
+
+- **Status**: **Siap Dikerjakan**.
+- **Dependensi**: Fase 17 Selesai.
+- **Tujuan**: Membangun visualisasi peta taktis pemantauan khusus 34 Kapal Pengawas Ukuran Besar, menegakkan aturan interlock validasi kelaikan laut antar-modul, dan mengimplementasikan sistem gamifikasi penilaian Kapal Terbaik Triwulan.
+- **Ruang Lingkup Deliverables**:
+  1. **Peta Taktis 34 Kapal Pengawas Ukuran Besar (Screenshot 2 & 3)**:
+     - Mengunci referensi armada taktis pada 34 kapal besar: 26 kapal operasional di WPP penugasan, 6 kapal siap operasi di pangkalan (Jakarta, Batam), dan 2 kapal pemeliharaan galangan (Jakarta, Lamongan).
+     - Menambahkan layer marker kapal taktis Leaflet dengan siluet presisi dan bendera Indonesia, dilengkapi tooltip interaktif (Komandan, WPP, Hari Layar YTD vs rata-rata nasional 44 hari / pusat 49 hari).
+     - Filter cepat status di atas peta: `[Semua (34)]` `[Operasional (26)]` `[Siap Pangkalan (6)]` `[Galangan (2)]`.
+  2. **Interlock Validasi Laik Laut (Perawatan -> Operasi Laut)**:
+     - Memvalidasi status kapal di `services/OperasiLautService.js`: jika kapal berstatus `TIDAK_SIAP` di modul Perawatan, form input hari layar mengunci kapal tersebut dan menampilkan banner peringatan kelaikan laut.
+  3. **Scoring Engine & Podium Kapal Terbaik (Ship of the Period TW I–IV)**:
+     - Algoritma penilaian murni keaktifan dan produktivitas operasi: `Skor = (0.40 * HariLayar) + (0.35 * PoinPenindakan) + (0.15 * VolumeRiksa) + (0.10 * Valuasi)`.
+     - Normalisasi poin penindakan: KIA (bobot 15), KII Ilegal (bobot 5), Rumpon (bobot 3).
+     - Tampilan antarmuka podium juara 1, 2, 3 (Emas, Perak, Perunggu) dan tabel peringkat lengkap 34 kapal besar per triwulan.
+
+---
+
+### Fase 19 — Smart Bulk Import Engine Excel (High-Volume Ingestion) & Modular Sub-Context Divisi Teknis
+
+- **Status**: **Siap Dikerjakan**.
+- **Dependensi**: Fase 18 Selesai.
+- **Tujuan**: Mengembangkan engine impor massal file Excel untuk memproses ratusan kapal tangkapan/riksa dalam hitungan detik, serta mendekonstruksi form raksasa "gabrug" pada 4 divisi operasional teknis menjadi form sub-konteks ringkas dan split history.
+- **Ruang Lingkup Deliverables**:
+  1. **Smart Bulk Import Engine (SheetJS & Batch Lock)**:
+     - Pemuatan library SheetJS secara on-demand di browser, mendukung unggah berkas `.xlsx` dan copy-paste langsung dari spreadsheet (*paste grid*).
+     - Algoritma *fuzzy synonym matching* untuk mengenali variasi penamaan header secara otomatis.
+     - Validasi dua tahap: *Dry-Run Report* di browser (menyorot baris valid hijau dan baris galat merah) dan *Atomic Batch Insert* ke Google Sheets via `Range.setValues()` dalam 1 kali lock `< 4 detik`.
+  2. **Dekonstruksi Sub-Konteks & Split History 4 Divisi Teknis**:
+     - **Operasi Laut**: Sub-tab Hari Layar, Tangkapan KIA/KII (bulk import), Penertiban Rumpon, dan Volume Riksa.
+     - **Operasi Udara**: Sub-tab Jam Terbang Patroli dan Kontak Pengawasan Maritim.
+     - **Intelijen**: Sub-tab Dinamika Kawasan WPP dan Target Operasi Khusus.
+     - **Pelayanan (SPKP/VMS)**: Sub-tab Kepatuhan Transmiter, Direktori Aktif Marabahaya (Distress), dan Evaluasi Vendor SPKP.
+     - Setiap sub-konteks memiliki tabel riwayat tersendiri (*Split History Grid*) dengan fitur pencarian, filter, dan pagination ala SiMata.
+
+---
+
+### Fase 20 — Sistem Monitoring Paket Pekerjaan Lintas Divisi & Modular Sub-Context Divisi Pendukung
+
+- **Status**: **Siap Dikerjakan**.
+- **Dependensi**: Fase 19 Selesai.
+- **Tujuan**: Menerapkan manajemen klasterisasi paket pekerjaan pengadaan/belanja lintas divisi serta menyelesaikan dekonstruksi sub-konteks form pada 4 unit kerja pendukung.
+- **Ruang Lingkup Deliverables**:
+  1. **Modul & Transaksi Paket Pekerjaan**:
+     - Pembuatan sheet `Master_Paket` dan `TX_Paket_Progres` di database.
+     - Pencatatan siklus 6 tahap: Persiapan, Pemilihan/Tender, Kontrak, Pelaksanaan Fisik, BAST, dan Selesai Bayar.
+     - Tampilan matriks monitoring paket eksekutif di Ikhtisar dan tab monitoring paket di Tata Usaha.
+  2. **Dekonstruksi Sub-Konteks & Split History 4 Divisi Pendukung**:
+     - **Tata Usaha**: Sub-tab Realisasi SP2D/Akrual, Monitoring Paket Pekerjaan, dan PNBP/BMN.
+     - **Perawatan**: Sub-tab Kesiapan 34 Kapal Besar, Pemeliharaan Docking, dan Item Suku Cadang (Harwat).
+     - **Logistik**: Sub-tab BBM Kapal Pengawas (Reguler vs ABT), Riwayat Harga MOPS, dan Logistik Non-BBM.
+     - **Pengawakan**: Sub-tab DSPP Formasi ABK dan Sertifikasi/Diklat Pelaut.
+  3. **Harmonisasi Total Komponen DataTables SiMata**:
+     - Standardisasi seluruh grid tabel pada 8 modul divisi: dropdown entries per page, search bar instan, sortable header, status chips warna lembut, dan ekspor data.
+
+---
+
+### Fase 21 — Pipeline Data Mart Looker Studio, Ekspor/Backfill Laporan Historis, & Finalisasi PRD Timja
+
+- **Status**: **Siap Dikerjakan**.
+- **Dependensi**: Fase 20 Selesai.
+- **Tujuan**: Membangun pipeline pelaporan otomatis ke Looker Studio, menyediakan template ekspor dan ingesti laporan historis (*lenient backfill*), serta memfinalisasi dokumen PRD bersama Timja.
+- **Ruang Lingkup Deliverables**:
+  1. **Pipeline Data Mart Looker Studio**:
+     - Pembuatan spreadsheet terpisah `Nautika_Reporting_Looker` berisi tabel flat bersih: `Mart_Ikhtisar_Nasional`, `Mart_Kinerja_Armada_34Kapal`, `Mart_Anggaran_Paket`, dan `Mart_Peta_Operasi`.
+     - Script cron ETL (atau webhook pasca-transaksi) yang mengekstrak hanya data berstatus `ACTIVE` dan mengagregasi nilai YTD/TW tanpa risiko penghitungan ganda.
+     - Template dashboard resmi Looker Studio dengan fitur ekspor PDF terjadwal untuk pimpinan KKP.
+  2. **Ekspor & Ingesti Laporan Historis (Lenient Backfill Mode)**:
+     - Fitur unduh template Excel resmi per sub-konteks untuk pelaporan manual.
+     - Mesin ingesti data lama (2023–2025) dengan validasi toleran (*lenient mode*) yang mengubah galat format non-kritis menjadi peringatan dan menandai status audit `LEGACY_VERIFIED`.
+  3. **Finalisasi Governance PRD Bersama Timja**:
+     - Pengesahan instrumen wawancara PIC 8 Timja untuk memastikan seluruh field form lapangan terkunci dan bebas inkonstansi.
+
+---
+
 ### Tahap Akhir (Di Luar Fase) — Final Systemwide Audit & Definition of Done
 
 Tahap audit komprehensif seluruh sistem untuk memverifikasi kesiapan rilis penuh (*production readiness*).

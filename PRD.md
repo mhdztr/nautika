@@ -70,40 +70,39 @@ Nama resmi (untuk data/dokumen) vs nama tampilan (dashboard):
 | Suku Bagian Tata Usaha | Tata Usaha | `TU` | Kepala Suku Bagian |
 | Sub Direktorat Operasi Kapal Pengawasan dan Pesawat | Operasi Laut & Udara | `OPS` | Kepala Sub Direktorat |
 | Tim Kerja Pengelolaan Sistem Informasi Intelijen KP | Intelijen | `INTEL` | Ketua Tim Kerja |
-| Tim Kerja Pelayanan Sistem Pemantauan Kapal Perikanan | Pemantauan | `PANTAU` | Ketua Tim Kerja |
+| Tim Kerja Pelayanan Sistem Pemantauan Kapal Perikanan | Pelayanan | `PANTAU` | Ketua Tim Kerja |
 | Tim Kerja Perawatan Armada Pengawasan | Perawatan | `RAWAT` | Ketua Tim Kerja |
 | Tim Kerja Penyediaan Logistik Armada Pengawasan | Logistik | `LOG` | Ketua Tim Kerja |
 | Tim Kerja Pengawakan Armada Pengawasan | Pengawakan | `AWAK` | Ketua Tim Kerja |
 
-Catatan: Operasi Laut dan Operasi Udara secara organisasi berada di bawah Sub Direktorat yang sama. **Keputusan implementasi (dikonfirmasi sesi 14 Sep 2026)**: keduanya digabung dalam satu `DivisiID = OPS` di tabel `Divisi` — Kepala Sub Direktorat dan seluruh stafnya memakai `DivisiID = OPS`. Dashboard dipisah jadi dua modul (Operasi Laut & Operasi Udara) hanya untuk kemudahan baca, bukan karena berbeda scope RBAC. Nama jabatan Kadiv per tipe unit: **Kepala Suku Bagian** (Suku Bagian), **Kepala Sub Direktorat** (Sub Direktorat), **Ketua Tim Kerja** (Tim Kerja).
+Catatan: Operasi Laut dan Operasi Udara secara organisasi berada di bawah Sub Direktorat yang sama (`DivisiID = OPS`). Dashboard dipisah jadi dua modul (Operasi Laut & Operasi Udara) untuk kemudahan operasional. *(Revisi 13 Okt 2026: nama tampilan dashboard untuk unit VMS/SPKP disepakati diganti dari "Pemantauan" menjadi **"Pelayanan"** sesuai nomenklatur kedinasan).* Nama jabatan Kadiv: **Kepala Suku Bagian** (TU), **Kepala Sub Direktorat** (Ops), **Ketua Tim Kerja** (Intelijen, Pelayanan, Perawatan, Logistik, Pengawakan).
 
 ## 5. Modul & Ruang Lingkup Data
 
 Sumber kebenaran struktur data ada di `DATA_SCHEMA.md`. Bagian ini mendefinisikan **apa yang ditampilkan dan apa yang diinput** per modul, berbasis analisis infografis Agustus 2026.
 
-### 5.1 Executive Overview
-- Ringkasan KPI seluruh divisi (bukan seluruh data) — target: Direktur bisa scan kondisi direktorat dalam <30 detik.
-- Kartu ringkas per divisi: 2-4 metrik paling kritikal (mis. Tata Usaha: %realisasi; Perawatan: rasio kapal siap; Operasi: realisasi hari operasi).
-- Filter periode global (lihat §9) memengaruhi seluruh kartu.
-- Tidak ada input di halaman ini — read-only aggregation.
-- **Peta sebaran wilayah (choropleth WPP)** sebagai elemen paling luas di halaman, berisi:
-  - pengalih metrik: Aktivitas (KII+KIA+rumpon) / KII / KIA / Rumpon / Cakupan (NM²),
-  - panel **Top 5 WPP** untuk metrik aktif (synced dengan peta: hover menyorot WPP, klik memfokuskan kamera),
-  - legenda interval dengan satuan metrik.
-  Peta memakai data yang sama dengan §8.1 (Laut + Udara) agar angka di peta dan angka di modul asal tidak mungkin berbeda. Modul Pemantauan **tidak** dipetakan karena `TX_Pemantauan` tidak punya kolom `WPPCode` (lihat §8.3).
-- **Urutan halaman Ikhtisar**: KPI Utama → Peta (full-width) + ranking → chart tren/konteks → kartu divisi → tabel. KPI tetap di paling atas agar "_condition direktorat" terbaca dalam satu sapuan; peta menyusul sebagai konteks geografis.
+### 5.1 Executive Overview (Ikhtisar Eksekutif)
+- **Filosofi Tampilan**: Mengadopsi pola *Data-First* SiMata (scannability tinggi, aksi cepat, bebas dari *unnecessary visual bloat / clutter* seperti mini-waffle dan heatmap mikro).
+- **Struktur Halaman 3 Tingkat**:
+  1. **Top Action Toolbar & 4 KPI Card SiMata**: Toolbar filter, reset, refresh/sync, serta timestamp pembaruan data terakhir. 4 kartu KPI utama (Pagu Anggaran, Realisasi SP2D, Total Hari Layar, Kesiapan Armada) dengan format tegas `X — Y% dari target/total`.
+  2. **Peta Taktis 34 Kapal Pengawas Ukuran Besar**: Visual peta maritim gelap WPP-NRI 571 s.d. 718 menampilkan sebaran taktis 34 kapal besar (26 Operasional di laut, 6 Siap di pangkalan, 2 Pemeliharaan/Galangan).
+  3. **Executive Monitoring Data Grid 8 Unit Kerja**: Menggantikan 9 kartu terpisah dengan satu tabel monitoring terpadu ala SiMata (Realisasi Anggaran, Serapan %, Progres Paket Pekerjaan Selesai/Berjalan, Indikator Kunci, dan Status Badge).
+- Filter periode global (lihat §9) memengaruhi seluruh kartu dan tabel aktif. Read-only aggregation.
 
 ### 5.2 Tata Usaha
-**Ditampilkan**: Pagu (Reguler + ABT), Realisasi SP2D, Realisasi Akrual, Sisa SP2D, Sisa Akrual, %SP2D, %Akrual — kumulatif YTD dan breakdown mingguan yang membentuknya.
-Di bawah baris input Pagu juga tampil **jumlah revisi pagu yang sudah terjadi** (`Belum pernah direvisi` / `Revisi pagu: sudah N kali`), dihitung dari seluruh riwayat `ACTIVE`. Saat pagu dibuka lewat `Ubah Pagu` dan angkanya benar-benar diubah, baris yang sama menampilkan prediksi `Jika disimpan, menjadi revisi ke-(N+1)` — membuka form tanpa mengubah angka **tidak** menampilkan prediksi karena itu bukan revisi.
-**Diinput per minggu**: nilai Pagu Reguler, Pagu ABT (bisa direvisi jika ada perubahan struktural — wajib alasan), Realisasi SP2D minggu ini (incremental), Realisasi Akrual minggu ini (incremental).
-**Dihitung sistem** (tidak diinput manual): Sisa SP2D, Sisa Akrual, %SP2D, %Akrual, akumulasi bulanan & YTD.
-**Validasi**: `Pagu = Realisasi Akumulatif + Sisa` per jenis (SP2D, Akrual) — warning jika tidak konsisten, submit tetap bisa dipaksa dengan catatan.
+- **Sub-Konteks Input & Split History**:
+  1. *Realisasi Anggaran SP2D & Akrual*: Pemisahan tegas matriks 2x2 antara **Pagu Reguler (DIPA Induk)** dan **Pagu ABT (Belanja Tambahan)**, masing-masing dengan realisasi kas cair (SP2D) dan komitmen pekerjaan selesai (Akrual). Rumus serapan nasional dihitung dari total realisasi SP2D dibagi total pagu (Reguler + ABT).
+  2. *Monitoring Paket Pekerjaan*: Siklus 6 tahap (Persiapan, Pemilihan/Tender, Kontrak, Pelaksanaan Fisik, BAST, Selesai Bayar), mencatat rekanan penyedia, nomor kontrak, progres fisik %, dan serapan keuangan.
+  3. *Pengelolaan PNBP & BMN*: Rekapitulasi setoran kas negara dan pemanfaatan aset.
+- **Dihitung sistem**: Sisa Pagu Reguler/ABT, %Serapan Reguler, %Serapan ABT, %Serapan Konsolidasi Nasional, dan akumulasi bulanan/YTD.
 
 ### 5.3 Operasi Laut
-**Ditampilkan**: kapal ditangkap (KII/KIA + asal negara asing), valuasi kerugian illegal fishing dicegah, rumpon ditertibkan (+lokasi WPP), valuasi rumpon, hasil riksa (per kategori: Pusat, UPT, Speedboat — tiga struktur beda), realisasi hari operasi (Kapal Pusat, Semua Kapal, Speedboat) vs target masing-masing.
-**Diinput per minggu**: jumlah kapal ditangkap per kategori (dropdown: Indonesia/Asing + asal negara jika asing), valuasi kerugian, rumpon ditertibkan + **pilih WPP terkait** (dropdown atau klik peta, lihat §8), hasil riksa per kategori, hari operasi per kategori (Kapal, Speedboat, Pusat/UPT) minggu ini.
-**Peta**: choropleth WPP dengan gradasi intensitas kapal terpantau/dioperasikan per wilayah (lihat §8).
+- **Sub-Konteks Input & Split History**:
+  1. *Hari Layar & Jalur Patroli*: Input hari operasi per kapal pengawas dan WPP penugasan. **Interlock Laik Laut**: Kapal yang berstatus `TIDAK_SIAP` di modul Perawatan **otomatis dikunci dari form hari layar**.
+  2. *Tangkapan Kapal Ilegal (KIA & KII)*: Mendukung **Smart Bulk Import Excel** untuk menangani ratusan kapal tangkapan per bulan. Mencatat nama kapal, bendera/negara, GT, koordinat lintang/bujur, muatan, pelanggaran, dan valuasi kerugian negara yang diselamatkan.
+  3. *Penertiban Rumpon Ilegal*: Koordinat rumpon ilegal, identifikasi pemilik, dan status penyitaan/adhoc.
+  4. *Hasil Pemeriksaan (Riksa)*: Volume kapal ikan yang diperiksa di laut sebagai indikator pengawasan preventif.
+- **Peta**: Tampilan taktis sebaran kapal dan intensitas penindakan di 11 WPP-NRI.
 
 ### 5.4 Operasi Udara
 **Ditampilkan**: pemantauan kapal perikanan (KII/KIA/objek SDK) dari udara, identifikasi rumpon lokal, cakupan wilayah operasi (NM²), realisasi hari operasi vs target 180 hari, daftar WPP yang dipantau.
@@ -115,9 +114,11 @@ Di bawah baris input Pagu juga tampil **jumlah revisi pagu yang sudah terjadi** 
 **Diinput per minggu**: masing-masing angka di atas, dan untuk kawasan konservasi — pilih kawasan dari Master Data Kawasan Konservasi (dropdown, bukan free text) + jumlah pelanggaran minggu ini.
 **Tampilan kawasan konservasi**: halaman List/Table (bukan peta — tidak ada data koordinat), kolom: nama kawasan, provinsi, pelanggaran periode ini, YTD, tren (naik/turun vs periode lalu), tautan ke laporan terkait.
 
-### 5.6 Pemantauan
-**Ditampilkan**: persetujuan penyedia SPKP (event log), penerbitan username (periode + YTD), penerbitan SKAT (periode + YTD), pemasangan SPKP kapal migrasi (periode + YTD), **daftar kapal kondisi marabahaya** (nama kapal eksternal + jenis kapal + jenis kondisi darurat + status penanganan).
-**Diinput per minggu**: angka penerbitan minggu ini (username, SKAT, pemasangan migrasi — YTD dihitung sistem), event persetujuan penyedia baru (nama penyedia, tipe, tanggal), entri kapal marabahaya baru (**kapal eksternal, bukan armada KKP** — nama kapal teks bebas + jenis + jenis kondisi darurat + status penanganan). Contoh: kapal perikanan yang kehabisan BBM di tengah laut.
+### 5.6 Pelayanan (Pelayanan Sistem Pemantauan Kapal Perikanan)
+- **Sub-Konteks Input & Split History**:
+  1. *Kepatuhan Transmiter VMS/SPKP*: Tingkat kepatuhan transmisi armada perikanan, deteksi transmitter sengaja dimatikan, dan penerbitan surat peringatan.
+  2. *Penanganan Kapal Marabahaya (Active Distress Directory)*: Tabel direktori aktif insiden kapal marabahaya di laut (posisi lintang/bujur, kondisi darurat, jumlah ABK, status evakuasi, dan unit SAR penolong).
+  3. *Evaluasi Kinerja Vendor SPKP*: SLA layanan transmisi, downtime server, dan rapor kualitas sinyal per penyedia jasa.
 
 ### 5.7 Perawatan
 **Ditampilkan**: jumlah kapal siap/tidak siap (+ daftar kapal tidak siap dengan penyebab), progres docking per kapal (Pusat vs UPT, status: proses pengadaan/tandatangan kontrak/proses docking/selesai), 3 kategori pekerjaan pemeliharaan (proses pembayaran / selesai / perencanaan) masing-masing daftar item pekerjaan + nilai Rp.
@@ -147,6 +148,33 @@ Pengganti nama untuk item "Pendukung Lainnya" di sumber data — bukan milik sat
 - **Data WPP**: kode WPP, nama wilayah — referensi dari `wpp_finals.geojson`, dipakai dropdown & peta.
 - **Data User**: dikelola Superadmin — role, divisi, status akun.
 CRUD Master Kapal & Kawasan Konservasi: Superadmin + Direktur. Master WPP: read-only (sumber dari file geojson, sinkron manual oleh Superadmin bila ada update batas wilayah).
+
+### 5.12 Kapal Terbaik (Ship of the Period per Triwulan TW I–IV)
+- Evaluasi kinerja operasional murni 34 Kapal Pengawas Ukuran Besar setiap akhir triwulan (TW I: Jan-Mar, TW II: Apr-Jun, TW III: Jul-Sep, TW IV: Okt-Des).
+- **Formula Penilaian Keaktifan & Penindakan**:
+  `Skor = (0.40 * HariLayar) + (0.35 * PoinPenindakan) + (0.15 * VolumeRiksa) + (0.10 * ValuasiKerugianDiselamatkan)`
+- Poin Penindakan: KIA (bobot 15), KII Ilegal (bobot 5), Rumpon (bobot 3), dinormalisasi terhadap capaian tertinggi.
+- Menampilkan podium juara 1, 2, 3 (Emas, Perak, Perunggu) serta tabel peringkat lengkap 34 kapal besar.
+
+### 5.13 Peta Taktis 34 Kapal Pengawas Ukuran Besar
+- Pemantauan posisi dan status terkini khusus untuk **34 Kapal Pengawas Ukuran Besar** (sesuai infografis):
+  - 26 Kapal Operasional di WPP penugasan (Orca 01-06, Barakuda 01, Paus 01, Tutul 01-02, Hiu Macan 04/06, Hiu 01-16).
+  - 6 Kapal Siap Operasi di Pangkalan (Akar Bahar 01, Hiu Macan 01/05, Hiu 03/06/17).
+  - 2 Kapal Tidak Siap / Pemeliharaan di Galangan (Barakuda 02 di Jakarta, Hiu Macan 03 di Lamongan).
+- Peta Leaflet dilengkapi filter status operasional, marker kapal taktis, dan panel drawer riwayat kapal.
+
+### 5.14 Smart Bulk Import Engine Excel (High-Volume Ingestion)
+- Fitur impor file Excel (.xlsx / .csv) dan tempel data langsung (*paste grid*) menggunakan library SheetJS di sisi klien.
+- Deteksi otomatis baris header (10 baris pertama) dan pemetaan sinonim kolom cerdas.
+- Dua tahap: Validasi *dry-run* (sorotan baris valid vs error) dan *atomic batch commit* ke database Google Sheets via `Range.setValues()` dalam proteksi `LockService`.
+
+### 5.15 Integrasi Pipeline Looker Studio (Data Mart Reporting)
+- Sinkronisasi data otomatis dari database transaksi Nautika ke spreadsheet terpisah: `Nautika_Reporting_Looker`.
+- Menghasilkan tabel pelaporan flat yang bersih dari baris `SUPERSEDED` dan `VOID` untuk konsumsi dashboard eksekutif Looker Studio dan ekspor PDF terjadwal.
+
+### 5.16 Manajemen Kapasitas Storage Google Drive
+- **Fase 1 (Aktif)**: Kompresi kanvas di browser pengguna sebelum upload (lebar maksimal 1600px, JPEG 0.8) sehingga ukuran berkas turun ~80% (< 500 KB), pembatasan unggahan video via link, dan gauge monitor kuota Drive di Panel Admin.
+- **Fase 2 (Menyusul)**: Arsitektur *Storage Node Receiver* pada akun Google kedua (`superadmin2`) yang otomatis menerima pengalihan upload saat akun utama mencapai ambang batas 85%.
 
 ## 6. Cross-Division Data
 
@@ -227,6 +255,7 @@ Detail aturan operasional (pemilihan chart, warna, komposisi halaman, checklist)
 2. **Chart sesuai pertanyaan data** — bar/grouped bar (perbandingan kategori, sumbu dari 0), line/area (tren waktu), stacked bar (komposisi), horizontal progress bar (pencapaian vs target, pengganti gauge), donut hanya ≤4 kategori dan proporsi sebagai poin utama, choropleth (geospasial WPP), tabel untuk data yang bersifat daftar.
 3. **Varietas** — memakai tipe chart yang sama secara berulang **diperbolehkan** (satu library & bahasa visual konsisten), tetapi setiap halaman dashboard wajib menampilkan minimal 2 jenis representasi berbeda, kecuali seluruh data pada halaman tersebut memang satu jenis pertanyaan data (keputusan desain, dicatat).
 4. **Warna mengikuti kriteria** — chart hanya memakai palet `DESIGN.md` §3; setiap warna wajib bermakna dan maknanya konsisten di semua halaman; warna bukan satu-satunya penanda informasi (perlu label/bentuk pendamping).
+5. **Standar Desain Apple (Tactile & Fluid Motion)** — Selaras dengan `DESIGN.md`: antarmuka berstandar Apple Human Interface Guidelines dengan tipografi terpadu Plus Jakarta Sans ber-tracking optik, penegakan angka tabular (`tabular-nums`) anti-jitter, material kartu translusen berkedalaman optik (`backdrop-filter: blur(20px)`), umpan balik kompresi sentuh (*tactile active scale* `0.97`), serta larangan mutlak tombol 3D bevel 4px atau elemen AI-slop lainnya.
 
 Jenis chart yang dipakai sesuai konteks data (detail per modul & tipe chart di `DESIGN.md` §6 Chart Style Guide):
 - **Bar / grouped bar**: perbandingan realisasi vs target, komposisi kategori (mis. PNS vs PPPK).

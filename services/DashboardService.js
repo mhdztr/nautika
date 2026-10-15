@@ -360,8 +360,8 @@ function dashboard_getOverview(token, filter) {
         unit: '/ 7',
         sub: 'Melapor ' + nMelapor + ' divisi \u00B7 Belum ' + Math.max(0, 7 - nMelapor) + ' divisi',
         foot: {
-          left:  { lbl: 'Melapor', val: nMelapor + ' divisi', tone: nMelapor >= 5 ? 'ok' : 'warn' },
-          right: { lbl: 'Belum',   val: Math.max(0, 7 - nMelapor) + ' divisi', tone: (7 - nMelapor) > 0 ? 'warn' : 'ok' }
+          left:  { lbl: 'Melapor', val: nMelapor + ' divisi' },
+          right: { lbl: 'Belum',   val: Math.max(0, 7 - nMelapor) + ' divisi' }
         },
         pct: Math.round(nMelapor / 7 * 100)
       }

@@ -1891,26 +1891,21 @@ function _kpiHeadline(label, value, unit, sub, opt) {
     }
 
     if (pct !== null) {
-      if (pct >= 80) barClass = 'success';
-      else if (pct >= 40) barClass = '';
-      else barClass = 'warning';
-      trackHtml = '<div class="kpi-track"><div class="kpi-track-fill ' + barClass + '" style="width:' + pct.toFixed(1) + '%;"></div></div>';
+      trackHtml = '<div class="kpi-track"><div class="kpi-track-fill" style="width:' + pct.toFixed(1) + '%;"></div></div>';
     }
   }
 
   // 3. Subtext bawah terstruktur (dua kolom key-value, anti-wrap, bukan teks slap acak)
   var footHtml = '';
   if (opt.foot && opt.foot.left && opt.foot.right) {
-    var lTone = opt.foot.left.tone ? ' ' + opt.foot.left.tone : '';
-    var rTone = opt.foot.right.tone ? ' ' + opt.foot.right.tone : '';
     footHtml = '<div class="kpi-foot">' +
       '<div class="kpi-foot-item">' +
         (opt.foot.left.lbl ? '<span class="kpi-foot-lbl">' + _esc(opt.foot.left.lbl) + '</span> ' : '') +
-        '<span class="kpi-foot-val' + lTone + '">' + _esc(opt.foot.left.val) + '</span>' +
+        '<span class="kpi-foot-val">' + _esc(opt.foot.left.val) + '</span>' +
       '</div>' +
       '<div class="kpi-foot-item right">' +
         (opt.foot.right.lbl ? '<span class="kpi-foot-lbl">' + _esc(opt.foot.right.lbl) + '</span> ' : '') +
-        '<span class="kpi-foot-val' + rTone + '">' + _esc(opt.foot.right.val) + '</span>' +
+        '<span class="kpi-foot-val">' + _esc(opt.foot.right.val) + '</span>' +
       '</div>' +
     '</div>';
   } else if (sub) {

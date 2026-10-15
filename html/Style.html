@@ -1666,9 +1666,6 @@ a { text-decoration: none; color: inherit; }
   border-radius: 99px;
   transition: width 0.4s var(--ease-out);
 }
-.kpi-track-fill.success { background: var(--n-status-success); }
-.kpi-track-fill.warning { background: var(--n-status-warning); }
-.kpi-track-fill.crit    { background: var(--n-status-critical); }
 
 .kpi-foot {
   display: flex;
@@ -1680,6 +1677,7 @@ a { text-decoration: none; color: inherit; }
   color: var(--n-text-secondary);
   font-variant-numeric: tabular-nums;
   -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
   margin-top: 1px;
 }
 .kpi-foot-item {
@@ -1706,9 +1704,6 @@ a { text-decoration: none; color: inherit; }
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
-.kpi-foot-val.ok   { color: #059669; }
-.kpi-foot-val.warn { color: #B45309; }
-.kpi-foot-val.crit { color: #DC2626; }
 
 .kpi-sub {
   font-size: 0.75rem;
@@ -2540,37 +2535,38 @@ a { text-decoration: none; color: inherit; }
 .ov-trend {
   margin-top: 0;
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
   gap: 3px;
   padding: 2px 7px;
   border-radius: var(--n-radius-pill);
-  background: var(--n-surface-2);
+  background: rgba(0, 0, 0, 0.03);
   color: var(--n-text-secondary);
   font-variant-numeric: tabular-nums;
   -webkit-font-feature-settings: "tnum";
-  border: 1px solid var(--n-border-subtle);
+  font-feature-settings: "tnum";
+  border: 1px solid rgba(0, 0, 0, 0.06);
   letter-spacing: -0.01em;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .ov-trend.up {
-  color: #059669;
-  background: var(--n-status-success-bg);
-  border: 1px solid var(--n-status-success-border);
+  color: #047857;
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.15);
 }
 .ov-trend.down {
-  color: #DC2626;
-  background: var(--n-status-critical-bg);
-  border: 1px solid var(--n-status-critical-border);
+  color: var(--n-text-secondary);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
 }
 .ov-trend-cmp {
   font-weight: 500;
   font-size: 0.65rem;
   color: inherit;
-  opacity: 0.85;
+  opacity: 0.8;
   white-space: nowrap;
 }
 .stk-wrap { margin-top: 8px; }

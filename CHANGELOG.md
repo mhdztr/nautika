@@ -38,9 +38,15 @@
      - **Navigasi Cepat & Kontrol Sesi**: Menampilkan tautan cepat ke Admin Panel (khusus Superadmin/Direktur), Notifikasi sistem, garis pemisah halus (`.sb-menu-divider`), dan tombol **Keluar** berwarna crimson lembut (`.sb-menu-item.danger`) dengan hover efek merah tegas.
      - **Dismissibility & Aksesibilitas**: Menu otomatis tertutup dengan klik di luar area (`click outside`) maupun penekanan tombol `Escape`, dengan animasi transisi pegas halus (`_dropUpFade`).
 
-4. **Pembaruan Desain & Standar Rekayasa Antarmuka (`DESIGN.md`)**:
+4. **Pembaruan Desain & Standar Rekayasa Antarmuka (`DESIGN.md`, `html/Style.html`)**:
    - Menambahkan **Negative Prompt #17** di §1 yang secara eksplisit melarang penggunaan huruf kapital penuh abu-abu pudar (`text-transform: uppercase; color: var(--n-text-muted)`).
    - Menambahkan aturan kapitalisasi baku pada §2.1 yang mewajibkan Title Case/Sentence Case berbobot tegas pada seluruh antarmuka sistem.
+   - **Kepatuhan Standar CSS Tabular (`font-feature-settings`)**: Memastikan seluruh deklarasi `-webkit-font-feature-settings: "tnum"` dipasangkan dengan standar properti `font-feature-settings: "tnum"` (termasuk pada `.kpi-foot` dan `.ov-trend`) sesuai `DESIGN.md` §2.2, mengeliminasi peringatan linter CSS.
+
+5. **Penenangan Palet Warna Kartu KPI & Eliminasi Efek Pelangi (`html/Style.html`, `html/Script_Main.html`, `services/DashboardService.js`)**:
+   - **Unifikasi Indikator Progres (`.kpi-track-fill`)**: Menghilangkan pewarnaan status acak (oranye cerah, hijau neon) pada progress bar kartu headline. Seluruh track bar kini seragam menggunakan Deep Maritime Navy (`var(--n-primary)`), menciptakan harmoni visual yang tenang dan bermartabat.
+   - **Penenangan Badge Tren (`.ov-trend`)**: Menggantikan latar pink/merah menyala (`#DC2626` / `#FEE2E2`) dengan kapsul netral berlatar ultra-halus (`rgba(0, 0, 0, 0.03)`) dan teks Slate alami (`var(--n-text-secondary)`), menyajikan perbandingan delta tanpa kepanikan visual.
+   - **Unifikasi Angka Footer (`.kpi-foot-val`)**: Menghilangkan injeksi kelas warna (cokelat/oranye pada divisi melapor) sehingga seluruh angka metrik bawah seragam tampil dalam Deep Navy berbobot tebal (`font-weight: 700; tabular-nums`).
 
 ---
 

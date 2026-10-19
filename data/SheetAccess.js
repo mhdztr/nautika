@@ -736,3 +736,42 @@ function clearOpsiCache() {
     cache.remove('OPSI_MAP_' + kode);
   });
 }
+
+/**
+ * Global audit logging helper — mencatat transaksi ke SHEET_LOG.AUDIT_LOG di Nautika_Log.
+ *
+ * @param {string} userId - ID pengguna yang melakukan aksi
+ * @param {string} aksi - Jenis aksi (e.g. 'SUBMIT_PEGAWAI', 'ANULIR_PEGAWAI', 'CREATE_BMN', etc.)
+ * @param {string} sheetTarget - Nama sheet target
+ * @param {string} rowIdTarget - ID baris target
+ * @param {string|Object} alasanOrDetail - Alasan atau objek detail aksi
+ */
+function logAudit(userId, aksi, sheetTarget, rowIdTarget, alasanOrDetail) {
+  try {
+    var sheet = openLogSheet(SHEET_LOG.AUDIT_LOG);
+    if (!sheet) return;
+    var alasanStr = '';
+    if (typeof alasanOrDetail === 'object' && alasanOrDetail !== null) {
+      try {
+        alasanStr = JSON.stringify(alasanOrDetail);
+      } catch (errJson) {
+        alasanStr = String(alasanOrDetail);
+      }
+    } else {
+      alasanStr = String(alasanOrDetail || '');
+    }
+
+    appendRowData(sheet, {
+      'LogID':       'LOG-' + Utilities.getUuid().replace(/-/g, '').substring(0, 12).toUpperCase(),
+      'UserID':      userId,
+      'Aksi':        aksi,
+      'SheetTarget': sheetTarget,
+      'RowIDTarget': rowIdTarget,
+      'Alasan':      alasanStr,
+      'Timestamp':   new Date()
+    });
+  } catch (e) {
+    Logger.log('[logAudit] ' + e.message);
+  }
+}
+

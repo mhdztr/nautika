@@ -1232,6 +1232,11 @@ function dashboard_getTacticalFleet(token) {
   }
 }
 
+/** Alias untuk kompatibilitas pemanggil tactical fleet map */
+function dashboard_getMapOverview(token) {
+  return dashboard_getTacticalFleet(token);
+}
+
 /**
  * Scoring Engine Kapal Terbaik Triwulanan (Ship of the Period TW I–IV) — PRD §5.12
  * Formula: Skor = (0.40 * HariLayarNorm) + (0.35 * PoinPenindakanNorm) + (0.15 * VolumeRiksaNorm) + (0.10 * ValuasiNorm)

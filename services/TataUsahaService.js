@@ -811,15 +811,15 @@ function tataUsaha_getPegawai(token, filter) {
       return new Date(b['Timestamp']) - new Date(a['Timestamp']);
     }).map(function (r) {
       return {
-        rowId:       r['RowID'],
-        periode:     r['Periode'],
-        timestamp:   r['Timestamp'],
-        kategori:    r['Kategori'],
+        rowId:       String(r['RowID'] || ''),
+        periode:     String(r['Periode'] || ''),
+        timestamp:   r['Timestamp'] ? new Date(r['Timestamp']).toISOString() : null,
+        kategori:    String(r['Kategori'] || ''),
         jumlah:      _num(r['Jumlah']),
-        keterangan:  r['Keterangan'] || '',
-        status:      r['Status'],
-        submittedBy: r['SubmittedBy'],
-        voidReason:  r['VoidReason'] || ''
+        keterangan:  String(r['Keterangan'] || ''),
+        status:      String(r['Status'] || ''),
+        submittedBy: String(r['SubmittedBy'] || ''),
+        voidReason:  String(r['VoidReason'] || '')
       };
     });
 

@@ -507,19 +507,20 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 18B — Revamp Suku Bagian Tata Usaha: Kepegawaian & Sistem Informasi Manajemen BMN Terpadu (Dedicated Spreadsheet Nautika_TU)
 
-- **Status**: **Siap Dikerjakan (In Progress)**.
-- **Dependensi**: Fase 18 Selesai.
+- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.2 Selesai; Sub-Fase 18B.3 Siap Dikerjakan)**.
+- **Dependensi**: Fase 18 Selesai (Lunas).
 - **Tujuan**: Membangun tata kelola mandiri Suku Bagian Tata Usaha melalui spreadsheet dedicated `Nautika_TU`, sistem manajemen kepegawaian 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), sistem register fisik BMN per-item anti-jebret (Reguler vs Buku), dual-option geotagging UPT terdekat, notification summary kondisi kelaikan aset, dan siklus penghapusan legal Kemenkeu.
 - **Ruang Lingkup Deliverables**:
-  1. **Sub-Fase 18B.0 — Sinkronisasi Governance & Dokumen Teknis**:
+  1. **Sub-Fase 18B.0 — Sinkronisasi Governance & Dokumen Teknis**: **Selesai**.
      - Sinkronisasi `PRD.md`, `ARCHITECTURE.md` (arsitektur spreadsheet `Nautika_TU`), `DATA_SCHEMA.md` (skema tabel `TX_TU_Pegawai`, `TX_BMN_Aset`, `TX_BMN_Penghapusan`, dll), dan `PHASES.md`.
-  2. **Sub-Fase 18B.1 — Spreadsheet `Nautika_TU` & Sub-Modul Kepegawaian**:
+  2. **Sub-Fase 18B.1 — Spreadsheet `Nautika_TU` & Sub-Modul Kepegawaian**: **Selesai**.
      - Inisialisasi spreadsheet `Nautika_TU` dan penambahan konstanta `SS_NAME.TU` & helper `openTuSheet()` di `data/SheetAccess.js`.
      - Backend & Frontend Kepegawaian: 5 counter KPI (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), horizontal bar chart komposisi personil, form update cepat, snapshot carry-forward, dan riwayat mutasi pegawai.
-  3. **Sub-Fase 18B.2 — Fondasi Register BMN di `Nautika_TU`**:
+  3. **Sub-Fase 18B.2 — Fondasi Register BMN di `Nautika_TU`**: **Selesai**.
      - Inisialisasi sheet `TX_BMN_Aset`, `Master_Lokasi_UPT`, `Master_BMN_Kategori`.
-     - CRUD aset berversi (append-only dengan `AsetID` UUID), query berhalaman server-side (server pagination), filter BMN Buku (Intrakomptabel) vs BMN Reguler (Ekstrakomptabel).
-  4. **Sub-Fase 18B.3 — Smart Bulk Import Engine SAKTI (Ditarik Maju dari Fase 19)**:
+     - Backend [`BMNService.js`](file:///home/pinefeast/Projects/nautika/services/BMNService.js): CRUD aset berversi (append-only dengan `AsetID` UUID), query berhalaman server-side (server pagination), filter BMN Buku (Intrakomptabel) vs BMN Reguler (Ekstrakomptabel), perhitungan umur aset & masa manfaat on-read, matching UPT terdekat via Haversine.
+     - Frontend UI di [`TataUsaha.html`](file:///home/pinefeast/Projects/nautika/html/views/TataUsaha.html): 4 KPI cards (Gross, Net, % Kelaikan, Antrean Hapus), Notification Summary Banner kondisi (Baik/Rusak Ringan/Rusak Berat), toggle segmented Buku vs Reguler, filter kondisi & UPT, live search, tabel register berpaginasi, in-page form create/edit (full view no popup), dan modal anulir berjejak audit.
+  4. **Sub-Fase 18B.3 — Smart Bulk Import Engine SAKTI (Ditarik Maju dari Fase 19)**: **Siap Dikerjakan**.
      - Parser SheetJS on-demand di browser, kamus sinonim header BMN, dry-run validator di client, atomic batch insert via `Range.setValues()` 500 baris per batch. *(Engine ini di-reuse pada Fase 19 untuk kapal tangkapan Operasi Laut)*.
   5. **Sub-Fase 18B.4 — Engine Geotagging 2-Opsi & Haversine Nearest Match**:
      - Opsi 1: Ekstraksi koordinat GPS dari EXIF foto mentah via `exifr` sebelum kompresi kanvas.

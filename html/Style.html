@@ -3852,31 +3852,85 @@ a { text-decoration: none; color: inherit; }
 
 .tu-pegawai-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
 }
 
 @media (max-width: 1200px) {
   .tu-pegawai-kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
   .tu-pegawai-kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.tu-kpi-hero {
-  border-left: 4px solid var(--n-primary, #2B3674) !important;
+.tu-pegawai-kpi-grid .kpi-card {
+  padding: 16px 14px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 84px;
+  box-sizing: border-box;
+}
+
+.tu-pegawai-kpi-grid .kpi-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--n-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+.tu-pegawai-kpi-grid .kpi-value {
+  font-size: 1.45rem !important;
+  font-weight: 700;
+  color: var(--n-text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1.2;
 }
 
 .tu-kpi-pct {
   font-size: 0.75rem;
+  font-weight: 500;
   color: var(--n-text-muted, #A3AED0);
-  margin-top: 4px;
   font-variant-numeric: tabular-nums;
+}
+
+.bmn-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--n-text-secondary, #707EAE);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms var(--ease-out);
+  white-space: nowrap;
+}
+
+.bmn-seg-btn:hover:not(.active) {
+  color: var(--n-text-primary, #2B3674);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.bmn-seg-btn.active {
+  background: #FFFFFF;
+  color: var(--n-primary, #2B3674);
+  box-shadow: 0 1px 4px rgba(43, 54, 116, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {

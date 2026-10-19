@@ -14,7 +14,7 @@
       </button>
       <button type="button" class="tu-subnav-btn" id="tu-tab-btn-pegawai" onclick="_tuSwitchTab('pegawai')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-        Kepegawaian (5 Kategori)
+        Kepegawaian
       </button>
       <button type="button" class="tu-subnav-btn" id="tu-tab-btn-bmn" onclick="_tuSwitchTab('bmn')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
@@ -258,69 +258,18 @@
       </div>
     </div>
 
-    <!-- Komposisi & Form Cepat (2 Kolom) -->
+    <!-- Komposisi Personil Aktif (Full Width Chart) -->
     <div class="content-section">
-      <div class="chart-grid-2">
-        
-        <!-- Kolom Kiri: Chart Distribusi Komposisi -->
-        <div class="chart-cell">
-          <div class="chart-cell-hd">
-            <div>
-              <div class="chart-cell-title">Komposisi Personil Aktif</div>
-              <div class="chart-cell-sub">Distribusi proporsi 5 kategori pegawai</div>
-            </div>
-          </div>
-          <div class="chart-box" style="height: 280px;">
-            <canvas id="tu-chart-pegawai"></canvas>
+      <div class="chart-cell">
+        <div class="chart-cell-hd">
+          <div>
+            <div class="chart-cell-title">Komposisi Personil Aktif</div>
+            <div class="chart-cell-sub">Distribusi proporsi personil berdasarkan status kepegawaian</div>
           </div>
         </div>
-
-        <!-- Kolom Kanan: Form Update Cepat (Full Page View, No Popup) -->
-        <div class="chart-cell" style="display:flex; flex-direction:column; justify-content:space-between;">
-          <div class="chart-cell-hd">
-            <div>
-              <div class="chart-cell-title">Pembaruan Jumlah Pegawai</div>
-              <div class="chart-cell-sub">Snapshot headcount aktif terkini</div>
-            </div>
-            <span class="badge" style="background:rgba(43,54,116,0.08);color:var(--n-primary);font-size:.75rem;">Carry-Forward</span>
-          </div>
-
-          <div id="tu-pegawai-form-msg" class="n-msg"></div>
-
-          <form id="tu-pegawai-form" onsubmit="event.preventDefault(); _tuSubmitPegawai();" style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px;">
-            <div class="form-grp">
-              <label for="tu-peg-pns">PNS (Orang)</label>
-              <input type="number" id="tu-peg-pns" min="0" step="1" placeholder="0" class="tnum" required>
-            </div>
-            <div class="form-grp">
-              <label for="tu-peg-p3k">P3K Penuh Waktu</label>
-              <input type="number" id="tu-peg-p3k" min="0" step="1" placeholder="0" class="tnum" required>
-            </div>
-            <div class="form-grp">
-              <label for="tu-peg-p3k-pw">P3K Paruh Waktu</label>
-              <input type="number" id="tu-peg-p3k-pw" min="0" step="1" placeholder="0" class="tnum" required>
-            </div>
-            <div class="form-grp">
-              <label for="tu-peg-pjlp">PJLP / Honorer</label>
-              <input type="number" id="tu-peg-pjlp" min="0" step="1" placeholder="0" class="tnum" required>
-            </div>
-            <div class="form-grp" style="grid-column: span 2;">
-              <label for="tu-peg-magang">Magang / Siswa PKL</label>
-              <input type="number" id="tu-peg-magang" min="0" step="1" placeholder="0" class="tnum" required>
-            </div>
-            <div class="form-grp" style="grid-column: span 2;">
-              <label for="tu-peg-keterangan">Keterangan / Catatan Mutasi</label>
-              <input type="text" id="tu-peg-keterangan" placeholder="Contoh: 2 PNS purna tugas TMT 1 Okt, 3 Magang baru dari IPB">
-            </div>
-
-            <div style="grid-column: span 2; display: flex; justify-content: flex-end; margin-top: 8px;">
-              <button type="submit" class="btn-primary" id="tu-peg-btn-save" style="min-width: 160px;">
-                Simpan Pembaruan
-              </button>
-            </div>
-          </form>
+        <div class="chart-box" style="height: 240px;">
+          <canvas id="tu-chart-pegawai"></canvas>
         </div>
-
       </div>
     </div>
 
@@ -328,11 +277,70 @@
     <div class="content-section">
       <div class="content-section-hd" style="display:flex; justify-content:space-between; align-items:center;">
         <div>Riwayat Mutasi &amp; Snapshot Kepegawaian</div>
-        <button type="button" class="btn-mini" onclick="_tuLoadPegawai(true)">Muat Ulang</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button type="button" class="btn-primary" onclick="_tuOpenPegawaiModal()" style="display:inline-flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Perbarui Jumlah Pegawai
+          </button>
+          <button type="button" class="btn-mini" onclick="_tuLoadPegawai(true)">Muat Ulang</button>
+        </div>
       </div>
       <div id="tu-pegawai-hist-msg" class="n-msg"></div>
       <div class="n-card" style="padding:0; overflow-x:auto;" id="tu-pegawai-history-wrap">
         <div style="padding:20px 24px; color:var(--n-text-muted); font-size:.875rem;">Memuat riwayat kepegawaian…</div>
+      </div>
+    </div>
+
+    <!-- Modal Pembaruan Kepegawaian -->
+    <div class="n-overlay n-hidden" id="modal-tu-pegawai-form">
+      <div class="n-modal n-modal-form" style="max-width: 540px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div>
+            <h2 style="margin:0 0 4px 0;">Pembaruan Jumlah Pegawai</h2>
+            <div style="font-size:0.78rem; color:var(--n-text-muted);">Snapshot headcount personil aktif terkini</div>
+          </div>
+          <span class="badge" style="background:rgba(43,54,116,0.08);color:var(--n-primary);font-size:.75rem;">Carry-Forward</span>
+        </div>
+
+        <div class="n-modal-form-scroll">
+          <div id="tu-pegawai-form-msg" class="n-msg"></div>
+
+          <form id="tu-pegawai-form" onsubmit="event.preventDefault(); _tuSubmitPegawai();">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px;">
+              <div class="form-grp">
+                <label for="tu-peg-pns">PNS (Orang)</label>
+                <input type="number" id="tu-peg-pns" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp">
+                <label for="tu-peg-p3k">P3K Penuh Waktu</label>
+                <input type="number" id="tu-peg-p3k" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp">
+                <label for="tu-peg-p3k-pw">P3K Paruh Waktu</label>
+                <input type="number" id="tu-peg-p3k-pw" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp">
+                <label for="tu-peg-pjlp">PJLP / Honorer</label>
+                <input type="number" id="tu-peg-pjlp" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp" style="grid-column: span 2;">
+                <label for="tu-peg-magang">Magang / Siswa PKL</label>
+                <input type="number" id="tu-peg-magang" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp" style="grid-column: span 2;">
+                <label for="tu-peg-keterangan">Keterangan / Catatan Mutasi</label>
+                <input type="text" id="tu-peg-keterangan" placeholder="Contoh: 2 PNS purna tugas TMT 1 Okt, 3 Magang baru dari IPB">
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+              <button type="button" class="btn-ghost" onclick="closeModal('modal-tu-pegawai-form')">Batal</button>
+              <button type="submit" class="btn-primary" id="tu-peg-btn-save" style="min-width: 150px;">
+                Simpan Pembaruan
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -361,21 +369,234 @@
   <!-- TAB 3: INVENTARIS BMN & ASET (FASE 18B.2 PREVIEW)         -->
   <!-- ══════════════════════════════════════════════════════════ -->
   <div id="tu-pane-bmn" class="tu-pane n-hidden">
-    <!-- Will be filled in Sub-Phase 18B.2 -->
-    <div class="content-section">
-      <div class="n-card" style="padding: 32px 24px; text-align: center;">
-        <div style="font-size: 2.2rem; margin-bottom: 12px;">🏢</div>
-        <h3 style="margin-bottom: 8px;">Pusat Manajemen Inventaris BMN Terpadu</h3>
-        <p style="color: var(--n-text-muted); max-width: 580px; margin: 0 auto 20px auto; font-size: 0.9rem; line-height: 1.5;">
-          Modul BMN terintegrasi dengan database khusus <code>Nautika_TU</code>, mencakup klasifikasi BMN Buku (Intrakomptabel) vs BMN Reguler (Ekstrakomptabel), validasi kondisi per-item, geotagging 2-opsi terdekat UPT, dan siklus legal penghapusan Kemenkeu.
-        </p>
-        <div style="display: inline-flex; gap: 8px; font-size: 0.8125rem;">
-          <span class="badge" style="background: #E8EAF6; color: #2B3674;">Fase 18B.2 — Register BMN</span>
-          <span class="badge" style="background: #E8EAF6; color: #2B3674;">Fase 18B.3 — Smart SAKTI Import</span>
-          <span class="badge" style="background: #E8EAF6; color: #2B3674;">Fase 18B.4 — Geotagging EXIF</span>
+    
+    <!-- SUB-VIEW 1: DAFTAR / DASHBOARD BMN -->
+    <div id="bmn-view-list">
+      <!-- 4 KPI Cards BMN -->
+      <div class="content-section">
+        <div class="ov-kpi-row" id="bmn-kpi-strip" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="n-card kpi-card">
+            <div class="kpi-label">Total Nilai Perolehan (Gross)</div>
+            <div class="kpi-value tnum" id="bmn-kpi-gross">Rp —</div>
+            <div class="kpi-sub" id="bmn-kpi-gross-sub">Memuat data...</div>
+          </div>
+          <div class="n-card kpi-card">
+            <div class="kpi-label">Nilai Buku Terkini (Net)</div>
+            <div class="kpi-value tnum" id="bmn-kpi-net">Rp —</div>
+            <div class="kpi-sub" id="bmn-kpi-net-sub">Akrual SAKTI</div>
+          </div>
+          <div class="n-card kpi-card">
+            <div class="kpi-label">% Kelaikan Fisik Aset</div>
+            <div class="kpi-value tnum" id="bmn-kpi-laik">—%</div>
+            <div class="kpi-sub" id="bmn-kpi-laik-sub">Kondisi Baik &amp; Rusak Ringan</div>
+          </div>
+          <div class="n-card kpi-card">
+            <div class="kpi-label">Antrean Usulan Hapus</div>
+            <div class="kpi-value tnum" id="bmn-kpi-hapus">— unit</div>
+            <div class="kpi-sub" id="bmn-kpi-hapus-sub">Kemenkeu / DJKN</div>
+          </div>
         </div>
       </div>
+
+      <!-- Notification Summary Alert Banner -->
+      <div class="content-section" style="margin-top:-8px; margin-bottom:16px;">
+        <div class="n-card" id="bmn-notif-banner" style="padding:14px 18px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:rgba(43,54,116,0.03); border:1px solid rgba(43,54,116,0.12); border-radius:12px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="bmn-notif-icon" style="font-size:1.3rem;">ℹ️</div>
+            <div>
+              <div id="bmn-notif-title" style="font-size:.875rem; font-weight:600; color:var(--n-text-primary);">Rekapitulasi Kondisi Fisik Aset BMN</div>
+              <div id="bmn-notif-desc" style="font-size:.8125rem; color:var(--n-text-secondary); margin-top:2px;">Memuat rekapitulasi kondisi...</div>
+            </div>
+          </div>
+          <div id="bmn-notif-action" style="flex-shrink:0;"></div>
+        </div>
+      </div>
+
+      <!-- Filter Controls & Action Bar -->
+      <div class="content-section">
+        <div class="n-card" style="padding:14px 18px; margin-bottom:16px;">
+          <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
+            
+            <!-- Segmented Klasifikasi (Buku vs Reguler) -->
+            <div style="display:flex; background:rgba(0,0,0,0.05); padding:3px; border-radius:8px;">
+              <button type="button" class="bmn-seg-btn active" data-bmn-pencatatan="ALL" onclick="_bmnSetPencatatan('ALL')">Semua Aset</button>
+              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="BUKU" onclick="_bmnSetPencatatan('BUKU')">BMN Buku (53)</button>
+              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="REGULER" onclick="_bmnSetPencatatan('REGULER')">BMN Reguler (52)</button>
+            </div>
+
+            <!-- Filter Dropdowns & Search -->
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+              <select id="bmn-filter-kondisi" onchange="_bmnFilterChange()" style="font-size:.8125rem; padding:6px 10px; border-radius:8px; border:1px solid var(--n-border);">
+                <option value="ALL">Semua Kondisi</option>
+                <option value="BAIK">Baik</option>
+                <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                <option value="RUSAK_BERAT">Rusak Berat</option>
+              </select>
+
+              <select id="bmn-filter-upt" onchange="_bmnFilterChange()" style="font-size:.8125rem; padding:6px 10px; border-radius:8px; border:1px solid var(--n-border); max-width:200px;">
+                <option value="ALL">Semua Lokasi UPT</option>
+              </select>
+
+              <input type="text" id="bmn-search-input" placeholder="Cari Kode, NUP, Nama, Ruangan..." oninput="_bmnDebouncedSearch()" style="font-size:.8125rem; padding:6px 12px; border-radius:8px; border:1px solid var(--n-border); width:210px;">
+
+              <button type="button" class="btn-primary" onclick="_bmnSwitchView('form')" style="padding:6px 14px; font-size:.8125rem; display:inline-flex; align-items:center; gap:6px;">
+                <span>+ Tambah Aset</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Tabel Register BMN -->
+        <div id="bmn-table-msg" class="n-msg"></div>
+        <div class="n-card" style="padding:0; overflow-x:auto;" id="bmn-table-wrap">
+          <div style="padding:28px; text-align:center; color:var(--n-text-muted); font-size:.875rem;">Memuat daftar inventaris BMN…</div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="bmn-pagination-bar" style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; font-size:.8125rem; color:var(--n-text-secondary);">
+          <div id="bmn-page-info">Menampilkan 0 aset</div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="bmn-btn-prev" class="btn-mini" onclick="_bmnChangePage(-1)" disabled>Sebelumnya</button>
+            <span id="bmn-page-num" style="padding:4px 8px; font-weight:600;">Halaman 1</span>
+            <button type="button" id="bmn-btn-next" class="btn-mini" onclick="_bmnChangePage(1)" disabled>Berikutnya</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /bmn-view-list -->
+
+    <!-- SUB-VIEW 2: FORM TAMBAH / EDIT ASET (IN-PAGE, FULL VIEW NO POPUP) -->
+    <div id="bmn-view-form" class="n-hidden">
+      <div class="content-section">
+        <div class="n-card" style="padding:24px 28px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--n-border); padding-bottom:14px;">
+            <div>
+              <h2 id="bmn-form-title" style="margin:0; font-size:1.25rem; font-weight:700;">Tambah Unit Aset BMN</h2>
+              <div style="font-size:.8125rem; color:var(--n-text-secondary); margin-top:4px;">Pencatatan fisik per-item anti-jebret (1 unit fisik = 1 baris register)</div>
+            </div>
+            <button type="button" class="btn-outline" onclick="_bmnSwitchView('list')" style="font-size:.8125rem;">
+              ← Kembali ke Daftar Aset
+            </button>
+          </div>
+
+          <div id="bmn-form-msg" class="n-msg"></div>
+
+          <form id="bmn-asset-form" onsubmit="event.preventDefault(); _bmnSubmitForm();">
+            <input type="hidden" id="bmn-form-aset-id" value="">
+
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px;">
+              <!-- Kolom 1: Identifikasi Barang -->
+              <div class="form-grp">
+                <label for="bmn-form-kode">Kode Barang (Kemenkeu) <span style="color:var(--n-crit)">*</span></label>
+                <input type="text" id="bmn-form-kode" placeholder="Mis. 3050104001" required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-nup">NUP (No. Urut Pendaftaran) <span style="color:var(--n-crit)">*</span></label>
+                <input type="text" id="bmn-form-nup" placeholder="Mis. 1, 2, dst." required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-pencatatan">Klasifikasi Akuntansi <span style="color:var(--n-crit)">*</span></label>
+                <select id="bmn-form-pencatatan" required>
+                  <option value="BUKU">BMN Buku (Intrakomptabel / Belanja Modal 53)</option>
+                  <option value="REGULER">BMN Reguler (Ekstrakomptabel / Belanja Barang 52)</option>
+                </select>
+              </div>
+
+              <!-- Baris 2: Nama & Kategori -->
+              <div class="form-grp" style="grid-column: span 2;">
+                <label for="bmn-form-nama">Nama Barang <span style="color:var(--n-crit)">*</span></label>
+                <input type="text" id="bmn-form-nama" placeholder="Mis. Laptop HP EliteBook, Speedboat 12m, Drone DJI Matrice" required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-kategori">Kategori SIMAK / SAKTI <span style="color:var(--n-crit)">*</span></label>
+                <select id="bmn-form-kategori" required>
+                  <!-- Populated from Master_BMN_Kategori -->
+                </select>
+              </div>
+
+              <!-- Baris 3: Merek & Tanggal -->
+              <div class="form-grp">
+                <label for="bmn-form-merek">Merek / Tipe / Spesifikasi</label>
+                <input type="text" id="bmn-form-merek" placeholder="Mis. Core i7 16GB, Yamaha 200HP">
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-tgl">Tanggal Perolehan</label>
+                <input type="date" id="bmn-form-tgl" required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-kondisi">Kondisi Fisik Terkini <span style="color:var(--n-crit)">*</span></label>
+                <select id="bmn-form-kondisi" required>
+                  <option value="BAIK">Baik</option>
+                  <option value="RUSAK_RINGAN">Rusak Ringan</option>
+                  <option value="RUSAK_BERAT">Rusak Berat</option>
+                </select>
+              </div>
+
+              <!-- Baris 4: Valuasi Rupiah -->
+              <div class="form-grp">
+                <label for="bmn-form-np">Nilai Perolehan / Beli Kotor (Rp)</label>
+                <input type="number" id="bmn-form-np" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-nb">Nilai Buku Terkini SAKTI (Rp)</label>
+                <input type="number" id="bmn-form-nb" min="0" step="1" placeholder="0" class="tnum" required>
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-upt">Lokasi Penempatan UPT / Satker <span style="color:var(--n-crit)">*</span></label>
+                <select id="bmn-form-upt" required>
+                  <!-- Populated from Master_Lokasi_UPT -->
+                </select>
+              </div>
+
+              <!-- Baris 5: Lokasi Fisik & Geotagging -->
+              <div class="form-grp" style="grid-column: span 2;">
+                <label for="bmn-form-ruangan">Detail Ruangan / Posisi Fisik</label>
+                <input type="text" id="bmn-form-ruangan" placeholder="Mis. Ruang Rapat Pangkalan Batam, Anjungan KP Hiu 01, Gudang Amunisi">
+              </div>
+              <div class="form-grp">
+                <label for="bmn-form-kapal">Inventaris Melekat Kapal (Opsional)</label>
+                <select id="bmn-form-kapal">
+                  <option value="">Bukan Inventaris Kapal</option>
+                  <!-- Populated from Master Kapal -->
+                </select>
+              </div>
+
+              <!-- Baris 6: Keterangan -->
+              <div class="form-grp" style="grid-column: span 3;">
+                <label for="bmn-form-ket">Keterangan / Catatan Inventaris</label>
+                <input type="text" id="bmn-form-ket" placeholder="Mis. Bantuan hibah JICA 2024, No. Seri S/N: 893128913">
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px; padding-top:16px; border-top:1px solid var(--n-border);">
+              <button type="button" class="btn-outline" onclick="_bmnSwitchView('list')">Batal</button>
+              <button type="submit" class="btn-primary" id="bmn-btn-save" style="min-width:160px;">
+                Simpan Data Aset
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div><!-- /bmn-view-form -->
+
+    <!-- MODAL ANULIR BMN -->
+    <div class="n-overlay n-hidden" id="modal-bmn-anulir">
+      <div class="n-modal">
+        <h2>Anulir Entri Aset BMN</h2>
+        <div id="bmn-anulir-info" style="margin-bottom:14px; font-size:.875rem; color:var(--n-text-secondary);"></div>
+        <div class="n-info-static" style="margin-bottom:14px;">
+          Entri yang dianulir tidak lagi dihitung dalam total nilai maupun fisik BMN dan dicatat permanen di Audit Log.
+        </div>
+        <div id="bmn-anulir-msg" class="n-msg"></div>
+        <div class="form-grp">
+          <label for="bmn-anulir-reason">Alasan / Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
+          <input type="text" id="bmn-anulir-reason" placeholder="Jelaskan alasan pembatalan aset...">
+        </div>
+        <button class="btn-primary" style="background:var(--n-crit);" id="btn-confirm-bmn-anulir" onclick="_bmnConfirmAnulir()">Konfirmasi Anulir</button>
+        <button class="btn-ghost" onclick="closeModal('modal-bmn-anulir')" style="margin-top:8px;">Batal</button>
+      </div>
     </div>
+
   </div><!-- /tu-pane-bmn -->
 
 </div><!-- /view-tpl-tata-usaha -->

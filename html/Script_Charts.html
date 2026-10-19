@@ -453,6 +453,11 @@ function _chartBar(canvasId, labels, datasets, opts) {
       data: { labels: labels, datasets: dsOut },
       options: _chartBase(opts, {
         indexAxis: horizontal ? 'y' : 'x',
+        layout: {
+          padding: horizontal
+            ? { top: 6, right: 16, bottom: 12, left: 6 }
+            : { top: 6, right: 6, bottom: 6, left: 6 }
+        },
         plugins: {
           nvVal: { enabled: showValLabel && !horizontal, formatter: opts.fmt || _chartNum, color: _CHART_COLORS.textSecondary, horizontal: false },
           nvEnd: { enabled: false },

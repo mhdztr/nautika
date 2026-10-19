@@ -1,3 +1,65 @@
+## [Refactor UI / Hotfix] — Perombakan Visual & Konversi Modal Popup Kepegawaian Tata Usaha
+
+**Tanggal**: 19 Oktober 2026  
+**Status**: **SELESAI (COMPLETED & VERIFIED)**  
+
+### Ringkasan Perubahan:
+1. **Penyesuaian Tab & Label**: Menghapus teks `(5 Kategori)` pada navigasi atas dan sub-label agar ringkas, bersih, dan konsisten (`Kepegawaian`).
+2. **Kerapian Grid KPI Personil**:
+   - Menghapus seluruh teks deskripsi (`.kpi-sub`) di bawah jenis pegawai.
+   - Menyeragamkan ukuran ke-6 kartu KPI (Total Personil, PNS, P3K Penuh Waktu, P3K Paruh Waktu, PJLP / Kontrak, Magang / PKL) dengan `repeat(6, minmax(0, 1fr))`, `min-height: 84px`, padding `16px 14px`, dan label truncate sehingga kartu ke-6 (`Magang / PKL`) tetap rapi di dalam batas garis grid tanpa overflow.
+3. **Penyempurnaan Chart Distribusi**:
+   - Memindahkan chart horizontal bar ke container satu kolom penuh yang seimbang dan proporsional (`height: 240px`).
+   - Menambahkan `layout: { padding: { bottom: 12, ... } }` pada `_chartBar` sehingga label sumbu horizontal dan angka personil tidak lagi terpotong di bagian bawah canvas.
+4. **Konversi Form Update ke Popup Modal**:
+   - Menggantikan layout 2-kolom yang menyisakan whitespace besar dengan popup modal `#modal-tu-pegawai-form`.
+   - Menambahkan tombol aksi `+ Perbarui Jumlah Pegawai` pada header riwayat kepegawaian untuk memicu pembukaan form modal.
+   - Form modal melakukan pre-fill otomatis dengan data headcount terbaru, mendukung snapshot mutasi carry-forward, dan menutup modal secara mulus saat pembaruan berhasil disimpan.
+
+---
+
+## [Fase 18B.1 & 18B.2] — Sub-Modul Kepegawaian & Fondasi Register Inventaris BMN (Dedicated Spreadsheet Nautika_TU)
+
+**Tanggal**: 19 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Database Nautika_TU aktif, modul kepegawaian 5 kategori personil lengkap dengan chart & snapshot carry-forward, serta register fisik BMN per-item anti-jebret dengan 4 KPI cards, notification summary alert banner, server-side pagination, in-page form full-view, dan anulir berjejak audit telah terpasang sempurna).
+
+### 1. Rincian Pekerjaan & Arsitektur yang Dibangun
+
+1. **Sub-Fase 18B.1 — Fondasi Database `Nautika_TU` & Sub-Modul Kepegawaian (`Setup.js`, `data/SheetAccess.js`, `services/TataUsahaService.js`)**:
+   - Inisialisasi otomatis spreadsheet `Nautika_TU` via `ensureTuSpreadsheet()` dan `openTuSheet(sheetName)` yang idempoten.
+   - Penambahan seed data `Master_Lokasi_UPT` (15 lokasi pangkalan/satker KKP) dan `Master_BMN_Kategori` (9 klasifikasi SIMAK/SAKTI beserta masa manfaat tahun).
+   - Implementasi endpoint backend kepegawaian: `tataUsaha_getPegawai`, `tataUsaha_submitPegawai`, dan `tataUsaha_anulirPegawai`.
+   - UI Kepegawaian di `TataUsaha.html`: sub-navbar segmented, 6 KPI cards (Total Personil Hero, PNS, P3K Penuh Waktu, P3K Paruh Waktu, PJLP, Magang), horizontal bar chart komposisi personil, form update cepat in-page (tanpa popup), dan tabel log mutasi pegawai.
+
+2. **Sub-Fase 18B.2 — Backend Service BMN (`services/BMNService.js`)**:
+   - Algoritma geospasial `_bmnHaversineKm` dan `_bmnMatchNearestUpt` untuk mencocokkan koordinat aset ke 15 UPT terdekat.
+   - Helper umur dan kadaluwarsa masa manfaat `_bmnComputeAge(tglPerolehan, masaManfaatTahun)` on-read di server.
+   - Endpoint `bmn_getMasters`: memuat daftar UPT dan kategori BMN aktif.
+   - Endpoint `bmn_getSummary`: menghitung agregat nilai perolehan gross, nilai buku net SAKTI, % kelaikan fisik, antrean usulan hapus, breakdown BUKU vs REGULER, breakdown kondisi (Baik, Rusak Ringan, Rusak Berat), serta payload banner notifikasi.
+   - Endpoint `bmn_getAsetList`: query berpaginasi server-side (`page`, `pageSize`, `pencatatan`, `kondisi`, `lokasiId`, `q`, `sortBy`, `sortDir`) dengan penegakan baris `ACTIVE`.
+   - Endpoint `bmn_submitAset`: create/revisi unit aset fisik tunggal (*anti-jebret*), versioning append-only berantai `SupersedesRowID` di bawah perlindungan `LockService`.
+   - Endpoint `bmn_anulirAset`: penandaan `Status = VOID`, pencatatan `VoidReason`, `VoidedBy`, dan pencatatan riwayat di `Audit_Log`.
+
+3. **Sub-Fase 18B.2 — Frontend UI & Controller BMN (`html/views/TataUsaha.html`, `html/Script_Main.html`, `html/Style.html`)**:
+   - **4 KPI Cards Utama**: Total Nilai Perolehan (Gross), Nilai Buku Terkini SAKTI (Net), % Kelaikan Fisik Aset, dan Antrean Usulan Hapus.
+   - **Notification Summary Alert Banner**: Menyajikan ringkasan jumlah dan persentase aset Baik, Rusak Ringan, dan Rusak Berat, serta action button instan *"Lihat X Rusak Berat"* jika terdeteksi unit rusak berat aktif yang direkomendasikan untuk penghapusan.
+   - **Filter Bar & Toggle Segmented**: Pengalih BMN Buku (Intrakomptabel / Akun 53) vs BMN Reguler (Ekstrakomptabel / Akun 52), filter kondisi, filter UPT, dan debounced live search.
+   - **Tabel Register BMN**: Kolom tabular lengkap (Kode & NUP, Nama & Spesifikasi, Klasifikasi, Lokasi & Ruangan + jarak UPT km, Tanggal & Umur + badge Kadaluwarsa, Kondisi semantik, Valuasi Rupiah, dan tombol aksi Edit & Anulir).
+   - **In-Page Form View (Full View / No Popup)**: Formulir pembuatan & revisi aset in-page yang bersih, rapi, dan responsif sesuai aturan UX Apple-grade tanpa modal dialog pop-up.
+   - **Modal Anulir Ringkas**: Konfirmasi pembatalan aset dengan kewajiban input alasan anulir.
+
+### 2. Status Verifikasi Teknis
+- `node -c services/BMNService.js`: Lulus tanpa error (Exit code 0).
+- `node -c services/TataUsahaService.js`: Lulus tanpa error (Exit code 0).
+- `node -c Setup.js && node -c data/SheetAccess.js`: Lulus tanpa error (Exit code 0).
+- Validasi AST sintaks `html/Script_Main.html`: Lulus tanpa error (`Script_Main syntax valid!`).
+- Audit Clasp: Seluruh file baru dan modifikasi (`services/BMNService.js`, `html/views/TataUsaha.html`, `html/Script_Main.html`, `html/Style.html`) terdeteksi di status tracking.
+
+### 3. Langkah Berikutnya
+- Menunggu konfirmasi user untuk melanjutkan ke **Sub-Fase 18B.3** (Smart Bulk Import Engine SAKTI BMN menggunakan SheetJS).
+
+---
+
 ## [Fase 18B.0] — Sinkronisasi Tata Kelola & Dokumen Arsitektur Suku Bagian Tata Usaha (Dedicated Spreadsheet Nautika_TU)
 
 **Tanggal**: 15 Oktober 2026  

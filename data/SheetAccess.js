@@ -93,6 +93,151 @@ function openLogSheet(sheetName) {
 }
 
 /**
+ * Membuka sheet pada spreadsheet dedicated Nautika_TU.
+ * Otomatis melakukan self-heal membuat spreadsheet dan sheet jika belum ada.
+ *
+ * @param {string} sheetName - nama sheet di Nautika_TU (SHEET_TU.*)
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function openTuSheet(sheetName) {
+  var tuId = ensureTuSpreadsheet();
+  var ss = SpreadsheetApp.openById(tuId);
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = _autoCreateTuSheet(ss, sheetName);
+  }
+  return sheet;
+}
+
+/**
+ * Memastikan spreadsheet Nautika_TU sudah ada dan ID tersimpan di Script Properties.
+ * Idempoten: jika ID sudah ada & valid, langsung mengembalikannya.
+ * @returns {string} ID spreadsheet Nautika_TU
+ */
+function ensureTuSpreadsheet() {
+  var props = PropertiesService.getScriptProperties();
+  var tuId  = props.getProperty(PROP_KEY.TU_SS_ID);
+  if (tuId) {
+    try {
+      SpreadsheetApp.openById(tuId);
+      return tuId;
+    } catch (e) {
+      Logger.log('[ensureTuSpreadsheet] ID lama tidak valid/tidak ditemukan, membuat baru...');
+    }
+  }
+
+  // Buat spreadsheet Nautika_TU baru
+  var ss = SpreadsheetApp.create(SS_NAME.TU);
+  tuId = ss.getId();
+  props.setProperty(PROP_KEY.TU_SS_ID, tuId);
+  Logger.log('[ensureTuSpreadsheet] Nautika_TU berhasil dibuat dengan ID: ' + tuId);
+
+  // Inisialisasi sheet standar TU
+  _autoCreateTuSheet(ss, SHEET_TU.PEGAWAI);
+  _autoCreateTuSheet(ss, SHEET_TU.BMN_ASET);
+  _autoCreateTuSheet(ss, SHEET_TU.BMN_PENGHAPUSAN);
+  _autoCreateTuSheet(ss, SHEET_TU.BMN_PENGHAPUSAN_DETAIL);
+  _autoCreateTuSheet(ss, SHEET_TU.MASTER_LOKASI_UPT);
+  _autoCreateTuSheet(ss, SHEET_TU.MASTER_BMN_KATEGORI);
+  _autoCreateTuSheet(ss, SHEET_TU.TATA_USAHA);
+  _autoCreateTuSheet(ss, SHEET_TU.PAKET_PROGRES);
+
+  // Hapus Sheet1 default
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getName() === 'Sheet1' && sheets.length > 1) {
+      try { ss.deleteSheet(sheets[i]); } catch (err) {}
+      break;
+    }
+  }
+
+  // Seed data awal jika modul Setup.js tersedia
+  try {
+    if (typeof _seedLokasiUpt === 'function') _seedLokasiUpt(ss);
+    if (typeof _seedBmnKategori === 'function') _seedBmnKategori(ss);
+  } catch (errSeed) {
+    Logger.log('[ensureTuSpreadsheet] Seed UPT/Kategori info: ' + errSeed.message);
+  }
+
+  return tuId;
+}
+
+function _autoCreateTuSheet(ss, sheetName) {
+  var existing = ss.getSheetByName(sheetName);
+  if (existing) return existing;
+
+  var headers = [];
+  if (sheetName === SHEET_TU.PEGAWAI) {
+    headers = STD_COLS.concat(['Kategori', 'Jumlah', 'Keterangan']);
+  } else if (sheetName === SHEET_TU.BMN_ASET) {
+    headers = STD_COLS.concat([
+      'AsetID', 'KodeBarang', 'NUP', 'NamaBarang', 'MerekTipe', 'KategoriPencatatan',
+      'KodeKategori', 'TanggalPerolehan', 'NilaiPerolehan', 'NilaiBuku', 'Kondisi',
+      'LokasiID', 'LokasiDetailRuangan', 'Latitude', 'Longitude', 'SumberLokasi',
+      'JarakKeUPT_Km', 'TanggalVerifikasi', 'FotoEvidenceID', 'StatusAset',
+      'PenghapusanID', 'KapalID', 'ImportBatchID', 'Keterangan'
+    ]);
+  } else if (sheetName === SHEET_TU.BMN_PENGHAPUSAN) {
+    headers = STD_COLS.concat([
+      'PenghapusanID', 'Tahap', 'AlasanPenghapusan', 'KeteranganAlasan',
+      'NomorSuratUsulan', 'TanggalSuratUsulan', 'EvidenceSuratUsulan',
+      'NomorSuratPersetujuan', 'TanggalSuratPersetujuan', 'InstansiKemenkeu', 'EvidenceSuratPersetujuan',
+      'NomorSK', 'TanggalSK', 'EvidenceSK', 'EvidenceBAST',
+      'TotalUnit', 'TotalNilaiPerolehan', 'TotalNilaiBuku'
+    ]);
+  } else if (sheetName === SHEET_TU.BMN_PENGHAPUSAN_DETAIL) {
+    headers = STD_COLS.concat(['ParentRowID', 'PenghapusanID', 'AsetID', 'KondisiSaatUsul', 'NilaiBukuSaatUsul']);
+  } else if (sheetName === SHEET_TU.MASTER_LOKASI_UPT) {
+    headers = ['LokasiID', 'NamaLokasi', 'JenisLokasi', 'Latitude', 'Longitude', 'RadiusVerifikasiKm', 'StatusAktif'];
+  } else if (sheetName === SHEET_TU.MASTER_BMN_KATEGORI) {
+    headers = ['KodeKategori', 'NamaKategori', 'Golongan', 'MasaManfaatTahun'];
+  } else if (sheetName === SHEET_TU.TATA_USAHA) {
+    headers = STD_COLS.concat([
+      'PaguReguler', 'PaguABT', 'RealisasiSP2D_Minggu', 'RealisasiAkrual_Minggu',
+      'RealisasiSP2D_Reguler_Minggu', 'RealisasiSP2D_ABT_Minggu',
+      'RealisasiAkrual_Reguler_Minggu', 'RealisasiAkrual_ABT_Minggu', 'CatatanRevisiPagu'
+    ]);
+  } else if (sheetName === SHEET_TU.PAKET_PROGRES) {
+    headers = STD_COLS.concat([
+      'PaketID', 'TahapPekerjaan', 'NilaiKontrak', 'RekananPenyedia', 'NomorKontrak',
+      'ProgresFisikPct', 'RealisasiKeuangan', 'KendalaKeterangan', 'EvidenceUrl'
+    ]);
+  } else {
+    headers = STD_COLS;
+  }
+
+  var created = ss.insertSheet(sheetName);
+  created.getRange(1, 1, 1, headers.length)
+    .setValues([headers])
+    .setFontWeight('bold')
+    .setBackground('#E8EAF6');
+  created.setFrozenRows(1);
+  Logger.log('[_autoCreateTuSheet] Sheet ' + sheetName + ' dibuat otomatis di Nautika_TU.');
+  return created;
+}
+
+/**
+ * Pastikan kolom ada pada sheet di Nautika_TU (self-heal).
+ *
+ * @param {string} sheetName - nama sheet TU
+ * @param {string} colName - nama kolom
+ */
+function ensureTuColumn(sheetName, colName) {
+  var sheet = openTuSheet(sheetName);
+  if (!sheet) return;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf(colName) !== -1) return;
+  var newCol = lastCol + 1;
+  var cell = sheet.getRange(1, newCol);
+  cell.setValue(colName);
+  cell.setFontWeight('bold');
+  cell.setBackground('#E8EAF6');
+  Logger.log('[ensureTuColumn] Kolom ' + colName + ' ditambahkan ke ' + sheetName + ' (kolom ' + newCol + ').');
+}
+
+/**
  * Pastikan sebuah kolom ada pada sheet transaksi (self-heal). Berguna saat
  * skema bertambah setelah sheet dibuat (mis. kolom KapalID — Fase 12):
  * `_createSheetWithHeaders` di Setup.js meng-skip sheet yang sudah ada, jadi
@@ -180,6 +325,27 @@ function ensurePemantauanKapalKolom() {
  */
 function ensureKapalJenisColumn() {
   ensureMasterColumn(SHEET_MASTER.KAPAL, 'JenisKapal');
+}
+
+/**
+ * Pastikan kolom KelasKapal, PanjangMeter, WPPDefault, PangkalanHomebase ada di sheet master `Kapal`
+ * (DATA_SCHEMA.md & Fase 18 untuk penanda 34 Kapal Pengawas Ukuran Besar).
+ */
+function ensureKapalKelasColumn() {
+  ensureMasterColumn(SHEET_MASTER.KAPAL, 'KelasKapal');
+  ensureMasterColumn(SHEET_MASTER.KAPAL, 'PanjangMeter');
+  ensureMasterColumn(SHEET_MASTER.KAPAL, 'WPPDefault');
+  ensureMasterColumn(SHEET_MASTER.KAPAL, 'PangkalanHomebase');
+}
+
+/**
+ * Pastikan sheet TX_Kapal_Posisi ada di database transaksi (Fase 18).
+ */
+function ensureKapalPosisiSheet() {
+  var headers = STD_COLS.concat([
+    'KapalID', 'TanggalUpdate', 'Latitude', 'Longitude', 'StatusKondisi', 'WPPCode', 'LokasiPelabuhan', 'HariOperasiYTD'
+  ]);
+  return ensureDetailTxSheet(SHEET_TX.KAPAL_POSISI, headers);
 }
 
 /**

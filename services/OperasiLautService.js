@@ -247,6 +247,18 @@ function operasiLaut_submit(token, params) {
           getOpsiLabel(OPSI_KODE.KAPAL_JENIS, master_kapalJenis(kapalIdSubmit)) +
           ') tidak cocok dengan kategori hari operasi. Pilih kapal lain atau ubah kategori.' };
       }
+
+      // Interlock Validasi Laik Laut (Fase 18 PRD §5.3):
+      // Jika kapal berstatus TIDAK_SIAP di modul Perawatan, pengajuan hari layar ditolak.
+      var laikLaut = perawatan_checkLaikLaut(kapalIdSubmit);
+      if (!laikLaut.siap) {
+        var namaK = master_kapalName(kapalIdSubmit) || kapalIdSubmit;
+        var alasan = laikLaut.penyebab ? ' (Penyebab: ' + laikLaut.penyebab + ')' : '';
+        return {
+          success: false,
+          error: 'INTERLOCK KELAIKAN LAUT: Kapal ' + namaK + ' saat ini tercatat TIDAK SIAP LAIK LAUT di modul Perawatan' + alasan + '. Pengajuan hari layar operasi ditolak.'
+        };
+      }
       var rows = sheetToObjects(sheet);
 
       // Cek duplikat ACTIVE untuk kombinasi Periode + WPP
@@ -375,6 +387,17 @@ function operasiLaut_revisi(token, params) {
         return { success: false, error: 'Kapal yang dipilih jenisnya (' +
           getOpsiLabel(OPSI_KODE.KAPAL_JENIS, master_kapalJenis(kapalIdRevisi)) +
           ') tidak cocok dengan kategori hari operasi. Pilih kapal lain atau ubah kategori.' };
+      }
+
+      // Interlock Validasi Laik Laut (Fase 18 PRD §5.3):
+      var laikLautRv = perawatan_checkLaikLaut(kapalIdRevisi);
+      if (!laikLautRv.siap) {
+        var namaKRv = master_kapalName(kapalIdRevisi) || kapalIdRevisi;
+        var alasanRv = laikLautRv.penyebab ? ' (Penyebab: ' + laikLautRv.penyebab + ')' : '';
+        return {
+          success: false,
+          error: 'INTERLOCK KELAIKAN LAUT: Kapal ' + namaKRv + ' saat ini tercatat TIDAK SIAP LAIK LAUT di modul Perawatan' + alasanRv + '. Pengajuan hari layar operasi ditolak.'
+        };
       }
 
       // Validasi rincian per-item HARUS sebelum baris lama ditandai SUPERSEDED.

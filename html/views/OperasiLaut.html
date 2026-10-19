@@ -3,8 +3,9 @@
 
   <!-- ── KPI STRIP & PETA ───────────────────────────────── -->
   <div class="content-section">
-    <!-- Peta WPP Leaflet -->
+    <!-- Peta WPP & Armada Taktis Leaflet -->
     <div class="n-card" style="padding:0; overflow:hidden; border-radius:var(--n-radius-lg); margin-bottom: 24px;">
+      <div class="ov-fleet-filter-bar" id="ops-fleet-filter-bar" role="group" aria-label="Filter status armada kapal"></div>
       <div id="map-ops-laut" style="height: 400px; width: 100%; background: var(--n-surface-2); z-index: 1;"></div>
     </div>
     <!-- KPI Strip -->
@@ -164,6 +165,7 @@
                 <ul class="kdl-list" id="ops-kapal-dd"></ul>
               </div>
             </div>
+            <div id="ops-kapal-interlock" class="interlock-warn-banner n-hidden"></div>
           </div>
           <div class="form-grp"></div>
         </div>
@@ -227,6 +229,7 @@
                 <ul class="kdl-list" id="rv-ops-kapal-dd"></ul>
               </div>
             </div>
+            <div id="rv-ops-kapal-interlock" class="interlock-warn-banner n-hidden"></div>
           </div>
           <div class="form-grp"><label>Hari Op. Kategori</label>
             <select id="rv-ops-hari-kategori"></select>

@@ -91,7 +91,7 @@ Menampung **seluruh** nilai enum domain yang **bisa ditambah/diubah** Superadmin
 
 | Kolom | Tipe |
 |---|---|
-| Kode | enum(AMUNISI, BBM, KOM_PERSONIL, AWAK_KATEGORI, AWAK_SCOPE, RAWAT_LOKASI, RAWAT_TAHAP, RAWAT_KATEGORI, OPS_RIKSA_KATEGORI, OPS_HARI_KATEGORI, KAPAL_JENIS) — grup daftar |
+| Kode | enum(AMUNISI, BBM, KOM_PERSONIL, AWAK_KATEGORI, AWAK_SCOPE, RAWAT_LOKASI, RAWAT_TAHAP, RAWAT_KATEGORI, OPS_RIKSA_KATEGORI, OPS_HARI_KATEGORI, KAPAL_JENIS, TU_PEGAWAI_KATEGORI, BMN_KONDISI, BMN_PENCATATAN, BMN_ALASAN_HAPUS, BMN_SUMBER_LOKASI, LOKASI_JENIS) — grup daftar |
 | Urutan | number (urutan tampil; = urutan seed mula-mula) |
 | Label | text (token nilai yang disimpan ke sheet transaksi, mis. `PISTOL_P3A`) |
 | LabelTampil | text (teks yang tampil di dropdown/tabel/riwayat; maks. 80 karakter. Kosong → memakai `Label`) |
@@ -110,12 +110,18 @@ Menampung **seluruh** nilai enum domain yang **bisa ditambah/diubah** Superadmin
 | `KOM_PERSONIL` | `Komponen` (TX_Logistik_Personil) |
 | `AWAK_KATEGORI` | `Kategori` (TX_Pengawakan_AKN) |
 | `AWAK_SCOPE` | `Scope` (TX_Pengawakan_AKN) |
-| `RAWAT_LOKASI` | `Lokasi` (TX_Pegawai_Docking) |
-| `RAWAT_TAHAP` | `Tahap` (TX_Pegawai_Docking) |
-| `RAWAT_KATEGORI` | `Kategori` (TX_Pegawai_Pekerjaan) |
-| `OPS_RIKSA_KATEGORI` | `HasilRiksa_Kategori` (TX_Operasi_Laut) |
-| `OPS_HARI_KATEGORI` | `HariOperasi_Kategori` (TX_Operasi_Laut) |
-| `KAPAL_JENIS` | `JenisKapal` (Master `Kapal`) — pencocokan dengan `HariOperasi_Kategori` di TX_OperasiLaut, lihat catatan di bawah |
+| `RAWAT_LOKASI` | `Lokasi` (TX_Perawatan_Docking) |
+| `RAWAT_TAHAP` | `Tahap` (TX_Perawatan_Docking) |
+| `RAWAT_KATEGORI` | `Kategori` (TX_Perawatan_Item) |
+| `OPS_RIKSA_KATEGORI` | `HasilRiksa_Kategori` (TX_OperasiLaut) |
+| `OPS_HARI_KATEGORI` | `HariOperasi_Kategori` (TX_OperasiLaut) |
+| `KAPAL_JENIS` | `JenisKapal` (Master `Kapal`) — pencocokan dengan `HariOperasi_Kategori` di TX_OperasiLaut |
+| `TU_PEGAWAI_KATEGORI` | `Kategori` (TX_TU_Pegawai di Nautika_TU) — PNS, P3K, P3K_PARUH_WAKTU, PJLP, MAGANG |
+| `BMN_KONDISI` | `Kondisi` (TX_BMN_Aset di Nautika_TU) — BAIK, RUSAK_RINGAN, RUSAK_BERAT |
+| `BMN_PENCATATAN` | `KategoriPencatatan` (TX_BMN_Aset di Nautika_TU) — BUKU (Intrakomptabel), REGULER (Ekstrakomptabel) |
+| `BMN_ALASAN_HAPUS` | `AlasanPenghapusan` (TX_BMN_Penghapusan di Nautika_TU) — RUSAK_BERAT, KADALUWARSA, HILANG, HIBAH, PENJUALAN_LELANG, LAINNYA |
+| `BMN_SUMBER_LOKASI` | `SumberLokasi` (TX_BMN_Aset di Nautika_TU) — EXIF_GPS, GPS_PENGUNGGAH, PROFIL_PENGUNGGAH, MANUAL, IMPOR_SAKTI |
+| `LOKASI_JENIS` | `JenisLokasi` (Master_Lokasi_UPT di Nautika_TU) — PUSAT, PANGKALAN, STASIUN, POS_PENGAWASAN |
 
 **Pencocokan `KAPAL_JENIS` ↔ `OPS_HARI_KATEGORI`** (Fase 14 Item 6): saat submit/revisi
 `TX_OperasiLaut`, kapal yang dipilih harus cocok dengan `HariOperasi_Kategori` — kecuali
@@ -130,7 +136,118 @@ Kolom enum yang disebut `enum(...)` di bawah tetap ditulis demikian untuk menyed
 
 ---
 
-## Nautika_Transaksi
+## Nautika_TU (Dedicated Database Tata Usaha)
+
+Spreadsheet mandiri untuk seluruh operasional dan tata kelola manajerial Suku Bagian Tata Usaha (Keuangan, Pengadaan Paket, Kepegawaian, dan Manajemen Inventaris BMN Ekstensif). Dipisahkan dari `Nautika_Transaksi` guna mengisolasi batas kuota sel Google Sheets dan LockService impor massal SAKTI.
+
+### `Master_Lokasi_UPT`
+Daftar seluruh UPT, Pangkalan, Stasiun, Pos Pengawasan SDKP, dan Kantor Pusat POA untuk acuan resolusi geotagging Haversine.
+| Kolom | Tipe |
+|---|---|
+| LokasiID | text (PK, mis. `UPT-BATAM`, `UPT-PUSAT-POA`) |
+| NamaLokasi | text |
+| JenisLokasi | enum dari `Opsi` grup `LOKASI_JENIS` (`PUSAT`, `PANGKALAN`, `STASIUN`, `POS_PENGAWASAN`) |
+| Latitude | number |
+| Longitude | number |
+| RadiusVerifikasiKm | number (default: 25) |
+| StatusAktif | bool |
+
+### `Master_BMN_Kategori`
+Katalog kodefikasi kategori BMN SAKTI & standar masa manfaat Kementerian Keuangan.
+| Kolom | Tipe |
+|---|---|
+| KodeKategori | text (PK, misal `3.05.01` Kendaraan Bermotor) |
+| NamaKategori | text |
+| Golongan | number (1 s.d. 8) |
+| MasaManfaatTahun | number |
+
+### `TX_TU_Pegawai`
+Snapshot berkala jumlah headcount pegawai per kategori (snapshot carry-forward).
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| Kategori | enum dari `Opsi` grup `TU_PEGAWAI_KATEGORI` (`PNS`, `P3K`, `P3K_PARUH_WAKTU`, `PJLP`, `MAGANG`) |
+| Jumlah | number ($\ge 0$) |
+| Keterangan | text (catatan mutasi pegawai) |
+
+### `TX_BMN_Aset`
+Register fisik inventaris BMN per-item (**Anti-Jebret**: 1 baris = 1 unit fisik tunggal).
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| AsetID | text (UUID stabil entitas aset lintas revisi) |
+| KodeBarang | text (kodefikasi barang 10 digit Kemenkeu) |
+| NUP | text (Nomor Urut Pendaftaran barang) |
+| NamaBarang | text |
+| MerekTipe | text, nullable |
+| KategoriPencatatan | enum dari `Opsi` grup `BMN_PENCATATAN` (`BUKU`, `REGULER`) |
+| KodeKategori | ref(Master_BMN_Kategori) |
+| TanggalPerolehan | date |
+| NilaiPerolehan | number (Nilai Reguler / Beli Kotor Rp) |
+| NilaiBuku | number (Nilai Buku Terkini dari SAKTI Rp) |
+| Kondisi | enum dari `Opsi` grup `BMN_KONDISI` (`BAIK`, `RUSAK_RINGAN`, `RUSAK_BERAT`) |
+| LokasiID | ref(Master_Lokasi_UPT) |
+| LokasiDetailRuangan | text, nullable |
+| Latitude | number, nullable |
+| Longitude | number, nullable |
+| SumberLokasi | enum dari `Opsi` grup `BMN_SUMBER_LOKASI` (`EXIF_GPS`, `GPS_PENGUNGGAH`, `PROFIL_PENGUNGGAH`, `MANUAL`, `IMPOR_SAKTI`) |
+| JarakKeUPT_Km | number, nullable (kalkulasi jarak Haversine ke UPT) |
+| TanggalVerifikasi | date |
+| FotoEvidenceID | text, nullable (ID file foto di Google Drive / ref TX_Evidence) |
+| StatusAset | enum(`AKTIF`, `DALAM_PENGHAPUSAN`, `DIHAPUS`) |
+| PenghapusanID | ref(TX_BMN_Penghapusan), nullable |
+| KapalID | ref(Kapal), nullable (tautan jika barang inventaris kapal) |
+| ImportBatchID | text, nullable (ID batch impor SAKTI) |
+| Keterangan | text, nullable |
+
+*Dihitung sistem (on-read):* UmurAsetTahun, UmurAsetBulan, SisaMasaManfaatTahun, StatusKadaluwarsa (bool).
+
+### `TX_BMN_Penghapusan`
+Berkas usulan penghapusan BMN berjenjang sesuai tata kelola Kemenkeu.
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| PenghapusanID | text (PK) |
+| Tahap | enum(`DRAFT_USULAN`, `SURAT_USULAN`, `PERSETUJUAN_KEMENKEU`, `SK_PENGHAPUSAN`, `BAST_SELESAI`, `DITOLAK`) |
+| AlasanPenghapusan | enum dari `Opsi` grup `BMN_ALASAN_HAPUS` (`RUSAK_BERAT`, `KADALUWARSA`, `HILANG`, `HIBAH`, `PENJUALAN_LELANG`, `LAINNYA`) |
+| KeteranganAlasan | text |
+| NomorSuratUsulan | text, nullable |
+| TanggalSuratUsulan | date, nullable |
+| EvidenceSuratUsulan | text, nullable (file ID PDF surat usulan Satker) |
+| NomorSuratPersetujuan | text, nullable |
+| TanggalSuratPersetujuan | date, nullable |
+| InstansiKemenkeu | text, nullable (DJKN / KPKNL penerbit izin) |
+| EvidenceSuratPersetujuan | text, nullable (file ID PDF persetujuan Kemenkeu) |
+| NomorSK | text, nullable |
+| TanggalSK | date, nullable |
+| EvidenceSK | text, nullable (file ID PDF SK Penghapusan KKP) |
+| EvidenceBAST | text, nullable (file ID PDF BAST Pemusnahan / Risalah Lelang) |
+| TotalUnit | number (dihitung sistem dari detail) |
+| TotalNilaiPerolehan | number (dihitung sistem dari detail) |
+| TotalNilaiBuku | number (dihitung sistem dari detail) |
+
+### `TX_BMN_Penghapusan_Detail`
+Rincian aset individual yang masuk ke dalam berkas usulan penghapusan.
+Kolom standar +
+| Kolom | Tipe |
+|---|---|
+| ParentRowID | ref(TX_BMN_Penghapusan.RowID) |
+| PenghapusanID | ref(TX_BMN_Penghapusan) |
+| AsetID | ref(TX_BMN_Aset) |
+| KondisiSaatUsul | enum(`RUSAK_BERAT`, `RUSAK_RINGAN`, `BAIK`) |
+| NilaiBukuSaatUsul | number |
+
+### `TX_TataUsaha`
+*(Dikelola di spreadsheet `Nautika_TU`, dengan fallback kompatibilitas ke `Nautika_Transaksi`)*  
+Kolom standar + PaguReguler, PaguABT, RealisasiSP2D_Minggu, RealisasiAkrual_Minggu, RealisasiSP2D_Reguler_Minggu, RealisasiSP2D_ABT_Minggu, RealisasiAkrual_Reguler_Minggu, RealisasiAkrual_ABT_Minggu, CatatanRevisiPagu.
+
+### `TX_Paket_Progres`
+*(Dikelola di spreadsheet `Nautika_TU`)*  
+Kolom standar + PaketID, TahapPekerjaan, NilaiKontrak, RekananPenyedia, NomorKontrak, ProgresFisikPct, RealisasiKeuangan, KendalaKeterangan, EvidenceUrl.
+
+---
+
+## Nautika_Transaksi (Operasional Armada Teknis)
 
 ### `TX_TataUsaha`
 Kolom standar +

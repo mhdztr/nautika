@@ -1,0 +1,68 @@
+<!-- html/views/KapalTerbaik.html
+     Halaman Evaluasi Kapal Terbaik (Ship of the Period TW I–IV) — PRD §5.12
+     Diakses dari kartu Ikhtisar via _routeTo('kapal-terbaik')
+-->
+<div id="view-tpl-kapal-terbaik" style="display:none">
+  
+  <!-- ── TOOLBAR / BREADCRUMB ATAS ─────────────────────────── -->
+  <div class="kt-page-toolbar">
+    <div class="kt-toolbar-left">
+      <button type="button" class="btn btn-sm btn-ghost kt-back-btn" onclick="_routeTo('overview')">
+        <span class="n-iconbtn-x" data-ico="arrowLeft" aria-hidden="true"></span> Kembali ke Ikhtisar
+      </button>
+    </div>
+    <div class="kt-toolbar-right">
+      <div class="kt-filter-group">
+        <span class="kt-filter-lbl">Triwulan:</span>
+        <select id="kt-filter-tw" class="n-input kt-select" onchange="_ktOnFilterChange()">
+          <option value="1">TW I (Jan – Mar)</option>
+          <option value="2">TW II (Apr – Jun)</option>
+          <option value="3">TW III (Jul – Sep)</option>
+          <option value="4">TW IV (Okt – Des)</option>
+        </select>
+        <select id="kt-filter-year" class="n-input kt-select" onchange="_ktOnFilterChange()">
+          <option value="2026">2026</option>
+          <option value="2025">2025</option>
+        </select>
+        <button type="button" class="btn btn-secondary btn-sm kt-btn-refresh" onclick="_ktLoadData(true)" title="Muat ulang data">
+          <span class="n-iconbtn-x" data-ico="refresh" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PODIUM JUARA TOP 3 ───────────────────────────────── -->
+  <div class="kt-podium-wrapper" id="kt-podium-container">
+    <!-- Diisi _ktRenderPodium() -->
+  </div>
+
+  <!-- ── LEADERBOARD TABEL 34 KAPAL ───────────────────────── -->
+  <div class="content-section kt-table-section">
+    <div class="kt-table-hd">
+      <div class="content-section-hd" style="margin-bottom:0">Peringkat 34 Kapal Pengawas</div>
+      <div class="kt-table-search">
+        <input type="text" id="kt-search-input" class="n-input" placeholder="Cari kapal / pangkalan / komandan..." oninput="_ktFilterTable()">
+      </div>
+    </div>
+    <div class="n-table-wrap kt-table-wrap">
+      <table class="n-table kt-table" id="kt-table">
+        <thead>
+          <tr>
+            <th class="cell-rank">#</th>
+            <th>Kapal</th>
+            <th>Komandan &amp; Pangkalan</th>
+            <th class="text-center">WPP</th>
+            <th class="text-right">Hari Layar</th>
+            <th class="text-center">Tangkapan</th>
+            <th class="text-center">Kesiapan</th>
+            <th class="text-right">Skor</th>
+          </tr>
+        </thead>
+        <tbody id="kt-table-body">
+          <!-- Diisi _ktRenderTable() -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>

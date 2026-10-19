@@ -488,27 +488,59 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 18 — Peta Taktis 34 Kapal Pengawas Ukuran Besar, Interlock Validasi Laik Laut, & Scoring Engine Kapal Terbaik Triwulanan
 
-- **Status**: **Siap Dikerjakan (Dependensi Fase 17 Terpenuhi)**.
+- **Status**: **Selesai (15 Oktober 2026)** (Termasuk Refinement UI: declutter radikal teks kartu podium Ship of the Period menjadi Apple-grade minimalis, integrasi akses modal langsung dari kartu Ikhtisar, serta paritas koordinat dan layer 34 kapal taktis di peta Operasi Laut).
 - **Dependensi**: Fase 17 Selesai (Lunas).
 - **Tujuan**: Membangun visualisasi peta taktis pemantauan khusus 34 Kapal Pengawas Ukuran Besar, menegakkan aturan interlock validasi kelaikan laut antar-modul, dan mengimplementasikan sistem gamifikasi penilaian Kapal Terbaik Triwulan.
 - **Ruang Lingkup Deliverables**:
   1. **Peta Taktis 34 Kapal Pengawas Ukuran Besar (Screenshot 2 & 3)**:
      - Mengunci referensi armada taktis pada 34 kapal besar: 26 kapal operasional di WPP penugasan, 6 kapal siap operasi di pangkalan (Jakarta, Batam), dan 2 kapal pemeliharaan galangan (Jakarta, Lamongan).
-     - Menambahkan layer marker kapal taktis Leaflet dengan siluet presisi dan bendera Indonesia, dilengkapi tooltip interaktif (Komandan, WPP, Hari Layar YTD vs rata-rata nasional 44 hari / pusat 49 hari).
-     - Filter cepat status di atas peta: `[Semua (34)]` `[Operasional (26)]` `[Siap Pangkalan (6)]` `[Galangan (2)]`.
+     - Menambahkan layer marker kapal taktis Leaflet dengan siluet presisi, presence pulse, dan tooltip interaktif lengkap dengan koordinat posisi real-time (Lat, Lng), Komandan, WPP, dan Hari Layar YTD vs rata-rata nasional (44 hari) / pusat (49 hari).
+     - Filter cepat status di atas peta: `[Semua (34)]` `[Operasional (26)]` `[Siap Pangkalan (6)]` `[Galangan (2)]` yang aktif di peta Ikhtisar dan peta Operasi Laut.
   2. **Interlock Validasi Laik Laut (Perawatan -> Operasi Laut)**:
      - Memvalidasi status kapal di `services/OperasiLautService.js`: jika kapal berstatus `TIDAK_SIAP` di modul Perawatan, form input hari layar mengunci kapal tersebut dan menampilkan banner peringatan kelaikan laut.
   3. **Scoring Engine & Podium Kapal Terbaik (Ship of the Period TW I–IV)**:
      - Algoritma penilaian murni keaktifan dan produktivitas operasi: `Skor = (0.40 * HariLayar) + (0.35 * PoinPenindakan) + (0.15 * VolumeRiksa) + (0.10 * Valuasi)`.
      - Normalisasi poin penindakan: KIA (bobot 15), KII Ilegal (bobot 5), Rumpon (bobot 3).
-     - Tampilan antarmuka podium juara 1, 2, 3 (Emas, Perak, Perunggu) dan tabel peringkat lengkap 34 kapal besar per triwulan.
+     - Tampilan antarmuka podium juara 1, 2, 3 (Emas, Perak, Perunggu) dengan desain visual 3D yang bersih dari teks berlebih ("decluttered", Apple-grade), terintegrasi langsung via kartu Ikhtisar (halaman sub-route `#kapal-terbaik`), dan tabel peringkat 34 kapal besar berkolom ringkas (8 kolom).
+
+---
+
+### Fase 18B — Revamp Suku Bagian Tata Usaha: Kepegawaian & Sistem Informasi Manajemen BMN Terpadu (Dedicated Spreadsheet Nautika_TU)
+
+- **Status**: **Siap Dikerjakan (In Progress)**.
+- **Dependensi**: Fase 18 Selesai.
+- **Tujuan**: Membangun tata kelola mandiri Suku Bagian Tata Usaha melalui spreadsheet dedicated `Nautika_TU`, sistem manajemen kepegawaian 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), sistem register fisik BMN per-item anti-jebret (Reguler vs Buku), dual-option geotagging UPT terdekat, notification summary kondisi kelaikan aset, dan siklus penghapusan legal Kemenkeu.
+- **Ruang Lingkup Deliverables**:
+  1. **Sub-Fase 18B.0 — Sinkronisasi Governance & Dokumen Teknis**:
+     - Sinkronisasi `PRD.md`, `ARCHITECTURE.md` (arsitektur spreadsheet `Nautika_TU`), `DATA_SCHEMA.md` (skema tabel `TX_TU_Pegawai`, `TX_BMN_Aset`, `TX_BMN_Penghapusan`, dll), dan `PHASES.md`.
+  2. **Sub-Fase 18B.1 — Spreadsheet `Nautika_TU` & Sub-Modul Kepegawaian**:
+     - Inisialisasi spreadsheet `Nautika_TU` dan penambahan konstanta `SS_NAME.TU` & helper `openTuSheet()` di `data/SheetAccess.js`.
+     - Backend & Frontend Kepegawaian: 5 counter KPI (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), horizontal bar chart komposisi personil, form update cepat, snapshot carry-forward, dan riwayat mutasi pegawai.
+  3. **Sub-Fase 18B.2 — Fondasi Register BMN di `Nautika_TU`**:
+     - Inisialisasi sheet `TX_BMN_Aset`, `Master_Lokasi_UPT`, `Master_BMN_Kategori`.
+     - CRUD aset berversi (append-only dengan `AsetID` UUID), query berhalaman server-side (server pagination), filter BMN Buku (Intrakomptabel) vs BMN Reguler (Ekstrakomptabel).
+  4. **Sub-Fase 18B.3 — Smart Bulk Import Engine SAKTI (Ditarik Maju dari Fase 19)**:
+     - Parser SheetJS on-demand di browser, kamus sinonim header BMN, dry-run validator di client, atomic batch insert via `Range.setValues()` 500 baris per batch. *(Engine ini di-reuse pada Fase 19 untuk kapal tangkapan Operasi Laut)*.
+  5. **Sub-Fase 18B.4 — Engine Geotagging 2-Opsi & Haversine Nearest Match**:
+     - Opsi 1: Ekstraksi koordinat GPS dari EXIF foto mentah via `exifr` sebelum kompresi kanvas.
+     - Opsi 2: Fallback geolokasi perangkat pengunggah / lookup profil homebase akun pengunggah.
+     - Server-side Haversine matching ke daftar UPT/Pangkalan/POA terdekat dengan toleransi radius 25 km.
+  6. **Sub-Fase 18B.5 — Dashboard BMN, Notification Summary & Peta Sebaran UPT**:
+     - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah.
+     - Penegakan kondisi fisik per-item (*anti-jebret*).
+     - Notification Summary Banner di akhir: rekapitulasi aset Baik, Rusak Ringan, Rusak Berat, serta Actionable Alert untuk aset Rusak Berat kandidat penghapusan.
+  7. **Sub-Fase 18B.6 — Siklus Penghapusan Legal Kemenkeu**:
+     - State machine berkas usulan (`DRAFT_USULAN` → `SURAT_USULAN` → `PERSETUJUAN_KEMENKEU` → `SK_PENGHAPUSAN` → `BAST_SELESAI`).
+     - Upload wajib dokumen nomor surat dan bukti dukung per tahap, karantina aset (`DALAM_PENGHAPUSAN`), dan eksekusi status akhir `DIHAPUS` tanpa menghapus jejak audit.
+  8. **Sub-Fase 18B.7 — Validasi, Mobile Camera Test & Zero-Git Handover**:
+     - Verifikasi integritas relasional, pengujian kamera mobile & EXIF di Android/iOS, AST check, dan laporan kesiapan commit/push untuk user.
 
 ---
 
 ### Fase 19 — Smart Bulk Import Engine Excel (High-Volume Ingestion) & Modular Sub-Context Divisi Teknis
 
 - **Status**: **Siap Dikerjakan**.
-- **Dependensi**: Fase 18 Selesai.
+- **Dependensi**: Fase 18B Selesai (Engine Bulk Import telah dibangun di Fase 18B.3 dan di-reuse di sini).
 - **Tujuan**: Mengembangkan engine impor massal file Excel untuk memproses ratusan kapal tangkapan/riksa dalam hitungan detik, serta mendekonstruksi form raksasa "gabrug" pada 4 divisi operasional teknis menjadi form sub-konteks ringkas dan split history.
 - **Ruang Lingkup Deliverables**:
   1. **Smart Bulk Import Engine (SheetJS & Batch Lock)**:

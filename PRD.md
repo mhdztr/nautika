@@ -90,11 +90,39 @@ Sumber kebenaran struktur data ada di `DATA_SCHEMA.md`. Bagian ini mendefinisika
 - Filter periode global (lihat §9) memengaruhi seluruh kartu dan tabel aktif. Read-only aggregation.
 
 ### 5.2 Tata Usaha
+Suku Bagian Tata Usaha bertindak sebagai pusat tata kelola sumber daya manajerial Direktorat (anggaran, pengadaan, kepegawaian, dan aset fisik BMN). Seluruh data Tata Usaha dikelola dalam spreadsheet khusus **`Nautika_TU`** (terpisah dari data operasional armada di `Nautika_Transaksi`) untuk mencegah limitasi sel Google Sheets dan mengisolasi write-lock saat impor massal BMN dari SAKTI.
+
 - **Sub-Konteks Input & Split History**:
   1. *Realisasi Anggaran SP2D & Akrual*: Pemisahan tegas matriks 2x2 antara **Pagu Reguler (DIPA Induk)** dan **Pagu ABT (Belanja Tambahan)**, masing-masing dengan realisasi kas cair (SP2D) dan komitmen pekerjaan selesai (Akrual). Rumus serapan nasional dihitung dari total realisasi SP2D dibagi total pagu (Reguler + ABT).
   2. *Monitoring Paket Pekerjaan*: Siklus 6 tahap (Persiapan, Pemilihan/Tender, Kontrak, Pelaksanaan Fisik, BAST, Selesai Bayar), mencatat rekanan penyedia, nomor kontrak, progres fisik %, dan serapan keuangan.
-  3. *Pengelolaan PNBP & BMN*: Rekapitulasi setoran kas negara dan pemanfaatan aset.
-- **Dihitung sistem**: Sisa Pagu Reguler/ABT, %Serapan Reguler, %Serapan ABT, %Serapan Konsolidasi Nasional, dan akumulasi bulanan/YTD.
+  3. *Manajemen Kepegawaian TU*:
+     - Mengelola jumlah headcount personil yang dapat diperbarui secara fleksibel mencakup 5 kategori:
+       - **PNS** (Pegawai Negeri Sipil)
+       - **P3K** (Pegawai Pemerintah dengan Perjanjian Kerja - Penuh Waktu)
+       - **P3K Paruh Waktu** (PPPK Paruh Waktu sesuai kebijakan KemenPAN-RB)
+       - **PJLP** (Penyedia Jasa Lainnya Perorangan / Tenaga Honorer)
+       - **Magang** (Peserta Magang resmi / PKL)
+     - Menggunakan mekanisme snapshot carry-forward (nilai periode terakhir otomatis dipertahankan jika tidak ada mutasi baru).
+  4. *Sistem Informasi Manajemen BMN (Barang Milik Negara) Ekstensif*:
+     - **Klasifikasi BMN (Reguler vs Buku)**:
+       - *BMN Buku (Intrakomptabel / Aset Tetap Neraca)*: Aset yang $\ge$ batas minimum kapitalisasi (Belanja Modal Akun 53), dicatat di Neraca Keuangan, disusutkan berkala di SAKTI, dan memiliki Nilai Buku.
+       - *BMN Reguler (Ekstrakomptabel / Aset Operasional)*: Barang inventaris operasional di bawah batas kapitalisasi (Belanja Barang Akun 52), tidak disajikan di Neraca, namun secara fisik dan hukum wajib diinventarisasi, diberi NUP, dan dipantau kondisinya.
+     - **Kondisi Tercatat Per-Item (Anti-Jebret)**:
+       - Dilarang keras menginput kondisi agregat curah. Setiap unit fisik dicatat individual berdasarkan kunci `KodeBarang + NUP`.
+       - Status kondisi individual: `BAIK`, `RUSAK_RINGAN`, atau `RUSAK_BERAT`, disertai tanggal verifikasi fisik dan foto bukti dukung.
+     - **Pipeline Geotagging 2-Opsi (Pencocokan UPT/Pangkalan Terdekat)**:
+       - *Opsi 1 (Utama)*: Ekstraksi koordinat GPS dari metadata EXIF foto asli (dibaca dari buffer mentah sebelum kompresi kanvas).
+       - *Opsi 2 (Sekunder / Fallback)*: Berdasarkan siapa yang upload / lokasi dari mana dia upload:
+         - 2A: Koordinat GPS browser/perangkat saat form diakses (`navigator.geolocation`).
+         - 2B: Homebase/kantor akun staf pengunggah (lookup dari data profil User di `Users`).
+       - Server menghitung jarak Haversine ke seluruh daftar UPT/Pangkalan/POA dan menetapkan UPT terdekat secara otomatis.
+     - **Notification Summary Banner Rekapitulasi Kondisi di Akhir**:
+       - Ringkasan komprehensif jumlah unit dan valuasi Rp aset kondisi Baik, Rusak Ringan, dan Rusak Berat.
+       - *Actionable Alert*: Notifikasi peringatan tegas jika ada aset kondisi Rusak Berat yang telah habis masa manfaatnya dan belum diajukan penghapusan.
+     - **Siklus Penghapusan BMN (Kemenkeu Legal Workflow)**:
+       - Menangani tahapan izin berjenjang: `DRAFT_USULAN` → `SURAT_USULAN` (Satker) → `PERSETUJUAN_KEMENKEU` (DJKN/KPKNL) → `SK_PENGHAPUSAN` (KKP) → `BAST_SELESAI` (Pemusnahan/Lelang) → status aset menjadi `DIHAPUS`.
+       - Wajib menyertakan dokumen pembuktian (scan PDF nomor surat dan tanggal) di setiap transisi status.
+- **Dihitung sistem**: Sisa Pagu Reguler/ABT, %Serapan Reguler/ABT/Konsolidasi, akumulasi bulanan/YTD, umur aset (tahun/bulan berjalan dari tanggal perolehan), nilai buku terkini, jarak km ke UPT terdekat, dan rekapitulasi kondisi kelaikan aset.
 
 ### 5.3 Operasi Laut
 - **Sub-Konteks Input & Split History**:

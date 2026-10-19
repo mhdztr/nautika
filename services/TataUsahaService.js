@@ -730,3 +730,244 @@ function tataUsaha_getTren(token, filter) {
     return { success: false, error: e.message };
   }
 }
+
+// ===========================================================================
+// SUB-MODUL KEPEGAWAIAN TATA USAHA (5 KATEGORI)
+// ===========================================================================
+
+var _TU_KATEGORI_PEGAWAI = ['PNS', 'P3K', 'P3K_PARUH_WAKTU', 'PJLP', 'MAGANG'];
+
+/**
+ * Mengambil data ringkasan kepegawaian (headcount 5 kategori, persentase, dan riwayat).
+ *
+ * @param {string} token - session token
+ * @param {Object} filter - opsional
+ * @returns {{success:boolean, data:{
+ *   totalPegawai: number,
+ *   breakdown: Object,
+ *   counts: Object,
+ *   lastUpdated: string,
+ *   latestKeterangan: string,
+ *   history: Array
+ * }}}
+ */
+function tataUsaha_getPegawai(token, filter) {
+  try {
+    var session = _tuRequireSession(token);
+    _tuAssertRead(session);
+
+    var sheet = openTuSheet(SHEET_TU.PEGAWAI);
+    var rows  = sheetToObjects(sheet);
+
+    // Ambil baris ACTIVE
+    var activeRows = rows.filter(function (r) {
+      return String(r['Status']) === ROW_STATUS.ACTIVE;
+    });
+
+    // Urutkan kronologis ascending untuk proses snapshot carry-forward
+    activeRows.sort(function (a, b) {
+      return new Date(a['Timestamp']) - new Date(b['Timestamp']);
+    });
+
+    // Cari nilai headcount terkini per kategori
+    var latestCounts = {
+      PNS: 0,
+      P3K: 0,
+      P3K_PARUH_WAKTU: 0,
+      PJLP: 0,
+      MAGANG: 0
+    };
+
+    var latestTimestamp = null;
+    var latestKeterangan = '';
+
+    for (var i = 0; i < activeRows.length; i++) {
+      var r = activeRows[i];
+      var kat = String(r['Kategori'] || '').toUpperCase();
+      if (latestCounts.hasOwnProperty(kat)) {
+        latestCounts[kat] = _num(r['Jumlah']);
+        latestTimestamp = r['Timestamp'];
+        if (r['Keterangan']) latestKeterangan = String(r['Keterangan']);
+      }
+    }
+
+    var totalPegawai = 0;
+    _TU_KATEGORI_PEGAWAI.forEach(function (k) {
+      totalPegawai += latestCounts[k];
+    });
+
+    var breakdown = {};
+    _TU_KATEGORI_PEGAWAI.forEach(function (k) {
+      var count = latestCounts[k];
+      var pct   = totalPegawai > 0 ? Math.round((count / totalPegawai) * 1000) / 10 : 0;
+      breakdown[k] = {
+        count: count,
+        percentage: pct
+      };
+    });
+
+    // Riwayat log perubahan (diurutkan desc)
+    var history = rows.slice().sort(function (a, b) {
+      return new Date(b['Timestamp']) - new Date(a['Timestamp']);
+    }).map(function (r) {
+      return {
+        rowId:       r['RowID'],
+        periode:     r['Periode'],
+        timestamp:   r['Timestamp'],
+        kategori:    r['Kategori'],
+        jumlah:      _num(r['Jumlah']),
+        keterangan:  r['Keterangan'] || '',
+        status:      r['Status'],
+        submittedBy: r['SubmittedBy'],
+        voidReason:  r['VoidReason'] || ''
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        totalPegawai: totalPegawai,
+        breakdown: breakdown,
+        counts: latestCounts,
+        lastUpdated: latestTimestamp ? new Date(latestTimestamp).toISOString() : null,
+        latestKeterangan: latestKeterangan,
+        history: history
+      }
+    };
+  } catch (e) {
+    Logger.log('[tataUsaha_getPegawai] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Submit pembaruan headcount kepegawaian TU.
+ *
+ * @param {string} token
+ * @param {{
+ *   counts: { PNS: number, P3K: number, P3K_PARUH_WAKTU: number, PJLP: number, MAGANG: number },
+ *   keterangan: string,
+ *   periode: string
+ * }} params
+ */
+function tataUsaha_submitPegawai(token, params) {
+  try {
+    var session = _tuRequireSession(token);
+    _tuAssertWrite(session);
+
+    if (!params || !params.counts) {
+      throw new Error('Data jumlah pegawai tidak valid.');
+    }
+
+    var periode = params.periode || getCurrentPeriode();
+    var keterangan = (params.keterangan || '').trim();
+    var counts = params.counts;
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+
+    try {
+      var sheet = openTuSheet(SHEET_TU.PEGAWAI);
+      var now = new Date();
+      var newRows = [];
+
+      _TU_KATEGORI_PEGAWAI.forEach(function (kat) {
+        var val = counts[kat] !== undefined && counts[kat] !== '' ? _num(counts[kat]) : null;
+        if (val !== null && val >= 0) {
+          var rowId = Utilities.getUuid();
+          newRows.push([
+            rowId,
+            _TU_DIVISI_ID,
+            periode,
+            session.userId,
+            now,
+            ROW_STATUS.ACTIVE,
+            '', // SupersedesRowID
+            '', // VoidReason
+            '', // VoidedBy
+            '', // VoidedAt
+            kat,
+            val,
+            keterangan
+          ]);
+        }
+      });
+
+      if (newRows.length === 0) {
+        throw new Error('Minimal satu kategori pegawai harus diisi dengan angka non-negatif.');
+      }
+
+      var lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
+
+      logAudit(session.userId, 'SUBMIT_PEGAWAI', 'TU_Pegawai', newRows[0][0], {
+        kategoriUpdated: _TU_KATEGORI_PEGAWAI.filter(function(k){ return counts[k] !== undefined; }),
+        periode: periode,
+        keterangan: keterangan
+      });
+
+      return { success: true, message: 'Data kepegawaian berhasil diperbarui.' };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[tataUsaha_submitPegawai] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Anulir entri mutasi pegawai.
+ */
+function tataUsaha_anulirPegawai(token, params) {
+  try {
+    var session = _tuRequireSession(token);
+    _tuAssertAnulir(session);
+
+    if (!params || !params.rowId || !params.alasan) {
+      throw new Error('RowID dan Alasan Anulir wajib diisi.');
+    }
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+
+    try {
+      var sheet = openTuSheet(SHEET_TU.PEGAWAI);
+      var rows  = sheetToObjects(sheet);
+      var targetIdx = -1;
+
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i]['RowID'] === params.rowId && String(rows[i]['Status']) === ROW_STATUS.ACTIVE) {
+          targetIdx = i + 2; // +2 for header row & 1-based index
+          break;
+        }
+      }
+
+      if (targetIdx === -1) {
+        throw new Error('Data tidak ditemukan atau sudah tidak aktif.');
+      }
+
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var colStatus = headers.indexOf('Status') + 1;
+      var colReason = headers.indexOf('VoidReason') + 1;
+      var colBy     = headers.indexOf('VoidedBy') + 1;
+      var colAt     = headers.indexOf('VoidedAt') + 1;
+
+      sheet.getRange(targetIdx, colStatus).setValue(ROW_STATUS.VOID);
+      sheet.getRange(targetIdx, colReason).setValue(params.alasan);
+      sheet.getRange(targetIdx, colBy).setValue(session.userId);
+      sheet.getRange(targetIdx, colAt).setValue(new Date());
+
+      logAudit(session.userId, 'ANULIR_PEGAWAI', 'TU_Pegawai', params.rowId, {
+        alasan: params.alasan
+      });
+
+      return { success: true, message: 'Entri berhasil dianulir.' };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[tataUsaha_anulirPegawai] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

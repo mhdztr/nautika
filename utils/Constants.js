@@ -12,7 +12,22 @@
 var SS_NAME = {
   MASTER:    'Nautika_Master',
   TRANSAKSI: 'Nautika_Transaksi',
+  TU:        'Nautika_TU',
   LOG:       'Nautika_Log'
+};
+
+// ===========================================================================
+// NAMA SHEET — Nautika_TU (Dedicated Spreadsheet Tata Usaha)
+// ===========================================================================
+var SHEET_TU = {
+  PEGAWAI:                'TX_TU_Pegawai',
+  BMN_ASET:               'TX_BMN_Aset',
+  BMN_PENGHAPUSAN:        'TX_BMN_Penghapusan',
+  BMN_PENGHAPUSAN_DETAIL: 'TX_BMN_Penghapusan_Detail',
+  MASTER_LOKASI_UPT:      'Master_Lokasi_UPT',
+  MASTER_BMN_KATEGORI:    'Master_BMN_Kategori',
+  TATA_USAHA:             'TX_TataUsaha',
+  PAKET_PROGRES:          'TX_Paket_Progres'
 };
 
 // ===========================================================================
@@ -48,6 +63,7 @@ var SHEET_TX = {
   PENGAWAKAN_AKN:      'TX_Pengawakan_AKN',
   PENGAWAKAN_KEGIATAN: 'TX_Pengawakan_Kegiatan',
   KEGIATAN_DIREKTORAT: 'TX_KegiatanDirektorat',
+  KAPAL_POSISI:        'TX_Kapal_Posisi',
   EVIDENCE:            'TX_Evidence'
 };
 
@@ -226,6 +242,7 @@ var WPP_NRI = [
 var PROP_KEY = {
   MASTER_SS_ID:    'MASTER_SS_ID',
   TRANSAKSI_SS_ID: 'TRANSAKSI_SS_ID',
+  TU_SS_ID:        'TU_SS_ID',
   LOG_SS_ID:       'LOG_SS_ID',
   SETUP_COMPLETED: 'SETUP_COMPLETED',
   CARTO_API_KEY:   'CARTO_API_KEY',
@@ -257,7 +274,7 @@ function utils_getCartoKey() {
 }
 
 /**
- * Mengembalikan objek {masterId, transaksiId, logId}.
+ * Mengembalikan objek {masterId, transaksiId, logId, tuId}.
  * Melempar Error jika setup belum dijalankan.
  */
 function getSpreadsheetIds() {
@@ -265,6 +282,7 @@ function getSpreadsheetIds() {
   var masterId    = props.getProperty(PROP_KEY.MASTER_SS_ID);
   var transaksiId = props.getProperty(PROP_KEY.TRANSAKSI_SS_ID);
   var logId       = props.getProperty(PROP_KEY.LOG_SS_ID);
+  var tuId        = props.getProperty(PROP_KEY.TU_SS_ID);
 
   if (!masterId || !transaksiId || !logId) {
     throw new Error(
@@ -275,6 +293,7 @@ function getSpreadsheetIds() {
   return {
     masterId:    masterId,
     transaksiId: transaksiId,
-    logId:       logId
+    logId:       logId,
+    tuId:        tuId || null
   };
 }

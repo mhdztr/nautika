@@ -123,11 +123,14 @@ function setup() {
 
   var masterSS = _setupMaster(props);
   var transaksiSS = _setupTransaksi(props);
+  var tuSS = _setupTU(props);
   var logSS = _setupLog(props);
 
   _seedDivisi(masterSS);
   _seedSuperadmin(masterSS);
   _seedOpsi(masterSS);
+  _seedLokasiUpt(tuSS);
+  _seedBmnKategori(tuSS);
 
   props.setProperty(PROP_KEY.SETUP_COMPLETED, 'true');
 
@@ -136,10 +139,11 @@ function setup() {
   Logger.log('ID Spreadsheet (tersimpan di Script Properties):');
   Logger.log('  MASTER_SS_ID    : ' + props.getProperty(PROP_KEY.MASTER_SS_ID));
   Logger.log('  TRANSAKSI_SS_ID : ' + props.getProperty(PROP_KEY.TRANSAKSI_SS_ID));
+  Logger.log('  TU_SS_ID        : ' + props.getProperty(PROP_KEY.TU_SS_ID));
   Logger.log('  LOG_SS_ID       : ' + props.getProperty(PROP_KEY.LOG_SS_ID));
   Logger.log('');
   Logger.log('Langkah selanjutnya:');
-  Logger.log('  - Buka ketiga spreadsheet di Google Drive untuk verifikasi struktur sheet.');
+  Logger.log('  - Buka keempat spreadsheet di Google Drive untuk verifikasi struktur sheet.');
   Logger.log('  - Login pertama: email=superadmin@nautika.id (password seed tercetak di log di atas, wajib diganti).');
   Logger.log('  - Set CARTO API key: panggil setupSetCartoKey("<key>") di editor GAS (lihat ARCHITECTURE §9).');
 }
@@ -581,6 +585,43 @@ var OPSI_SEED = {
   KAPAL_JENIS: [
     { label: 'KAPAL_PUSAT', tampil: 'Kapal Pusat' },
     { label: 'SPEEDBOAT', tampil: 'Speedboat' }
+  ],
+  TU_PEGAWAI_KATEGORI: [
+    { label: 'PNS', tampil: 'PNS' },
+    { label: 'P3K', tampil: 'P3K (Penuh Waktu)' },
+    { label: 'P3K_PARUH_WAKTU', tampil: 'P3K Paruh Waktu' },
+    { label: 'PJLP', tampil: 'PJLP / Honorer' },
+    { label: 'MAGANG', tampil: 'Magang / PKL' }
+  ],
+  BMN_KONDISI: [
+    { label: 'BAIK', tampil: 'Baik' },
+    { label: 'RUSAK_RINGAN', tampil: 'Rusak Ringan' },
+    { label: 'RUSAK_BERAT', tampil: 'Rusak Berat' }
+  ],
+  BMN_PENCATATAN: [
+    { label: 'BUKU', tampil: 'BMN Buku (Intrakomptabel)' },
+    { label: 'REGULER', tampil: 'BMN Reguler (Ekstrakomptabel)' }
+  ],
+  BMN_ALASAN_HAPUS: [
+    { label: 'RUSAK_BERAT', tampil: 'Rusak Berat' },
+    { label: 'KADALUWARSA', tampil: 'Kadaluwarsa / Habis Masa Manfaat' },
+    { label: 'HILANG', tampil: 'Hilang / Dicuri' },
+    { label: 'HIBAH', tampil: 'Hibah ke Pihak Lain' },
+    { label: 'PENJUALAN_LELANG', tampil: 'Penjualan / Lelang KPKNL' },
+    { label: 'LAINNYA', tampil: 'Lainnya' }
+  ],
+  BMN_SUMBER_LOKASI: [
+    { label: 'EXIF_GPS', tampil: 'EXIF GPS Foto Asli' },
+    { label: 'GPS_PENGUNGGAH', tampil: 'GPS Perangkat Pengunggah' },
+    { label: 'PROFIL_PENGUNGGAH', tampil: 'Homebase Akun Pengunggah' },
+    { label: 'MANUAL', tampil: 'Penetapan Manual' },
+    { label: 'IMPOR_SAKTI', tampil: 'Impor Data SAKTI' }
+  ],
+  LOKASI_JENIS: [
+    { label: 'PUSAT', tampil: 'Kantor Pusat' },
+    { label: 'PANGKALAN', tampil: 'Pangkalan PSDKP' },
+    { label: 'STASIUN', tampil: 'Stasiun PSDKP' },
+    { label: 'POS_PENGAWASAN', tampil: 'Pos Pengawasan' }
   ]
 };
 
@@ -808,4 +849,145 @@ function _printSheetSummary(ss) {
       : '(kosong)';
     Logger.log('  [' + sheet.getName() + '] ' + lastCol + ' kolom: ' + headers);
   });
+}
+
+// ===========================================================================
+// INISIALISASI SPREADSHEET NAUTIKA_TU & SEED DATA KHUSUS TU
+// ===========================================================================
+
+function _setupTU(props) {
+  Logger.log('[Setup] Membuat Nautika_TU...');
+  var ss = SpreadsheetApp.create(SS_NAME.TU);
+  props.setProperty(PROP_KEY.TU_SS_ID, ss.getId());
+
+  var defaultSheet = ss.getSheets()[0];
+
+  _createSheetWithHeaders(ss, SHEET_TU.PEGAWAI,
+    STD_COLS.concat(['Kategori', 'Jumlah', 'Keterangan'])
+  );
+
+  _createSheetWithHeaders(ss, SHEET_TU.BMN_ASET,
+    STD_COLS.concat([
+      'AsetID', 'KodeBarang', 'NUP', 'NamaBarang', 'MerekTipe', 'KategoriPencatatan',
+      'KodeKategori', 'TanggalPerolehan', 'NilaiPerolehan', 'NilaiBuku', 'Kondisi',
+      'LokasiID', 'LokasiDetailRuangan', 'Latitude', 'Longitude', 'SumberLokasi',
+      'JarakKeUPT_Km', 'TanggalVerifikasi', 'FotoEvidenceID', 'StatusAset',
+      'PenghapusanID', 'KapalID', 'ImportBatchID', 'Keterangan'
+    ])
+  );
+
+  _createSheetWithHeaders(ss, SHEET_TU.BMN_PENGHAPUSAN,
+    STD_COLS.concat([
+      'PenghapusanID', 'Tahap', 'AlasanPenghapusan', 'KeteranganAlasan',
+      'NomorSuratUsulan', 'TanggalSuratUsulan', 'EvidenceSuratUsulan',
+      'NomorSuratPersetujuan', 'TanggalSuratPersetujuan', 'InstansiKemenkeu', 'EvidenceSuratPersetujuan',
+      'NomorSK', 'TanggalSK', 'EvidenceSK', 'EvidenceBAST',
+      'TotalUnit', 'TotalNilaiPerolehan', 'TotalNilaiBuku'
+    ])
+  );
+
+  _createSheetWithHeaders(ss, SHEET_TU.BMN_PENGHAPUSAN_DETAIL,
+    STD_COLS.concat(['ParentRowID', 'PenghapusanID', 'AsetID', 'KondisiSaatUsul', 'NilaiBukuSaatUsul'])
+  );
+
+  _createSheetWithHeaders(ss, SHEET_TU.MASTER_LOKASI_UPT, [
+    'LokasiID', 'NamaLokasi', 'JenisLokasi', 'Latitude', 'Longitude', 'RadiusVerifikasiKm', 'StatusAktif'
+  ]);
+
+  _createSheetWithHeaders(ss, SHEET_TU.MASTER_BMN_KATEGORI, [
+    'KodeKategori', 'NamaKategori', 'Golongan', 'MasaManfaatTahun'
+  ]);
+
+  _createSheetWithHeaders(ss, SHEET_TU.TATA_USAHA,
+    STD_COLS.concat([
+      'PaguReguler', 'PaguABT', 'RealisasiSP2D_Minggu', 'RealisasiAkrual_Minggu',
+      'RealisasiSP2D_Reguler_Minggu', 'RealisasiSP2D_ABT_Minggu',
+      'RealisasiAkrual_Reguler_Minggu', 'RealisasiAkrual_ABT_Minggu', 'CatatanRevisiPagu'
+    ])
+  );
+
+  _createSheetWithHeaders(ss, SHEET_TU.PAKET_PROGRES,
+    STD_COLS.concat([
+      'PaketID', 'TahapPekerjaan', 'NilaiKontrak', 'RekananPenyedia', 'NomorKontrak',
+      'ProgresFisikPct', 'RealisasiKeuangan', 'KendalaKeterangan', 'EvidenceUrl'
+    ])
+  );
+
+  ss.deleteSheet(defaultSheet);
+  Logger.log('[Setup] Nautika_TU selesai: ' + ss.getUrl());
+  return ss;
+}
+
+function _seedLokasiUpt(tuSS) {
+  var sheet = tuSS.getSheetByName(SHEET_TU.MASTER_LOKASI_UPT);
+  if (!sheet) return;
+  if (sheet.getLastRow() > 1) return; // sudah ada data
+
+  var rows = [
+    ['UPT-PUSAT-POA', 'Kantor Pusat Ditjen PSDKP / POA Jakarta', 'PUSAT', -6.1754, 106.8272, 25, true],
+    ['UPT-BATAM', 'Pangkalan PSDKP Batam', 'PANGKALAN', 1.0545, 103.9575, 30, true],
+    ['UPT-JAKARTA', 'Pangkalan PSDKP Jakarta (Muara Baru)', 'PANGKALAN', -6.1123, 106.8041, 25, true],
+    ['UPT-BENOA', 'Pangkalan PSDKP Benoa Bali', 'PANGKALAN', -8.7512, 115.2155, 25, true],
+    ['UPT-BITUNG', 'Pangkalan PSDKP Bitung', 'PANGKALAN', 1.4404, 125.1889, 25, true],
+    ['UPT-TUAL', 'Pangkalan PSDKP Tual', 'PANGKALAN', -5.6289, 132.7483, 25, true],
+    ['UPT-BELAWAN', 'Stasiun PSDKP Belawan Medan', 'STASIUN', 3.7844, 98.6833, 25, true],
+    ['UPT-PONTIANAK', 'Stasiun PSDKP Pontianak', 'STASIUN', -0.0263, 109.3425, 25, true],
+    ['UPT-TARAKAN', 'Stasiun PSDKP Tarakan', 'STASIUN', 3.3000, 117.6333, 25, true],
+    ['UPT-AMBON', 'Stasiun PSDKP Ambon', 'STASIUN', -3.6554, 128.1908, 25, true],
+    ['UPT-KUPANG', 'Stasiun PSDKP Kupang', 'STASIUN', -10.1772, 123.5833, 25, true],
+    ['UPT-BIAK', 'Stasiun PSDKP Biak Papua', 'STASIUN', -1.1833, 136.0833, 25, true],
+    ['UPT-LAMPUNG', 'Stasiun PSDKP Lampung', 'STASIUN', -5.4500, 105.2667, 25, true],
+    ['UPT-PADANG', 'Pos PSDKP Padang', 'POS_PENGAWASAN', -0.9471, 100.4172, 25, true],
+    ['UPT-CILACAP', 'Pos PSDKP Cilacap', 'POS_PENGAWASAN', -7.7028, 109.0069, 25, true]
+  ];
+
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  Logger.log('[Setup] Seed ' + rows.length + ' UPT ke Master_Lokasi_UPT selesai.');
+}
+
+function _seedBmnKategori(tuSS) {
+  var sheet = tuSS.getSheetByName(SHEET_TU.MASTER_BMN_KATEGORI);
+  if (!sheet) return;
+  if (sheet.getLastRow() > 1) return; // sudah ada data
+
+  var rows = [
+    ['3.01.01', 'Alat Pengolahan & Pengujian Perikanan', 3, 5],
+    ['3.02.01', 'Alat Navigasi & Komunikasi Maritim', 3, 7],
+    ['3.05.01', 'Kendaraan Bermotor Operasional', 3, 7],
+    ['3.05.02', 'Kapal Pengawas & Speedboat', 3, 15],
+    ['3.06.01', 'Senjata Api & Amunisi Pengawasan', 3, 10],
+    ['3.10.01', 'Komputer PC / Laptop / Server', 3, 4],
+    ['3.10.02', 'Peralatan Jaringan / Router / Switch', 3, 4],
+    ['3.07.01', 'Peralatan Kantor / Meubeler / AC', 3, 5],
+    ['4.01.01', 'Bangunan Gedung Kantor / Pos Jaga', 4, 25]
+  ];
+
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  Logger.log('[Setup] Seed ' + rows.length + ' kategori ke Master_BMN_Kategori selesai.');
+}
+
+/**
+ * Fungsi utilitas idempoten untuk memastikan database Nautika_TU ter-setup pada lingkungan aktif.
+ * Aman dijalankan kapan saja.
+ */
+function setupEnsureTU() {
+  var props = PropertiesService.getScriptProperties();
+  var tuId = ensureTuSpreadsheet();
+  var tuSS = SpreadsheetApp.openById(tuId);
+  _seedLokasiUpt(tuSS);
+  _seedBmnKategori(tuSS);
+
+  // Pastikan enum Opsi baru juga ter-seed di Master
+  var masterId = props.getProperty(PROP_KEY.MASTER_SS_ID);
+  if (masterId) {
+    try {
+      var masterSS = SpreadsheetApp.openById(masterId);
+      _seedOpsi(masterSS);
+    } catch (e) {
+      Logger.log('[setupEnsureTU] Seed opsi note: ' + e.message);
+    }
+  }
+
+  Logger.log('[setupEnsureTU] Inisialisasi Nautika_TU selesai. ID: ' + tuId);
+  return tuId;
 }

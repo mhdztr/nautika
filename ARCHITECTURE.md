@@ -21,7 +21,7 @@ Dokumen teknis. Menjabarkan **bagaimana** PRD.md diimplementasikan. Jika ada det
 
 ## 3. Struktur Spreadsheet (Database)
 
-Tiga Google Spreadsheet terpisah, masing-masing punya peran jelas:
+Empat Google Spreadsheet terpisah, masing-masing punya peran jelas:
 
 ### 3.1 `Nautika_Master`
 Data referensi, jarang berubah, dipakai sebagai lookup lintas modul.
@@ -34,15 +34,13 @@ Data referensi, jarang berubah, dipakai sebagai lookup lintas modul.
 | `Divisi` | `DivisiID`, NamaResmi, NamaDashboard, Kode |
 | `Master_Paket` | `PaketID`, `DivisiID`, `TahunAnggaran`, `NamaPaket`, `KategoriPaket`, `SumberDana`, `PaguAnggaran`, `KodeAkunMak`, `PICTimja`, `StatusAktif` |
 | `Users` | `UserID`, Nama, Email, **NIP**, PasswordHash, DivisiID, Role, Status (`PENDING/APPROVED/REJECTED/NONAKTIF`), ApprovedBy, RegisteredAt, ApprovedAt. `NIP` wajib & unik, disimpan sebagai digit saja; kolom kosong hanya mungkin pada akun lama sebelum kolom ini ada (lihat `DATA_SCHEMA.md` §`Users`). |
-| `Opsi` | Daftar pilihan dinamis untuk dropdown modul — kolom `Kode` (AMUNISI/BBM/KOM_PERSONIL/AWAK_KATEGORI), `Urutan`, `Label`, `Aktif`. Sumber otoritatif enum `JenisAmunisi`, `JenisBbm`, `KomponenPersonil`, `KategoriPengawakan` (keputusan revisi Fase 9/10, lihat `CHANGELOG.md`). Di-seed `Setup.js`; fallback default via `getOpsiList`. |
+| `Opsi` | Daftar pilihan dinamis untuk dropdown modul — kolom `Kode` (AMUNISI, BBM, KOM_PERSONIL, AWAK_KATEGORI, TU_PEGAWAI_KATEGORI, BMN_KONDISI, BMN_PENCATATAN, BMN_ALASAN_HAPUS, BMN_SUMBER_LOKASI, LOKASI_JENIS), `Urutan`, `Label`, `Aktif`. Sumber otoritatif seluruh enum domain. Di-seed `Setup.js`; fallback default via `getOpsiList`. |
 
 ### 3.2 `Nautika_Transaksi`
-Data transaksional mingguan — satu sheet per modul, semua **append-only dengan versioning** (lihat §5).
+Data transaksional operasional mingguan armada teknis — semua **append-only dengan versioning** (lihat §5).
 
 | Sheet | Modul |
 |---|---|
-| `TX_TataUsaha` | Tata Usaha (Pagu & Realisasi SP2D/Akrual terpisah Reguler vs ABT) |
-| `TX_Paket_Progres` | Tata Usaha — Progres pelaksanaan paket pekerjaan |
 | `TX_OperasiLaut` | Operasi Laut |
 | `TX_OperasiLaut_Detail` | Operasi Laut — rincian per-item (kapal ditangkap KII/KIA, rumpon ditertibkan) |
 | `TX_OperasiLaut_Tangkapan` | Operasi Laut — rincian kapal tangkapan (bulk import) |
@@ -62,11 +60,26 @@ Data transaksional mingguan — satu sheet per modul, semua **append-only dengan
 | `TX_KegiatanDirektorat` | Kegiatan Pendukung (lintas-divisi) |
 | `TX_Evidence` | Lampiran — relasi ke baris manapun di atas via `RefSheet` + `RefRowID` |
 
-Alasan pemisahan sheet per sub-topik (mis. Perawatan jadi 3 sheet): tiap punya struktur kolom & relasi berbeda (item pekerjaan itu 1-ke-banyak per submission, kesiapan itu 1 baris per kapal per periode) — memaksa jadi satu sheet akan bikin kolom kosong berlebihan dan sulit divalidasi.
+Alasan pemisahan sheet per sub-topik: tiap punya struktur kolom & relasi berbeda — memaksa jadi satu sheet akan bikin kolom kosong berlebihan dan sulit divalidasi.
+Sheet `TX_*_Detail` adalah **rincian per-item yang men-subordinat header** transaksi: kolom `ParentRowID` merujuk `RowID` header, dan angka agregat di header **dihitung sistem** dari jumlah baris detail.
 
-Sheet `TX_*_Detail` adalah **rincian per-item yang men-subordinat header** transaksi: kolom `ParentRowID` merujuk `RowID` header, dan angka agregat (mis. `KII_Ditangkap`, `Jumlah`) di header **dihitung sistem** dari jumlah baris detail (nilai manual baris lama tanpa detail tetap valid). Detail di-create/read/di-update bersama header lewat `utils/DetailService.js` (lihat §5 dan `DATA_SCHEMA.md`).
+### 3.3 `Nautika_TU` (Dedicated Spreadsheet Tata Usaha)
+Spreadsheet mandiri untuk seluruh tata kelola manajerial Suku Bagian Tata Usaha (Kepegawaian, BMN Aset, BMN Penghapusan, serta Anggaran & Paket). Dipisahkan dari `Nautika_Transaksi` guna mengisolasi beban kuota sel (menghindari batas 10 juta sel) dan memastikan proses impor massal SAKTI BMN tidak mengunci (`LockService`) pelaporan armada di laut.
 
-### 3.3 `Nautika_Log`
+| Sheet | Modul / Fungsi |
+|---|---|
+| `TX_TU_Pegawai` | Kepegawaian — snapshot berkala headcount 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang) dengan carry-forward |
+| `TX_BMN_Aset` | BMN — register fisik inventaris per-item (Reguler vs Buku, kondisi Baik/RR/RB, umur aset, geotag koordinat & UPT terdekat, foto fisik) |
+| `TX_BMN_Penghapusan` | BMN — berkas usulan penghapusan aset (state machine izin Kemenkeu DJKN/KPKNL, SK KKP, BAST) |
+| `TX_BMN_Penghapusan_Detail` | BMN — daftar rincian aset individual per berkas usulan penghapusan |
+| `Master_Lokasi_UPT` | Master referensi lokasi UPT/Pangkalan/Stasiun/Pos/Kantor Pusat POA untuk kalkulasi Haversine terdekat |
+| `Master_BMN_Kategori` | Master katalog kodefikasi kategori BMN SAKTI & standar masa manfaat |
+| `TX_TataUsaha` | Tata Usaha — Anggaran (Pagu & Realisasi SP2D/Akrual Reguler vs ABT) |
+| `TX_Paket_Progres` | Tata Usaha — Progres pelaksanaan paket pekerjaan |
+
+*Catatan: `openTuSheet(sheetName)` di `data/SheetAccess.js` membuka sheet pada spreadsheet ini dengan helper self-heal idempoten.*
+
+### 3.4 `Nautika_Log`
 | Sheet | Isi |
 |---|---|
 | `Approval_Queue` | Antrian registrasi menunggu approval |
@@ -312,4 +325,31 @@ Integrasi data lintas divisi ditegakkan secara server-side:
   - Active haptic visual compression (`transform: scale(0.97)`) pada event `:active` / `pointerdown` untuk tombol dan navigasi.
   - Anchored modal presentation: animasi modal dialog membesar secara mulus (`scale(0.94)` ke `1.0`) berakar dari posisi tombol pemicu (*trigger origin*) dengan backdrop blur 8px.
   - Sheet swipe gesture handler: deteksi sentuhan/geseran vertikal pada drawer dan bottom sheet untuk swipe-to-dismiss berkecepatan inersia dengan spring snap back.
+
+## 18. Arsitektur BMN Terpadu, Dual-Option Geotagging & Legal State Machine Penghapusan
+
+### 18.1 Penegakan Kondisi Fisik Per-Item (Anti-Jebret)
+- Data inventaris dicatat pada level granularitas terendah: **satu baris mewakili tepat satu unit fisik** dengan primary identifier `AsetID` (UUID) dan business composite key `KodeBarang + NUP`.
+- Dilarang keras melakukan agregasi curah. Setiap item membawa riwayat verifikasi fisik berkala: kondisi (`BAIK`, `RUSAK_RINGAN`, `RUSAK_BERAT`), tanggal inspeksi, dan foto bukti dukung.
+
+### 18.2 Geotagging 2-Opsi & Server-Side Haversine Matching
+- **Opsi 1 (EXIF GPS Asli)**: Library `exifr` mengekstrak koordinat GPS langsung dari `ArrayBuffer` biner foto asli di browser **sebelum** fungsi kompresi kanvas `_compressImageCanvas` dijalankan (karena operasi canvas `toDataURL` membuang seluruh header EXIF).
+- **Opsi 2 (Lokasi Pengunggah)**:
+  - 2A: `navigator.geolocation` browser saat staf membuka form verifikasi.
+  - 2B: Homebase/kantor UPT akun pengunggah yang terdaftar di `Users.PangkalanHomebase` / profil.
+- **Nearest UPT Resolution**: Server menjalankan formula Haversine terhadap seluruh entri aktif di `Master_Lokasi_UPT`:
+  $$d = 2R \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta \lambda}{2}\right)}\right)$$
+  Jika jarak minimum $d \le \text{RadiusVerifikasiKm}$ (default 25 km), aset otomatis terasosiasi ke UPT tersebut. Jika $d > 25\text{ km}$, sistem memberi tanda peringatan jarak untuk konfirmasi penanggung jawab.
+
+### 18.3 State Machine Penghapusan BMN Kemenkeu
+Penghapusan aset mengikuti alur legalitas perundang-undangan pengelolaan BMN (PP 27/2014 jo PP 28/2020 & PMK 181/2016):
+```
+DRAFT_USULAN ──> SURAT_USULAN ──> PERSETUJUAN_KEMENKEU ──> SK_PENGHAPUSAN ──> BAST_SELESAI (Status: DIHAPUS)
+                       │
+                       └──> DITOLAK_KEMENKEU (Aset Kembali AKTIF)
+```
+- Setiap transisi mewajibkan validasi dokumen administratif: nomor surat, tanggal surat, instansi penerbit (DJKN/KPKNL Kemenkeu), dan berkas scan PDF.
+- Aset dalam usulan otomatis dikarantina (`StatusAset = DALAM_PENGHAPUSAN`).
+- Saat berkas berstatus `BAST_SELESAI`, aset berubah menjadi `StatusAset = DIHAPUS` secara permanen (tetap disimpan untuk histori audit penatausahaan, tidak boleh di-`VOID`).
+
 

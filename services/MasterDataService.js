@@ -75,6 +75,7 @@ function master_getKapalList(token) {
 
     _mdEnsureKapalJenisOpsi();
     ensureKapalJenisColumn();
+    master_ensure34KapalBesar();
 
     var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
     var rows = sheetToObjects(sheet);
@@ -158,6 +159,88 @@ function master_kapalJenis(kapalId) {
     }
   }
   return '';
+}
+
+function master_kapalName(kapalId) {
+  var id = String(kapalId || '').trim();
+  if (!id) return '';
+  var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+  var rows = sheetToObjects(sheet);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['KapalID'] || '').trim() === id) {
+      return String(rows[i]['Nama'] || '').trim();
+    }
+  }
+  return '';
+}
+
+var MASTER_34_KAPAL_BESAR = [
+  { id: 'KP-ORCA-01', nama: 'KP. ORCA 01', kelas: 'ORCA', homebase: 'Pangkalan Tual/Ambon', wpp: '715', pangkalan: 'Tual' },
+  { id: 'KP-ORCA-02', nama: 'KP. ORCA 02', kelas: 'ORCA', homebase: 'Pangkalan Belawan', wpp: '571', pangkalan: 'Belawan' },
+  { id: 'KP-ORCA-03', nama: 'KP. ORCA 03', kelas: 'ORCA', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-ORCA-04', nama: 'KP. ORCA 04', kelas: 'ORCA', homebase: 'Pangkalan Jakarta', wpp: '712', pangkalan: 'Jakarta' },
+  { id: 'KP-ORCA-05', nama: 'KP. ORCA 05', kelas: 'ORCA', homebase: 'Pangkalan Bitung', wpp: '715', pangkalan: 'Bitung' },
+  { id: 'KP-ORCA-06', nama: 'KP. ORCA 06', kelas: 'ORCA', homebase: 'Pangkalan Benoa', wpp: '713', pangkalan: 'Benoa' },
+  { id: 'KP-BARAKUDA-01', nama: 'KP. BARAKUDA 01', kelas: 'BARAKUDA', homebase: 'Pangkalan Jakarta', wpp: '712', pangkalan: 'Jakarta' },
+  { id: 'KP-PAUS-01', nama: 'KP. PAUS 01', kelas: 'PAUS', homebase: 'Pangkalan Ambon', wpp: '715', pangkalan: 'Ambon' },
+  { id: 'KP-HM-TUTUL-01', nama: 'KP. H.M. TUTUL 01', kelas: 'TUTUL', homebase: 'Pangkalan Kupang', wpp: '713', pangkalan: 'Kupang' },
+  { id: 'KP-HM-TUTUL-02', nama: 'KP. H.M. TUTUL 02', kelas: 'TUTUL', homebase: 'Pangkalan Tarakan', wpp: '713', pangkalan: 'Tarakan' },
+  { id: 'KP-HIU-MACAN-04', nama: 'KP. HIU MACAN 04', kelas: 'HIU_MACAN', homebase: 'Pangkalan Pontianak', wpp: '713', pangkalan: 'Pontianak' },
+  { id: 'KP-HIU-MACAN-06', nama: 'KP. HIU MACAN 06', kelas: 'HIU_MACAN', homebase: 'Pangkalan Tual', wpp: '718', pangkalan: 'Tual' },
+  { id: 'KP-HIU-01', nama: 'KP. HIU 01', kelas: 'HIU', homebase: 'Pangkalan Belawan', wpp: '571', pangkalan: 'Belawan' },
+  { id: 'KP-HIU-02', nama: 'KP. HIU 02', kelas: 'HIU', homebase: 'Pangkalan Ambon', wpp: '714', pangkalan: 'Ambon' },
+  { id: 'KP-HIU-04', nama: 'KP. HIU 04', kelas: 'HIU', homebase: 'Pangkalan Cilacap', wpp: '712', pangkalan: 'Cilacap' },
+  { id: 'KP-HIU-05', nama: 'KP. HIU 05', kelas: 'HIU', homebase: 'Pangkalan Bitung', wpp: '715', pangkalan: 'Bitung' },
+  { id: 'KP-HIU-07', nama: 'KP. HIU 07', kelas: 'HIU', homebase: 'Pangkalan Makassar', wpp: '713', pangkalan: 'Makassar' },
+  { id: 'KP-HIU-08', nama: 'KP. HIU 08', kelas: 'HIU', homebase: 'Pangkalan Lampulo', wpp: '571', pangkalan: 'Lampulo' },
+  { id: 'KP-HIU-09', nama: 'KP. HIU 09', kelas: 'HIU', homebase: 'Pangkalan Cirebon', wpp: '712', pangkalan: 'Cirebon' },
+  { id: 'KP-HIU-10', nama: 'KP. HIU 10', kelas: 'HIU', homebase: 'Pangkalan Banyuwangi', wpp: '712', pangkalan: 'Banyuwangi' },
+  { id: 'KP-HIU-11', nama: 'KP. HIU 11', kelas: 'HIU', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-HIU-12', nama: 'KP. HIU 12', kelas: 'HIU', homebase: 'Pangkalan Sibolga', wpp: '571', pangkalan: 'Sibolga' },
+  { id: 'KP-HIU-13', nama: 'KP. HIU 13', kelas: 'HIU', homebase: 'Pangkalan Ternate', wpp: '715', pangkalan: 'Ternate' },
+  { id: 'KP-HIU-14', nama: 'KP. HIU 14', kelas: 'HIU', homebase: 'Pangkalan Sorong', wpp: '715', pangkalan: 'Sorong' },
+  { id: 'KP-HIU-15', nama: 'KP. HIU 15', kelas: 'HIU', homebase: 'Pangkalan Tahuna', wpp: '716', pangkalan: 'Tahuna' },
+  { id: 'KP-HIU-16', nama: 'KP. HIU 16', kelas: 'HIU', homebase: 'Pangkalan Ranai', wpp: '711', pangkalan: 'Ranai' },
+  { id: 'KP-AKAR-BAHAR-01', nama: 'KP. AKAR BAHAR 01', kelas: 'AKAR_BAHAR', homebase: 'Pangkalan Jakarta', wpp: '712', pangkalan: 'Jakarta' },
+  { id: 'KP-HIU-MACAN-01', nama: 'KP. HIU MACAN 01', kelas: 'HIU_MACAN', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-HIU-MACAN-05', nama: 'KP. HIU MACAN 05', kelas: 'HIU_MACAN', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-HIU-03', nama: 'KP. HIU 03', kelas: 'HIU', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-HIU-06', nama: 'KP. HIU 06', kelas: 'HIU', homebase: 'Pangkalan Jakarta', wpp: '712', pangkalan: 'Jakarta' },
+  { id: 'KP-HIU-17', nama: 'KP. HIU 17', kelas: 'HIU', homebase: 'Pangkalan Batam', wpp: '711', pangkalan: 'Batam' },
+  { id: 'KP-BARAKUDA-02', nama: 'KP. BARAKUDA 02', kelas: 'BARAKUDA', homebase: 'Galangan Jakarta', wpp: '712', pangkalan: 'Jakarta' },
+  { id: 'KP-HIU-MACAN-03', nama: 'KP. HIU MACAN 03', kelas: 'HIU_MACAN', homebase: 'Galangan Lamongan', wpp: '712', pangkalan: 'Lamongan' }
+];
+
+function master_ensure34KapalBesar() {
+  try {
+    ensureKapalKelasColumn();
+    var sheet = openMasterSheet(SHEET_MASTER.KAPAL);
+    if (!sheet) return;
+    var rows = sheetToObjects(sheet);
+    var existing = {};
+    rows.forEach(function (r) {
+      existing[String(r.KapalID || '').trim()] = r;
+      existing[String(r.Nama || '').trim().toUpperCase()] = r;
+    });
+
+    var toAppend = [];
+    MASTER_34_KAPAL_BESAR.forEach(function (k) {
+      if (!existing[k.id] && !existing[k.nama.toUpperCase()]) {
+        toAppend.push([
+          k.id, k.nama, k.kelas, k.homebase, true, 'KAPAL_PUSAT', 'BESAR_GT100', 42, k.wpp, k.pangkalan
+        ]);
+      }
+    });
+
+    if (toAppend.length > 0) {
+      var lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow + 1, 1, toAppend.length, toAppend[0].length).setValues(toAppend);
+      SpreadsheetApp.flush();
+      Logger.log('[master_ensure34KapalBesar] Menambahkan ' + toAppend.length + ' kapal besar ke master.');
+    }
+  } catch (e) {
+    Logger.log('[master_ensure34KapalBesar] Gagal: ' + e.message);
+  }
 }
 
 /**

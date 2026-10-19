@@ -1,3 +1,124 @@
+## [Fase 18B.0] — Sinkronisasi Tata Kelola & Dokumen Arsitektur Suku Bagian Tata Usaha (Dedicated Spreadsheet Nautika_TU)
+
+**Tanggal**: 15 Oktober 2026  
+**Status**: **SELESAI (COMPLETED & LOCKED)** (Seluruh dokumen master teknis PRD.md, ARCHITECTURE.md, DATA_SCHEMA.md, dan PHASES.md telah disinkronkan secara paripurna tanpa ambiguitas untuk menyongsong implementasi Fase 18B).
+
+### 1. Rincian Penyelarasan Dokumen Teknis
+
+1. **Arsitektur Dedicated Database `Nautika_TU` (`ARCHITECTURE.md` §3.3 & `PRD.md` §5.2)**:
+   - Menetapkan `Nautika_TU` sebagai spreadsheet mandiri ke-4 di lingkungan Nautika untuk menaungi seluruh data manajerial Suku Bagian Tata Usaha (Keuangan, Paket Pekerjaan, Kepegawaian, dan BMN).
+   - Mengisolasi kapasitas data puluhan ribu aset fisik dari spreadsheet operasional harian armada (`Nautika_Transaksi`), mencegah batas 10 juta sel Google Sheets, serta menjamin impor massal SAKTI BMN tidak memblokir `LockService` pelaporan kapal pengawas di laut.
+   - Menyediakan spesifikasi konstanta `SS_NAME.TU = 'Nautika_TU'`, script property `PROP_KEY.TU_SS_ID = 'TU_SS_ID'`, dan fungsi data access `openTuSheet(sheetName)`.
+
+2. **Riset & Spesifikasi BMN: Reguler vs Buku (`PRD.md` §5.2, `DATA_SCHEMA.md`, `ARCHITECTURE.md` §18)**:
+   - Menjabarkan pemisahan akuntansi BMN:
+     - **BMN Buku (Intrakomptabel)**: Belanja Modal Akun 53, di atas batas kapitalisasi, tercatat di Neraca Keuangan Satker, disusutkan berkala di SAKTI, dan memiliki Nilai Buku.
+     - **BMN Reguler (Ekstrakomptabel)**: Belanja Barang Akun 52, di bawah batas kapitalisasi, inventaris operasional di luar Neraca namun wajib tercatat di register fisik dengan NUP individual.
+   - Atribut pencatatan `KategoriPencatatan` (`BUKU` vs `REGULER`), `NilaiPerolehan` (Nilai Reguler / Beli Kotor), dan `NilaiBuku` (Sisa Buku SAKTI).
+
+3. **Penegakan Kondisi Fisik Per-Item (Anti-Jebret) & Notification Summary (`PRD.md` §5.2 & `DATA_SCHEMA.md`)**:
+   - Dilarang keras melakukan agregasi kondisi massal. Satu baris di `TX_BMN_Aset` mewakili tepat satu unit fisik barang dengan identifier unik `KodeBarang + NUP`.
+   - Setiap aset membawa riwayat kondisi individual: `BAIK`, `RUSAK_RINGAN`, atau `RUSAK_BERAT`, tanggal verifikasi fisik, dan foto bukti dukung.
+   - Spesifikasi Notification Summary Banner di bagian akhir dashboard: rekapitulasi jumlah unit dan valuasi Rp ketiga kategori kondisi, serta Actionable Alert khusus aset Rusak Berat yang siap diajukan penghapusan.
+
+4. **Pipeline Geotagging 2-Opsi & Nearest UPT Resolution (`ARCHITECTURE.md` §18.2 & `PRD.md` §5.2)**:
+   - **Opsi 1 (Utama)**: Ekstraksi EXIF GPS dari file mentah (`ArrayBuffer`) via library `exifr` sebelum kompresi kanvas di browser.
+   - **Opsi 2 (Fallback)**: Lokasi pengunggah via GPS perangkat (`navigator.geolocation`) atau homebase akun staf pengunggah di `Users`.
+   - Algoritma pencocokan Haversine server-side terhadap daftar `Master_Lokasi_UPT` (toleransi radius 25 km).
+
+5. **Siklus Penghapusan BMN Kemenkeu (`ARCHITECTURE.md` §18.3 & `DATA_SCHEMA.md`)**:
+   - State machine legalitas berjenjang: `DRAFT_USULAN` → `SURAT_USULAN` → `PERSETUJUAN_KEMENKEU` (DJKN/KPKNL) → `SK_PENGHAPUSAN` (KKP) → `BAST_SELESAI` (Pemusnahan/Lelang) → `StatusAset = DIHAPUS`.
+   - Validasi berkas bukti dokumen PDF dan nomor surat di setiap transisi.
+
+6. **Penyempurnaan Roadmap di `PHASES.md`**:
+   - Menyisipkan **Fase 18B** (Sub-Fase 18B.0 s/d 18B.7) sebagai prioritas utama sebelum melangkah ke Fase 19.
+   - Menghubungkan dependensi Smart Bulk Import Engine yang ditarik maju ke 18B.3 untuk di-reuse pada Fase 19.
+
+---
+
+## [Refinement UI & Peta] — Declutter Total Kapal Terbaik (Apple-Grade Minimalis), Integrasi Akses Ikhtisar, & Paritas Peta Taktis Operasi Laut
+
+**Tanggal**: 15 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Tampilan visual podium bertingkat 3D yang disukai user dipertahankan utuh namun seluruh tumpukan teks/informasi berlebih dibersihkan secara radikal, akses menu dipindahkan dari sidebar menjadi modal interaktif dari kartu Ikhtisar, dan peta Operasi Laut kini menampilkan 34 kapal taktis lengkap dengan koordinat posisi real-time).
+
+### 1. Rincian Perbaikan & Peningkatan
+
+1. **Declutter Total Podium & Evaluasi Kapal Terbaik (`html/views/KapalTerbaik.html`, `html/Script_Main.html`, `html/Style.html`)**:
+   - **Mempertahankan Keindahan Visual Podium**: Layout podium 3-posisi (Juara 2 Perak di kiri, Juara 1 Emas di tengah terangkat tinggi, Juara 3 Perunggu di kanan) dengan balok pedestal bertingkat tetap dipertahankan sesuai preferensi estetika user.
+   - **Pemusnahan Teks Berlebih ("50.000 Informasi")**:
+     - Menghapus 5 baris daftar breakdown teks mikro di dalam tiap kartu pedestal (`Total Skor Pembobotan`, `Poin Tindak`, `Volume Riksa`, `Valuasi Rupiah`, formula pembagian KIA/KII/Rumpon).
+     - Menampilkan angka skor performa yang berani, besar, dan bersih (`.kt-hero-score-val`) didampingi subtitle ringkas WPP & Pangkalan.
+     - Menyederhanakan metrik kunci menjadi 2 chip operasional terpenting: `[X hr layar]` dan `[Y tangkapan]`.
+     - Mengubah tabel leaderboard dari 11 kolom berdesakan menjadi 8 kolom tenang dan seimbang (`#`, `Kapal`, `Komandan & Pangkalan`, `WPP`, `Hari Layar`, `Tangkapan`, `Kesiapan`, `Skor`).
+     - Menghapus formula strip penjelasan matematika dan KPI strip duplikat dari modal header, menyisakan filter triwulan & tahun yang fungsional.
+
+2. **Unifikasi Akses Navigasi dari Ikhtisar ke Halaman Penuh (Bukan Popup/Modal)**:
+   - Menu `kapal-terbaik` tidak dijadikan menu utama di sidebar navigasi agar struktur menu tetap ramping.
+   - Diintegrasikan sebagai halaman tampilan penuh (*full page view*, bukan modal/popup overlay) yang dapat diakses langsung dari kartu *Kapal Pengawas Teraktif & Evaluasi Armada* di halaman **Ikhtisar** melalui tombol aksi `[Kapal Terbaik (TW) →]`.
+   - Menggunakan rute SPA `#kapal-terbaik` lengkap dengan tombol kembali `[← Kembali ke Ikhtisar]` di bagian atas untuk navigasi mulus bolak-balik.
+
+3. **Paritas Peta Taktis Operasi Laut (`html/views/OperasiLaut.html`, `html/Script_Main.html`)**:
+   - Menambahkan kontainer chip filter armada (`#ops-fleet-filter-bar`) di atas peta Operasi Laut (`#map-ops-laut`).
+   - Merender 34 kapal pengawas ukuran besar dengan titik status semantik (`status-op`, `status-siap`, `status-galangan`), efek pulsasi radar pada kapal aktif di laut, serta sinkronisasi filter chip `[Semua]`, `[Operasional]`, `[Siap Pangkalan]`, dan `[Galangan]`.
+   - **Koordinat Posisi Presisi**: Menambahkan baris informasi koordinat geografis presisi (`Posisi Koordinat: LAT°, LNG°`) ke dalam popover kapal di peta Ikhtisar maupun peta Operasi Laut.
+
+---
+
+## [Fase 18] — Peta Taktis 34 Kapal Pengawas Ukuran Besar, Interlock Validasi Laik Laut, & Scoring Engine Kapal Terbaik Triwulanan
+
+**Tanggal**: 15 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Seluruh 3 pilar deliverables Fase 18 tuntas diimplementasikan, 100% lulus uji validasi sintaksis AST Node.js, data 34 armada besar terkunci presisi sesuai infografis resmi, interlock server & klien terhubung aktif, dan sistem penilaian Ship of the Period terintegrasi ke navigasi utama).
+
+### 1. Pencapaian & Hasil Implementasi Lengkap (3 Pilar Deliverables)
+
+1. **Peta Taktis 34 Kapal Pengawas Ukuran Besar (`services/DashboardService.js`, `services/MasterDataService.js`, `html/Script_Main.html`, `html/Style.html`)**:
+   - **Dataset Otoritatif 34 Kapal Besar**: Mengunci referensi 34 armada kapal pengawas ukuran besar resmi KKP:
+     - **26 Kapal Operasional di Laut**: KP. Orca 01 s/d 06, KP. Barakuda 01, KP. Paus 01, KP. H.M. Tutul 01 & 02, KP. Hiu Macan 04 & 06, KP. Hiu 01, 02, 04, 05, 07 s/d 16 pada WPP penugasan masing-masing (WPP 711, 712, 713, 714, 715, 716, 717, 718, 571, 572, 573).
+     - **6 Kapal Siap Operasi di Pangkalan**: KP. Akar Bahar 01 (Jakarta), KP. Hiu Macan 01 (Batam), KP. Hiu Macan 05 (Batam), KP. Hiu 03 (Batam), KP. Hiu 06 (Jakarta), KP. Hiu 17 (Batam).
+     - **2 Kapal Pemeliharaan di Galangan (Tidak Siap)**: KP. Barakuda 02 (Jakarta), KP. Hiu Macan 03 (Lamongan).
+   - **Layer Marker Taktis Leaflet & Presence Pulse**:
+     - Marker kustom bersiluet pill tajam dengan titik status semantik (`status-op`: zamrud hijau, `status-siap`: kuning amber, `status-galangan`: merah kirmizi).
+     - Efek radar beacon pulsasi dinamis (`.ship-beacon-pulse`) pada 26 kapal yang berstatus aktif operasional di laut.
+     - Popover info interaktif kaya data: nama kapal, kelas kapal, status kelaikan, WPP penugasan, nama Komandan resmi, pangkalan sandar, hari layar kumulatif YTD, serta progress comparison bar terhadap **Rerata Nasional (44 Hari)** dan **Rerata Pusat (49 Hari)**.
+     - Tautan cepat *"Buka Profil Kapal →"* yang langsung terhubung ke profil komprehensif kapal (`_openProfilKapal(id)`).
+   - **Filter Status Armada di Atas Peta**:
+     - Chip filter taktis interaktif: `[Semua Armada (34)]`, `[Operasional (26)]`, `[Siap Pangkalan (6)]`, `[Galangan (2)]` yang secara dinamis menyaring marker di peta Leaflet secara instan.
+
+2. **Interlock Validasi Laik Laut Antar-Modul (Perawatan → Operasi Laut) (`services/PerawatanService.js`, `services/OperasiLautService.js`, `html/views/OperasiLaut.html`, `html/Script_Main.html`, `html/Style.html`)**:
+   - **Enforcement Server-Side (Keras)**:
+     - `perawatan_checkLaikLaut(kapalId)`: Memeriksa record kesiapan aktif terbaru di `TX_Perawatan_Kesiapan` yang diurutkan berdasarkan timestamp.
+     - Pengecekan aktif pada `operasiLaut_submit()` dan `operasiLaut_revisi()`: Menolak keras (`throw new Error`) penyimpanan laporan operasi laut jika kapal terpilih tercatat dalam status `TIDAK_SIAP`, melindungi integritas data dari pelanggaran kelaikan laut.
+   - **Feedback Klien (Real-Time)**:
+     - Endpoint `perawatan_getReadinessMap(token)` untuk query status kesiapan seluruh armada secara instan.
+     - Pengecekan otomatis saat pemilihan kapal di dropdown form input (`ops-kapal`) maupun form revisi (`rv-ops-kapal`).
+     - Banner peringatan merah interaktif (`.interlock-warn-banner`): *"⚠️ Interlock Validasi Laik Laut: Kapal ini tercatat TIDAK SIAP / TIDAK LAIK LAUT pada data Perawatan (...). Pengajuan Operasi Laut tidak dapat disimpan sebelum status kesiapan diperbarui."*
+     - Tombol simpan laporan (`#ops-btn-submit` dan `#ops-btn-revisi-save`) otomatis dinonaktifkan (`disabled = true`) selama kapal yang tidak laik laut dipilih.
+
+3. **Scoring Engine & Podium Kapal Terbaik (Ship of the Period TW I–IV) (`services/DashboardService.js`, `html/views/KapalTerbaik.html`, `html/Script_Main.html`, `html/Style.html`, `html/Index.html`)**:
+   - **Scoring Engine Berbobot Resmi (`PRD.md` §5.12)**:
+     - Algoritma pembobotan 4-dimensi: `Skor = (0.40 * HariLayarNorm) + (0.35 * PoinPenindakanNorm) + (0.15 * VolumeRiksaNorm) + (0.10 * ValuasiNorm)`.
+     - Normalisasi poin penindakan: KIA (bobot 15 poin), KII Ilegal (bobot 5 poin), Penertiban Rumpon (bobot 3 poin).
+     - Seluruh skor dinormalisasi (0–100) terhadap capaian tertinggi armada pada triwulan terkait.
+   - **Navigasi & View Mandiri (`html/views/KapalTerbaik.html`)**:
+     - Ditambahkan ke `NAV_SECTIONS` di bawah kategori `UTAMA` (bersama Ikhtisar), dapat diakses oleh seluruh pengguna berstatus APPROVED.
+     - **Toolbar Filter Triwulan**: Pemilihan Tahun (2026, 2025) dan Triwulan (TW I: Jan–Mar, TW II: Apr–Jun, TW III: Jul–Sep, TW IV: Okt–Des) dengan auto-detection ke triwulan berjalan saat ini.
+     - **Formula Strip Informatif**: Penjelasan formula pembobotan dan rincian poin penindakan.
+     - **KPI Strip Ringkasan**: Menampilkan Ship of the Period (Juara 1), Rerata Skor Armada, Total Hari Layar, dan Total Tangkapan Kapal pada triwulan terpilih.
+     - **Podium Kehormatan Visual (Top 3)**:
+       - Pedestal bertingkat 3 dimensi visual (Juara 2 Perak di kiri, Juara 1 Emas di tengah terangkat tinggi, Juara 3 Perunggu di kanan).
+       - Menampilkan medali laurel, nama kapal, kelas kapal, nama komandan, pangkalan, total skor pembobotan, serta breakdown rincian metrik operasi.
+     - **Leaderboard Tabel 34 Kapal Lengkap**:
+       - Tabel performa 34 kapal besar dengan nomor peringkat, sorotan warna podium (Emas/Perak/Perunggu), rincian hari layar, tangkapan KIA/KII/Rumpon, poin tindak, volume riksa, valuasi aset terselamatkan (format rupiah), status kesiapan, dan meter visual skor akhir.
+       - Kotak pencarian responsif klien (`#kt-search-input`) untuk memfilter kapal, pangkalan, atau nama komandan secara instan.
+
+### 2. Keputusan Teknis & Catatan Arsitektur
+
+- **Sinkronisasi Skema Master Kapal**: Fungsi `master_ensure34KapalBesar()` memastikan sheet `Master_Kapal` otomatis terisi dan diperkaya dengan kelas kapal (`ORCA`, `HIU_MACAN`, `HIU`, `BARAKUDA`, `PAUS`, `AKAR_BAHAR`) saat master data diakses.
+- **Kepatuhan Negative Prompt (`DESIGN.md` §1)**: Desain podium dan tabel leaderboard menerapkan prinsip anti-slop: tanpa huruf kapital abu-abu pudar, tanpa background gradien jenuh acak, tanpa emoji di status badge, menggunakan tipografi Plus Jakarta Sans dengan tabular numbers (`tabular-nums`), serta elevasi kontras Slate Navy yang elegan.
+- **Pembersihan Bersih (Teardown Safe)**: Layer Leaflet armada (`_OV_MAP.fleetLayer`) dibersihkan secara tuntas saat berpindah view melalui `_ovMapDestroy()`, mencegah kebocoran memori (memory leak) maupun penumpukan marker duplikat.
+
+---
+
 ## [Hotfix/Refinement UI] — Pemusnahan Tipografi Kapital Abu-Abu (Systemwide Anti-Slop) & Rekonstruksi Kartu KPI Cockpit
 
 **Tanggal**: 14 Oktober 2026  

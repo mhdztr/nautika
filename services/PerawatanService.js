@@ -720,3 +720,82 @@ function _rawatNotifyVoid(toUserId, label, periode, voidReason) {
     });
   } catch (e) { Logger.log('[_rawatNotifyVoid] ' + e.message); }
 }
+
+// ===========================================================================
+// INTERLOCK KELAIKAN LAUT (FASE 18 PRD §5.3)
+// ===========================================================================
+
+/**
+ * Mengecek apakah kapal dinyatakan siap operasi atau tidak siap pada laporan Perawatan aktif terkini.
+ * @param {string} kapalId
+ * @returns {{ siap: boolean, status: string, penyebab: string, periode: string }}
+ */
+function perawatan_checkLaikLaut(kapalId) {
+  var id = String(kapalId || '').trim();
+  if (!id) return { siap: true, status: 'SIAP', penyebab: '', periode: '' };
+  try {
+    var sheet = openTransaksiSheet(SHEET_TX.PERAWATAN_KESIAPAN);
+    if (!sheet) return { siap: true, status: 'SIAP', penyebab: '', periode: '' };
+    var rows = sheetToObjects(sheet);
+    var latest = null;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (String(r.Status) !== ROW_STATUS.ACTIVE) continue;
+      if (String(r.KapalID || '').trim() !== id) continue;
+      if (!latest || new Date(r.Timestamp) > new Date(latest.Timestamp)) {
+        latest = r;
+      }
+    }
+    if (!latest) {
+      return { siap: true, status: 'SIAP', penyebab: '', periode: '' };
+    }
+    var isSiap = latest.StatusSiap === true || String(latest.StatusSiap).toLowerCase() === 'true' || latest.StatusSiap === 1 || String(latest.StatusSiap) === '1';
+    return {
+      siap: isSiap,
+      status: isSiap ? 'SIAP' : 'TIDAK_SIAP',
+      penyebab: latest.Penyebab || '',
+      periode: latest.Periode || ''
+    };
+  } catch (e) {
+    Logger.log('[perawatan_checkLaikLaut] ' + e.message);
+    return { siap: true, status: 'SIAP', penyebab: '', periode: '' };
+  }
+}
+
+/**
+ * Mengembalikan peta kelaikan laut seluruh kapal untuk konsumsi frontend (Interlock UI di Operasi Laut).
+ * @param {string} token
+ * @returns {{ success: boolean, data?: Object, error?: string }}
+ */
+function perawatan_getReadinessMap(token) {
+  try {
+    var session = _getSession(token);
+    if (!session || session.status !== USER_STATUS.APPROVED) {
+      throw new Error('UNAUTHORIZED: Sesi tidak valid atau belum disetujui.');
+    }
+    var sheet = openTransaksiSheet(SHEET_TX.PERAWATAN_KESIAPAN);
+    if (!sheet) return { success: true, data: {} };
+    var rows = sheetToObjects(sheet);
+    var map = {};
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (String(r.Status) !== ROW_STATUS.ACTIVE) continue;
+      var kid = String(r.KapalID || '').trim();
+      if (!kid) continue;
+      if (!map[kid] || new Date(r.Timestamp) > new Date(map[kid].timestamp)) {
+        var isSiap = r.StatusSiap === true || String(r.StatusSiap).toLowerCase() === 'true' || r.StatusSiap === 1 || String(r.StatusSiap) === '1';
+        map[kid] = {
+          siap: isSiap,
+          status: isSiap ? 'SIAP' : 'TIDAK_SIAP',
+          penyebab: r.Penyebab || '',
+          timestamp: r.Timestamp,
+          periode: r.Periode || ''
+        };
+      }
+    }
+    return { success: true, data: map };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+

@@ -1,3 +1,109 @@
+## [Polish UI] — Perapian & Penyatuan Tata Letak Inventaris BMN Tata Usaha (Declutter & Unified Table Container)
+
+**Tanggal**: 21 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Perapian visual antarmuka Inventaris BMN Tata Usaha: eliminasi banner kondisi yang redundan, penyatuan filter & tabel ke dalam satu Master Card kontainer yang harmonis, perbaikan bug string `(undefined km)`, serta penataan tombol aksi tanpa layout wrapping).
+
+### Ringkasan Perbaikan Visual & Fungsional:
+1. **Penyatuan Kontainer Master Card (`.n-card`)**:
+   - Menghilangkan fragmentasi kartu terpisah antara bilah filter dan tabel data. Seluruh elemen daftar BMN (Header + Aksi, Sub-Toolbar Filter, Wadah Tabel Sticky, dan Footer Paginasi) kini terintegrasi dalam satu Master Card yang bersih (`overflow: hidden; border-radius: var(--n-radius-md)`).
+   - Menghilangkan bug *layout wrapping* pada tombol `+ Tambah Aset` yang sebelumnya patah ke baris kedua di sebelah kiri secara canggung. Baris 1 menampung judul daftar aset, badge total unit, dan tombol aksi `Impor SAKTI` + `Tambah Aset`. Baris 2 menampung segmented filter (`Semua Aset`, `Buku (53)`, `Reguler (52)`), search box dengan ikon kaca pembesar, dan dropdown filter kondisi/UPT secara proporsional.
+2. **Eliminasi Banner Redundan & Integrasi Actionable Chip**:
+   - Menghapus banner `bmn-notif-banner` yang memakan ruang vertikal ~80px dan mengulang data yang sudah ada di kartu KPI.
+   - Mengintegrasikan aksi usulan Rusak Berat langsung ke dalam kartu KPI ke-4 (*Antrean Usulan Hapus*): jika terdapat unit Rusak Berat, subteks kartu berubah menjadi tautan interaktif semantik merah (`1 unit Rusak Berat siap usul →`) yang langsung memfilter tabel saat diklik (`_bmnFilterRusakBerat()`).
+3. **Perbaikan Bug Nilai Jarak `(undefined km)`**:
+   - Memperbaiki evaluasi `a.jarakKeUptKm !== null` pada `Script_Main.html` yang sebelumnya menghasilkan teks `(undefined km)` saat nilai jarak bertipe `undefined` atau string kosong. Ditambahkan validasi ketat numerik (`typeof a.jarakKeUptKm === 'number' && !isNaN(a.jarakKeUptKm) && a.jarakKeUptKm >= 0`).
+4. **Penyempurnaan Ikon Tab Subnavigasi**:
+   - Mengganti ikon SVG dollar pada tab "Anggaran & Realisasi" dengan ikon kartu/buku kas keuangan modern yang bersih dan konsisten dengan sistem desain Nautika.
+
+---
+
+## [Sub-Fase 18B.4-Rev] — Visual Watermark OCR Fallback (GPS Map Camera), Zero-Emoji Policy, & Button Uniformity
+
+**Tanggal**: 20 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Akar masalah foto tanpa EXIF terpecahkan via client-side OCR Tesseract.js pada 35% crop kanvas watermark kamera, Zero-Emoji Policy terpasang di DESIGN.md §1 Rule 18 dengan pembersihan 100% tuntas [0 emoji tersisa di codebase], dan keseragaman geometri tombol berdampingan .btn-sm 32px terstandardisasi).
+
+### 1. Akar Masalah & Solusi Visual Watermark OCR (Foto 1)
+1. **Investigasi Biner File `media_1792459541726.jpg`**:
+   - Struktur biner JPEG diperiksa: File hanya memiliki segmen marker `0xFFE0` (JFIF standar), dan **tidak memiliki segmen marker `0xFFE1` (APP1 / EXIF)** sama sekali (`Has EXIF marker: false`).
+   - Aplikasi lapangan seperti "GPS Map Camera", "Timestamp Camera", atau gambar yang diteruskan melalui pesan instan (WhatsApp) sering kali membakar teks metadata (koordinat, alamat, waktu) langsung ke matriks piksel foto (watermark visual), namun tidak menuliskan tag EXIF `0x8825 GPSInfo` ke header JPEG.
+   - Pustaka `exifr.gps(file)` beroperasi murni pada header metadata biner, sehingga mengembalikan `null/undefined`.
+2. **Implementasi Visual Watermark OCR Fallback (`_loadTesseract`, `_bmnScanWatermarkOcr`)**:
+   - Jika `exifr.gps(file)` tidak menemukan koordinat EXIF, sistem otomatis menjalankan pemindai OCR sisi klien via `Tesseract.js` v5 on-demand (`_loadTesseract`).
+   - **Efisiensi Komputasi (Canvas Crop 35% Bawah)**: Alih-alih memproses seluruh gambar beresolusi tinggi (4000×3000px) yang memakan waktu lama, skrip hanya meng-crop 35% bagian bawah foto tempat stempel kamera GPS berada dan menurunkannya ke kanvas berlebar maks 1400px.
+   - **Parser Regex Koordinat Cerdas (`_bmnParseCoordinatesFromText`)**: Mendeteksi pola desimal `Lat -6.178949° Long 106.834359°`, format DMS (`° ' " S/N/E/W`), dan pasangan angka koordinat teritori Indonesia.
+   - **Pengikatan Status & Haversine Match**: Koordinat terdeteksi disimpan dengan status `SumberLokasi = 'OCR_STEMPEL'` (badge: "Stempel Kamera GPS (OCR)"). UPT terdekat dicocokkan otomatis (koordinat Foto 1 di Gambir otomatis mencocokkan `UPT-PUSAT-POA` dengan jarak ~0.8 km).
+
+### 2. Penegakan Kebijakan Zero-Emoji (Zero-Emoji Policy)
+1. **Aturan Governance `DESIGN.md` §1**:
+   - Menambahkan **Rule 18** pada Negative Prompt: *DILARANG EMOJI DI SELURUH SISTEM (ZERO EMOJI POLICY)*.
+   - Penggunaan emoji unicode dilarang keras pada seluruh elemen UI (tombol, heading, form, badge, toast/pesan, placeholder). Seluruh indikasi visual wajib menggunakan tipografi semantik yang bersih atau ikon SVG garis tunggal (`stroke-width: 1.5 - 2`).
+2. **Pembersihan Menyeluruh di Codebase**:
+   - Seluruh unicode emoji di `TataUsaha.html` (`📍`, `⟲`, `📷`, `✕`, `📁`, `📋`, `📊`) dan `Script_Main.html` (`✓`, `⚠`, `📷`, `📄`) dimusnahkan dan digantikan dengan teks profesional serta ikon SVG semantik.
+   - Verifikasi automated regex scanner mencatat: **Total emojis found across all html/ and services/: 0**.
+
+### 3. Standarisasi Keseragaman Geometri Tombol Berdampingan (Foto 2)
+1. **Akar Masalah Foto 2**:
+   - Tombol `#bmn-btn-device-gps` memiliki `class="btn-mini btn-outline"`, di mana `.btn-outline` menimpa padding menjadi `11px 18px` dan radius `10px`, sedangkan tombol pasangannya `#bmn-btn-reset-gps` memiliki `class="btn-mini"` dengan padding `4px 12px` dan radius `9999px`. Hal ini menyebabkan tinggi dan bentuk kedua tombol bertabrakan secara visual.
+2. **Penyempurnaan CSS & Penegakan Desain**:
+   - Menambahkan panduan §5.5 pada `DESIGN.md` mengenai 3 tier tombol baku (Regular 40px, Compact 32px, Mini 26px) serta larangan mutlak memasangkan tombol dengan tier berbeda atau menggabungkan modifier yang bertentangan.
+   - Menambahkan kelas baku `.btn-sm`, `.btn-sm-outline`, `.btn-sm-primary`, `.btn-sm-danger`, `.btn-sm-ghost` dengan tinggi pasti `32px`, padding horizontal `14px`, dan radius `var(--n-radius-sm)` (8px).
+   - Menyelaraskan pasangan tombol GPS di `TataUsaha.html` menjadi `class="btn-sm btn-sm-outline"` secara seragam dengan `align-items: center`.
+
+---
+
+## [Sub-Fase 18B.4] — Engine Geotagging 2-Opsi & Haversine Nearest Match (Pencocokan UPT Otomatis & Kompresi Kanvas Foto Fisik)
+
+**Tanggal**: 19 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Ekstraksi koordinat GPS otomatis dari metadata EXIF foto mentah via exifr sebelum kompresi kanvas, fallback geolokasi perangkat dan profil homebase satker, Haversine nearest match real-time ke 15 UPT dengan auto-select radius 25 km, serta penyimpanan foto fisik ke Drive & TX_Evidence telah terpasang sempurna).
+
+### 1. Rincian Pekerjaan & Arsitektur yang Dibangun
+1. **Opsi 1 (Utama): Ekstraksi EXIF GPS dari Foto Mentah (`_loadExifr` & `exifr.gps`)**:
+   - Pemuatan on-demand library `exifr` v7.1.3 dari CDN unpkg dengan fallback otomatis ke jsdelivr.
+   - Pengecekan metadata GPS wajib dilakukan pada objek berkas mentah (`File`/`ArrayBuffer`) sebelum proses render kanvas HTML5, guna mencegah penghapusan header EXIF oleh kompresi kanvas browser.
+   - Ekstraksi otomatis `latitude` dan `longitude` presisi tinggi dengan penanda status `SumberLokasi = 'EXIF_FOTO'`.
+2. **Opsi 2: Fallback Geolokasi Perangkat & Profil Homebase Satker**:
+   - **Opsi 2A (GPS Perangkat)**: Pemanggilan API `navigator.geolocation.getCurrentPosition` dengan opsi `enableHighAccuracy: true` saat foto tidak memuat metadata EXIF atau saat user menekan tombol "📍 Ambil GPS Perangkat".
+   - **Opsi 2B (Homebase Satker)**: Fallback otomatis jika geolokasi perangkat tidak didukung, ditolak oleh user, atau timeout ke koordinat homebase satker terpilih atau kantor pusat (`UPT-PUSAT-POA`) dengan status `SumberLokasi = 'PROFIL_AKUN'`.
+3. **Engine Haversine Nearest Match Dua Arah (Client & Server)**:
+   - Perhitungan jarak lingkaran besar (*great-circle distance*) real-time terhadap 15 data master UPT/Pangkalan/Stasiun PSDKP.
+   - Jika jarak terdekat $d_{\min} \le 25\text{ km}$ (atau radius spesifik UPT): Nilai dropdown UPT (`#bmn-form-upt`) otomatis diselaraskan dan kartu menampilkan badge hijau terverifikasi beserta jarak km.
+   - Jika $d_{\min} > 25\text{ km}$: Menampilkan kartu peringatan toleransi jarak amber tanpa mengunci paksa dropdown UPT, memberikan fleksibilitas kepada petugas verifikator.
+   - Validasi ulang independen di sisi server (`_bmnMatchNearestUpt` di `services/BMNService.js`) sebelum penulisan ke spreadsheet.
+4. **Kompresi Kanvas Sisi Klien & Integrasi Penyimpanan Foto Fisik**:
+   - Kompresi foto bukti fisik via `_compressImageCanvas` (lebar maks 1600px, JPEG 0.8) mereduksi ukuran berkas hingga ~80% untuk melindungi kuota Google Drive.
+   - Submisi atomik pada `bmn_submitAset`: Berkas foto didekode di backend, disimpan ke folder terstruktur Drive (`Nautika_Evidence/Tata Usaha/[YYYY-MM]/BMN-[AsetID]/`), dan dicatat resmi ke sheet `TX_Evidence`.
+5. **Form & Data Lifecycle**:
+   - Panel Foto Fisik & Geotagging Otomatis pada `#bmn-view-form` di `TataUsaha.html` dengan kartu status telemetri yang responsif.
+   - Dukungan pemulihan koordinat dan pratinjau lampiran saat form dibuka dalam mode revisi/edit aset (`_bmnSetupForm`).
+
+---
+
+## [Sub-Fase 18B.3] — Smart Bulk Import Engine SAKTI BMN (SheetJS & Atomic Chunked Batch Commit)
+
+**Tanggal**: 19 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Parser SheetJS on-demand di browser, pemetaan sinonim header SAKTI/SIMAK, validasi dry-run dua tahap, unduh template starter Excel, dan batch commit chunked 200 baris dengan proteksi LockService telah terpasang sempurna).
+
+### 1. Rincian Pekerjaan & Arsitektur yang Dibangun
+1. **On-Demand SheetJS Loader (`_loadSheetJS`)**:
+   - Pemuatan asinkron SheetJS v0.20.1 dari CDN dengan mekanisme fallback otomatis ke unpkg v0.18.5 tanpa memblokir pemuatan awal SPA.
+2. **Dual-Input Mode (Berkas Excel/CSV & Paste Grid)**:
+   - Dukungan berkas `.xlsx`, `.xls`, dan `.csv` via drag-and-drop dropzone interaktif atau file selector.
+   - Dukungan salin-tempel langsung (*Paste Grid*) dari aplikasi SAKTI / Excel berbasis pemisahan baris dan Tab.
+3. **Kamus Sinonim Header Cerdas (Fuzzy Header Auto-Mapping)**:
+   - Pindai otomatis 10 baris pertama untuk mendeteksi baris header riil dan mengabaikan baris judul laporan/instansi.
+   - Deteksi sinonim kolom cerdas untuk `Kode Barang`, `NUP`, `Nama Barang`, `Merek/Tipe`, `Kategori Pencatatan (BUKU/REGULER)`, `Klasifikasi Kategori BMN`, `Tanggal Perolehan`, `Nilai Perolehan`, `Nilai Buku`, `Kondisi (BAIK/RR/RB)`, `Lokasi UPT`, dan `Ruangan`.
+4. **Validasi Dry-Run di Client (Dua Tahap)**:
+   - Normalisasi nilai: pembersihan format mata uang Rupiah, konversi serial date number Excel ke ISO Date string, normalisasi kondisi semantik, dan pencocokan ke master UPT & Kategori BMN.
+   - Panel pratinjau statistik (Total Baris, Baris Siap Diimpor, Baris Galat/Dilewati, Akumulasi Nilai Perolehan) beserta daftar rincian galat dan tabel pratinjau 5 baris pertama.
+5. **Unduh Template Starter Excel**:
+   - Fitur `_bmnDownloadTemplate()` yang langsung meng-generate berkas `Template_Impor_BMN_SAKTI_Nautika.xlsx` dengan header standar dan 4 baris contoh siap pakai.
+6. **Backend Atomic Batch Ingestion (`bmn_importBatchAset`)**:
+   - Endpoint backend dengan perlindungan `LockService.getScriptLock(15000)`.
+   - Mengisi otomatis `AsetID` UUID per unit (*anti-jebret*), `SumberLokasi = 'IMPOR_SAKTI'`, `ImportBatchID`, dan pencatatan audit log `IMPORT_BMN_BATCH`.
+   - Client-side chunking pengiriman batch 200 aset per request dengan progress bar dinamis untuk mencegah timeout GAS.
+
+---
+
 ## [Refactor UI / Hotfix] — Perombakan Visual & Konversi Modal Popup Kepegawaian Tata Usaha
 
 **Tanggal**: 19 Oktober 2026  

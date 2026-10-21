@@ -507,7 +507,7 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 18B — Revamp Suku Bagian Tata Usaha: Kepegawaian & Sistem Informasi Manajemen BMN Terpadu (Dedicated Spreadsheet Nautika_TU)
 
-- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.2 Selesai; Sub-Fase 18B.3 Siap Dikerjakan)**.
+- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.4 Selesai; Sub-Fase 18B.5 Siap Dikerjakan)**.
 - **Dependensi**: Fase 18 Selesai (Lunas).
 - **Tujuan**: Membangun tata kelola mandiri Suku Bagian Tata Usaha melalui spreadsheet dedicated `Nautika_TU`, sistem manajemen kepegawaian 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), sistem register fisik BMN per-item anti-jebret (Reguler vs Buku), dual-option geotagging UPT terdekat, notification summary kondisi kelaikan aset, dan siklus penghapusan legal Kemenkeu.
 - **Ruang Lingkup Deliverables**:
@@ -520,12 +520,16 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
      - Inisialisasi sheet `TX_BMN_Aset`, `Master_Lokasi_UPT`, `Master_BMN_Kategori`.
      - Backend [`BMNService.js`](file:///home/pinefeast/Projects/nautika/services/BMNService.js): CRUD aset berversi (append-only dengan `AsetID` UUID), query berhalaman server-side (server pagination), filter BMN Buku (Intrakomptabel) vs BMN Reguler (Ekstrakomptabel), perhitungan umur aset & masa manfaat on-read, matching UPT terdekat via Haversine.
      - Frontend UI di [`TataUsaha.html`](file:///home/pinefeast/Projects/nautika/html/views/TataUsaha.html): 4 KPI cards (Gross, Net, % Kelaikan, Antrean Hapus), Notification Summary Banner kondisi (Baik/Rusak Ringan/Rusak Berat), toggle segmented Buku vs Reguler, filter kondisi & UPT, live search, tabel register berpaginasi, in-page form create/edit (full view no popup), dan modal anulir berjejak audit.
-  4. **Sub-Fase 18B.3 — Smart Bulk Import Engine SAKTI (Ditarik Maju dari Fase 19)**: **Siap Dikerjakan**.
-     - Parser SheetJS on-demand di browser, kamus sinonim header BMN, dry-run validator di client, atomic batch insert via `Range.setValues()` 500 baris per batch. *(Engine ini di-reuse pada Fase 19 untuk kapal tangkapan Operasi Laut)*.
-  5. **Sub-Fase 18B.4 — Engine Geotagging 2-Opsi & Haversine Nearest Match**:
-     - Opsi 1: Ekstraksi koordinat GPS dari EXIF foto mentah via `exifr` sebelum kompresi kanvas.
-     - Opsi 2: Fallback geolokasi perangkat pengunggah / lookup profil homebase akun pengunggah.
-     - Server-side Haversine matching ke daftar UPT/Pangkalan/POA terdekat dengan toleransi radius 25 km.
+  4. **Sub-Fase 18B.3 — Smart Bulk Import Engine SAKTI (Ditarik Maju dari Fase 19)**: **Selesai**.
+     - Parser SheetJS on-demand di browser, kamus sinonim header BMN, dry-run validator di client, unduh template starter Excel, batch commit chunked via `bmn_importBatchAset()` dengan proteksi `LockService`. *(Engine ini siap di-reuse pada Fase 19 untuk kapal tangkapan Operasi Laut)*.
+  5. **Sub-Fase 18B.4 — Engine Geotagging 2-Opsi (EXIF + Visual Watermark OCR), Zero-Emoji, & Standarisasi Tombol**: **Selesai**.
+     - Opsi 1: Ekstraksi koordinat GPS otomatis dari metadata EXIF foto mentah via `exifr` sebelum kompresi kanvas.
+     - Opsi 1B (Visual Watermark OCR Fallback): Pemindaian OCR sisi klien via `Tesseract.js` pada 35% area bawah foto (canvas crop) untuk mengekstrak koordinat stempel kamera ("GPS Map Camera" dsb) saat EXIF tidak tersedia atau terhapus, dengan status `SumberLokasi = 'OCR_STEMPEL'`.
+     - Opsi 2: Fallback geolokasi perangkat pengunggah / lookup profil homebase satker.
+     - Haversine matching real-time dua arah (client & server) ke 15 UPT dengan auto-select & verifikasi radius toleransi 25 km.
+     - Kompresi kanvas foto fisik (max-width 1600px, JPEG 0.8) dan penyimpanan otomatis ke Drive + `TX_Evidence`.
+     - Zero-Emoji Policy: Larangan keras emoji unicode di `DESIGN.md` §1 (Rule 18) dan pembersihan total (0 emoji) di seluruh antarmuka dan skrip sistem.
+     - Standarisasi Geometri Tombol: Penerapan kelas `.btn-sm.btn-sm-outline` (tinggi 32px) seragam pada tombol berdampingan sesuai aturan `DESIGN.md` §5.5.
   6. **Sub-Fase 18B.5 — Dashboard BMN, Notification Summary & Peta Sebaran UPT**:
      - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah.
      - Penegakan kondisi fisik per-item (*anti-jebret*).

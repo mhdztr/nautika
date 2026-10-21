@@ -634,20 +634,26 @@ a { text-decoration: none; color: inherit; }
 
 /* Tombol aksi mini dalam baris tabel (Revisi/Anulir) — pill outline. */
 .btn-mini {
-  display: inline-block;
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: var(--n-radius-pill);
   border: 1px solid var(--n-border-hairline);
   background: rgba(0, 0, 0, 0.02);
   color: var(--n-text-primary);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out), border-color 0.12s var(--ease-out), transform 90ms var(--ease-out);
-  margin-right: 5px;
   user-select: none;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 @media (hover: hover) and (pointer: fine) {
   .btn-mini:hover {
@@ -657,6 +663,79 @@ a { text-decoration: none; color: inherit; }
   }
 }
 .btn-mini:active:not(:disabled) { transform: scale(0.97) !important; }
+
+/* Tier 2: Compact / Action Bar Buttons (.btn-sm) — tinggi seragam 32px */
+.btn-sm,
+.btn-sm-outline,
+.btn-sm-ghost,
+.btn-sm-primary,
+.btn-sm-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: var(--n-radius-sm);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
+}
+.btn-sm-primary {
+  background: var(--n-primary);
+  color: #FFFFFF;
+  border: 1px solid var(--n-primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-primary:hover:not(:disabled) { background: #1E2652; }
+}
+.btn-sm-outline {
+  background: transparent;
+  color: var(--n-primary);
+  border: 1px solid var(--n-border);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-outline:hover:not(:disabled) {
+    background: var(--n-primary-light);
+    border-color: var(--n-primary);
+  }
+}
+.btn-sm-ghost {
+  background: transparent;
+  color: var(--n-text-secondary);
+  border: 1px solid transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-ghost:hover:not(:disabled) {
+    background: var(--n-surface-2);
+    color: var(--n-text-primary);
+  }
+}
+.btn-sm-danger {
+  background: transparent;
+  color: var(--n-crit);
+  border: 1px solid #FECACA;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-danger:hover:not(:disabled) {
+    background: #FEF2F2;
+    border-color: var(--n-crit);
+  }
+}
+.btn-sm:active:not(:disabled),
+.btn-sm-outline:active:not(:disabled),
+.btn-sm-ghost:active:not(:disabled),
+.btn-sm-primary:active:not(:disabled),
+.btn-sm-danger:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
 
 /* Apple & Emil Kowalski Tactile Compression Feedback */
 .btn:active:not(:disabled),
@@ -3931,6 +4010,86 @@ a { text-decoration: none; color: inherit; }
   background: #FFFFFF;
   color: var(--n-primary, #2B3674);
   box-shadow: 0 1px 4px rgba(43, 54, 116, 0.08);
+}
+
+/* SMART BULK IMPORT BMN (SAKTI) STYLES */
+.bmn-dropzone {
+  border: 2px dashed rgba(43, 54, 116, 0.22);
+  border-radius: 12px;
+  padding: 28px 16px;
+  text-align: center;
+  background: rgba(43, 54, 116, 0.02);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bmn-dropzone:hover,
+.bmn-dropzone.dragover {
+  border-color: var(--n-primary, #2B3674);
+  background: rgba(43, 54, 116, 0.06);
+}
+
+.bmn-paste-area {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 140px;
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--n-border, rgba(0,0,0,0.12));
+  background: #FFFFFF;
+  color: var(--n-text-primary, #2B3674);
+  resize: vertical;
+}
+
+.bmn-paste-area:focus {
+  outline: none;
+  border-color: var(--n-primary, #2B3674);
+  box-shadow: 0 0 0 3px rgba(43, 54, 116, 0.12);
+}
+
+.bmn-import-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .bmn-import-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.bmn-import-stat-card {
+  background: #F8FAFC;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.bmn-import-stat-card .stat-num {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--n-text-primary, #2B3674);
+  line-height: 1.2;
+}
+
+.bmn-import-stat-card .stat-lbl {
+  font-size: 0.7rem;
+  color: var(--n-text-muted, #A3AED0);
+  margin-top: 2px;
+}
+
+.bmn-import-stat-card.is-valid .stat-num {
+  color: #059669;
+}
+
+.bmn-import-stat-card.is-invalid .stat-num {
+  color: #DC2626;
 }
 
 @media (prefers-reduced-motion: reduce) {

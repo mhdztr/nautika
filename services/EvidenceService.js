@@ -45,7 +45,9 @@ function _evAssertRowScope(session, divisiId) {
  * @returns {{divisiId:string, divisiName:string, ym:string, periode:string, konteks:string}}
  */
 function _evResolveContext(refSheet, refRowId, session) {
-  var sheet = openTransaksiSheet(refSheet);
+  var sheet = (refSheet === 'TX_BMN_Aset' || (typeof SHEET_TU !== 'undefined' && refSheet === SHEET_TU.BMN_ASET))
+    ? openTuSheet(refSheet)
+    : openTransaksiSheet(refSheet);
   if (!sheet) throw new Error('Sheet tujuan "' + refSheet + '" tidak ditemukan.');
 
   var found = findRowById(sheet, refRowId);
@@ -91,6 +93,9 @@ function _evKonteks(refSheet, row) {
   }
   if (refSheet === SHEET_TX.PERAWATAN_ITEM) {
     return 'Item-' + _evSlug(String(row['NamaPekerjaan'] || row['RowID'] || 'item'), 40);
+  }
+  if (refSheet === 'TX_BMN_Aset' || (typeof SHEET_TU !== 'undefined' && refSheet === SHEET_TU.BMN_ASET)) {
+    return 'BMN-' + _evSlug(String(row['KodeBarang'] || row['AsetID'] || 'aset'), 40);
   }
   return _evSlug(String(refSheet), 40);
 }
@@ -498,7 +503,10 @@ function _evReqRows(val, label) {
 
 /** DivisiID sebuah baris tujuan (untuk scope check). */
 function _evRowDivisi(refSheet, refRowId) {
-  var found = findRowById(openTransaksiSheet(refSheet), refRowId);
+  var sheet = (refSheet === 'TX_BMN_Aset' || (typeof SHEET_TU !== 'undefined' && refSheet === SHEET_TU.BMN_ASET))
+    ? openTuSheet(refSheet)
+    : openTransaksiSheet(refSheet);
+  var found = findRowById(sheet, refRowId);
   return found ? String(found.obj['DivisiID'] || '') : '';
 }
 

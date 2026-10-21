@@ -69,7 +69,7 @@ function _bmnHaversineKm(lat1, lon1, lat2, lon2) {
  */
 function _bmnMatchNearestUpt(lat, lon, masterUpts) {
   if (!lat || !lon || isNaN(lat) || isNaN(lon) || !masterUpts || masterUpts.length === 0) {
-    return { lokasiId: 'UPT-PUSAT', namaLokasi: 'Pusat (POA)', distanceKm: null };
+    return { lokasiId: 'UPT-PUSAT-POA', namaLokasi: 'Pusat (POA)', distanceKm: null };
   }
 
   var nearest = null;
@@ -92,7 +92,7 @@ function _bmnMatchNearestUpt(lat, lon, masterUpts) {
     }
   }
 
-  return nearest || { lokasiId: 'UPT-PUSAT', namaLokasi: 'Pusat (POA)', distanceKm: null };
+  return nearest || { lokasiId: 'UPT-PUSAT-POA', namaLokasi: 'Pusat (POA)', distanceKm: null };
 }
 
 // ── AGE & USEFUL LIFE HELPER ──────────────────────────────
@@ -533,7 +533,7 @@ function bmn_submitAset(token, params) {
       // Hitung koordinat dan matching UPT terdekat jika ada koordinat GPS
       var lat = parseFloat(params.latitude) || null;
       var lon = parseFloat(params.longitude) || null;
-      var lokasiId = params.lokasiId || 'UPT-PUSAT';
+      var lokasiId = params.lokasiId || 'UPT-PUSAT-POA';
       var jarakKm = null;
       var sumberLokasi = params.sumberLokasi || 'MANUAL';
 
@@ -568,6 +568,26 @@ function bmn_submitAset(token, params) {
       var newRowId = Utilities.getUuid();
       var periode = getCurrentPeriode();
 
+      // Penanganan foto bukti fisik (base64) jika dikirimkan
+      var fotoEvidenceId = params.fotoEvidenceId || '';
+      if (params.photoPayload && params.photoPayload.dataBase64) {
+        try {
+          var pB64 = String(params.photoPayload.dataBase64).replace(/^data:[^;]+;base64,/, '').trim();
+          var pMime = params.photoPayload.mimeType || 'image/jpeg';
+          var pName = params.photoPayload.fileName || ('BMN_' + asetId + '.jpg');
+          var pBlob = Utilities.newBlob(Utilities.base64Decode(pB64), pMime, pName);
+
+          var rootFolder = _evGetOrCreateRoot();
+          var fTu = _evGetOrCreateSub(rootFolder, 'Tata Usaha');
+          var fYm = _evGetOrCreateSub(fTu, (periode && periode.length >= 7) ? periode.substring(0, 7) : 'Umum');
+          var fAset = _evGetOrCreateSub(fYm, 'BMN-' + asetId);
+          var driveFile = fAset.createFile(pBlob);
+          fotoEvidenceId = _evAppendEvidence(SHEET_TU.BMN_ASET, newRowId, driveFile.getId(), pName, pMime, 'UPLOAD', session.userId);
+        } catch (evErr) {
+          Logger.log('[bmn_submitAset photo error] ' + evErr.message);
+        }
+      }
+
       var newRow = [
         newRowId,
         _BMN_DIVISI_ID,
@@ -597,7 +617,7 @@ function bmn_submitAset(token, params) {
         sumberLokasi,
         jarakKm,
         now, // TanggalVerifikasi
-        params.fotoEvidenceId || '',
+        fotoEvidenceId,
         'AKTIF', // StatusAset
         '',      // PenghapusanID
         params.kapalId || '',
@@ -630,6 +650,143 @@ function bmn_submitAset(token, params) {
     }
   } catch (e) {
     Logger.log('[bmn_submitAset] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ── PUBLIC API: SMART BULK IMPORT BMN (SAKTI / SIMAK) ─────
+
+/**
+ * Menyimpan data impor massal BMN dari hasil parsing SAKTI/SIMAK.
+ * 1 baris = 1 unit fisik tunggal (Anti-Jebret).
+ *
+ * @param {string} token
+ * @param {{
+ *   items: Array<Object>,
+ *   batchId?: string
+ * }} payload
+ */
+function bmn_importBatchAset(token, payload) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertWrite(session);
+
+    if (!payload || !payload.items || !payload.items.length) {
+      throw new Error('Tidak ada data aset yang dikirim untuk diimpor.');
+    }
+
+    var items = payload.items;
+    var batchId = payload.batchId || ('BATCH-BMN-' + Utilities.formatDate(new Date(), 'GMT+7', 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().substring(0, 6).toUpperCase());
+    var now = new Date();
+    var periode = getCurrentPeriode();
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+
+    try {
+      var sheet = openTuSheet(SHEET_TU.BMN_ASET);
+      var lastRow = sheet.getLastRow();
+
+      var uptSheet = openTuSheet(SHEET_TU.MASTER_LOKASI_UPT);
+      var uptRows = sheetToObjects(uptSheet);
+
+      var rowsToAdd = [];
+      var totalNilaiPerolehan = 0;
+      var totalNilaiBuku = 0;
+
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (!it.kodeBarang || !it.nup || !it.namaBarang) {
+          continue; // Lewati baris yang tidak memenuhi field kunci
+        }
+
+        var newRowId = Utilities.getUuid();
+        var asetId = 'BMN-' + Utilities.getUuid().substring(0, 12).toUpperCase();
+
+        var lat = parseFloat(it.latitude) || null;
+        var lon = parseFloat(it.longitude) || null;
+        var lokasiId = it.lokasiId || 'UPT-PUSAT';
+        var jarakKm = null;
+
+        if (lat !== null && lon !== null) {
+          var match = _bmnMatchNearestUpt(lat, lon, uptRows);
+          if (!it.lokasiId) lokasiId = match.lokasiId;
+          jarakKm = match.distanceKm;
+        }
+
+        var np = parseFloat(it.nilaiPerolehan) || 0;
+        var nb = parseFloat(it.nilaiBuku) || 0;
+        totalNilaiPerolehan += np;
+        totalNilaiBuku += nb;
+
+        var tglPerolehan = it.tanggalPerolehan ? new Date(it.tanggalPerolehan) : now;
+        if (isNaN(tglPerolehan.getTime())) tglPerolehan = now;
+
+        var row = [
+          newRowId,
+          _BMN_DIVISI_ID,
+          periode,
+          session.userId,
+          now,
+          ROW_STATUS.ACTIVE,
+          '', // SupersedesRowID
+          '', // VoidReason
+          '', // VoidedBy
+          '', // VoidedAt
+          asetId,
+          String(it.kodeBarang).trim(),
+          String(it.nup).trim(),
+          String(it.namaBarang).trim(),
+          it.merekTipe ? String(it.merekTipe).trim() : '',
+          it.kategoriPencatatan === 'REGULER' ? 'REGULER' : 'BUKU',
+          it.kodeKategori || 'KAT-ALAT_KANTOR',
+          tglPerolehan,
+          np,
+          nb,
+          it.kondisi || 'BAIK',
+          lokasiId,
+          it.lokasiDetailRuangan ? String(it.lokasiDetailRuangan).trim() : '',
+          lat,
+          lon,
+          'IMPOR_SAKTI',
+          jarakKm,
+          now, // TanggalVerifikasi
+          it.fotoEvidenceId || '',
+          'AKTIF',
+          '', // PenghapusanID
+          it.kapalId || '',
+          batchId,
+          it.keterangan ? String(it.keterangan).trim() : ''
+        ];
+
+        rowsToAdd.push(row);
+      }
+
+      if (rowsToAdd.length > 0) {
+        sheet.getRange(lastRow + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+      }
+
+      logAudit(session.userId, 'IMPORT_BMN_BATCH', 'TX_BMN_Aset', batchId, {
+        totalUnit: rowsToAdd.length,
+        totalNilaiPerolehan: totalNilaiPerolehan,
+        totalNilaiBuku: totalNilaiBuku
+      });
+
+      return {
+        success: true,
+        data: {
+          batchId: batchId,
+          insertedCount: rowsToAdd.length,
+          totalNilaiPerolehan: totalNilaiPerolehan,
+          totalNilaiBuku: totalNilaiBuku
+        },
+        message: 'Berhasil mengimpor ' + rowsToAdd.length + ' unit aset BMN ke register inventaris.'
+      };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[bmn_importBatchAset] ' + e.message);
     return { success: false, error: e.message };
   }
 }

@@ -7118,7 +7118,8 @@ var _BMN = {
   summary: null,
   listData: null,
   pendingRowId: null,
-  pendingAsetId: null
+  pendingAsetId: null,
+  currentPhoto: null
 };
 
 function _tuLoadBMN(force) {
@@ -7219,9 +7220,22 @@ function _bmnRenderSummary(d) {
   if (elLaik)     elLaik.textContent = d.pctKelaikanFisik + '%';
   if (elLaikSub)  elLaikSub.textContent = (d.kondisi ? d.kondisi.baik.count : 0) + ' Baik \u00B7 ' + (d.kondisi ? d.kondisi.rusakRingan.count : 0) + ' Rusak Ringan';
   if (elHapus)    elHapus.textContent = (d.antreanHapusCount || 0) + ' unit';
-  if (elHapusSub) elHapusSub.textContent = (d.rusakBeratKandidatHapus || 0) + ' unit Rusak Berat siap usul';
+  if (elHapusSub) {
+    if (d.rusakBeratKandidatHapus > 0) {
+      elHapusSub.innerHTML = '<span style="color:var(--n-crit);font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" onclick="_bmnFilterRusakBerat()" title="Klik untuk memfilter aset Rusak Berat">' +
+        d.rusakBeratKandidatHapus + ' unit Rusak Berat siap usul &rarr;</span>';
+    } else {
+      elHapusSub.textContent = 'Tidak ada antrean penghapusan';
+    }
+  }
 
-  // Notification Banner
+  // Update total unit badge di header tabel
+  var elBadgeUnit = document.getElementById('bmn-badge-total-unit');
+  if (elBadgeUnit) {
+    elBadgeUnit.textContent = (d.totalUnit || 0) + ' unit';
+  }
+
+  // Notification Banner fallback (jika elemen ada)
   var elDesc = document.getElementById('bmn-notif-desc');
   var elAct  = document.getElementById('bmn-notif-action');
   if (elDesc && d.notificationAlert) {
@@ -7285,14 +7299,14 @@ function _bmnRenderTable(data) {
 
   var html = '<table class="n-table" style="width:100%;">';
   html += '<thead><tr>' +
-            '<th style="width:120px;">Kode &amp; NUP</th>' +
+            '<th style="width:125px;">Kode &amp; NUP</th>' +
             '<th>Nama Barang &amp; Spesifikasi</th>' +
-            '<th style="width:100px;">Klasifikasi</th>' +
+            '<th style="width:105px;">Klasifikasi</th>' +
             '<th>Penempatan &amp; Ruangan</th>' +
-            '<th style="width:130px;">Tgl &amp; Umur</th>' +
-            '<th style="width:100px;">Kondisi</th>' +
-            '<th style="text-align:right;width:130px;">Valuasi (Rp)</th>' +
-            '<th style="width:110px;text-align:center;">Aksi</th>' +
+            '<th style="width:125px;">Tgl &amp; Umur</th>' +
+            '<th style="width:105px;">Kondisi</th>' +
+            '<th style="text-align:right;width:135px;">Valuasi (Rp)</th>' +
+            '<th style="width:120px;text-align:center;">Aksi</th>' +
           '</tr></thead><tbody>';
 
   items.forEach(function (a) {
@@ -7317,10 +7331,11 @@ function _bmnRenderTable(data) {
       umurStr += '<div style="color:var(--n-crit);font-size:.7rem;font-weight:600;">(Kadaluwarsa)</div>';
     }
 
-    // Lokasi & Jarak
-    var distStr = a.jarakKeUptKm !== null
-      ? ' <span style="font-size:.72rem;color:var(--n-text-muted);">(' + a.jarakKeUptKm + ' km)</span>'
-      : '';
+    // Lokasi & Jarak (hanya tampil jika valid numeric)
+    var distStr = '';
+    if (typeof a.jarakKeUptKm === 'number' && !isNaN(a.jarakKeUptKm) && a.jarakKeUptKm >= 0) {
+      distStr = ' <span style="font-size:.72rem;color:var(--n-text-muted);">(' + a.jarakKeUptKm + ' km)</span>';
+    }
     var lokText = _esc(a.lokasiId) + distStr;
     if (a.lokasiDetailRuangan) {
       lokText += '<div style="font-size:.75rem;color:var(--n-text-muted);">' + _esc(a.lokasiDetailRuangan) + '</div>';
@@ -7349,8 +7364,8 @@ function _bmnRenderTable(data) {
                 '<div style="font-size:.72rem;color:var(--n-text-muted);">Beli: ' + _rupiah(a.nilaiPerolehan) + '</div>' +
               '</td>' +
               '<td style="text-align:center;">' +
-                '<div style="display:inline-flex;gap:4px;">' +
-                  '<button type="button" class="btn-mini" onclick="_bmnEditAset(\'' + _esc(a.asetId) + '\')">Edit</button>' +
+                '<div style="display:inline-flex;gap:6px;justify-content:center;">' +
+                  '<button type="button" class="btn-mini btn-outline" onclick="_bmnEditAset(\'' + _esc(a.asetId) + '\')">Edit</button>' +
                   (isAuthorizedAnulir
                     ? '<button type="button" class="btn-mini btn-danger" onclick="_bmnOpenAnulirModal(\'' + _esc(a.rowId) + '\', \'' + _esc(a.kodeBarang) + '\', \'' + _esc(a.nup) + '\', \'' + _esc(a.namaBarang) + '\')">Anulir</button>'
                     : '') +
@@ -7444,10 +7459,535 @@ function _bmnSwitchView(viewName, asetObj) {
   }
 }
 
+// ── GEOTAGGING & HAVERSINE NEAREST MATCH (SUB-FASE 18B.4) ───
+
+var _EXIFR_LOADED = false;
+var _exifrQueue = [];
+
+function _loadExifr(cb) {
+  if (window.exifr && typeof window.exifr.gps === 'function') {
+    _EXIFR_LOADED = true;
+    if (cb) cb();
+    return;
+  }
+  if (_EXIFR_LOADED) {
+    if (cb) cb();
+    return;
+  }
+  if (cb) _exifrQueue.push(cb);
+  if (document.getElementById('exifr-cdn')) return;
+
+  var script = document.createElement('script');
+  script.id  = 'exifr-cdn';
+  script.src = 'https://unpkg.com/exifr@7.1.3/dist/full.umd.js';
+  script.onload = function () {
+    _EXIFR_LOADED = true;
+    var q = _exifrQueue.slice();
+    _exifrQueue = [];
+    q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+  };
+  script.onerror = function () {
+    console.warn('Gagal memuat exifr dari unpkg, mencoba fallback jsdelivr...');
+    var fallback = document.createElement('script');
+    fallback.id  = 'exifr-cdn-fallback';
+    fallback.src = 'https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js';
+    fallback.onload = function () {
+      _EXIFR_LOADED = true;
+      var q = _exifrQueue.slice();
+      _exifrQueue = [];
+      q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+    };
+    fallback.onerror = function () {
+      console.error('Gagal memuat exifr dari seluruh CDN.');
+      _exifrQueue = [];
+    };
+    document.head.appendChild(fallback);
+  };
+  document.head.appendChild(script);
+}
+
+// -------------------------------------------------------------
+// TESSERACT OCR LOAD & VISUAL WATERMARK COORDINATE EXTRACTION
+// -------------------------------------------------------------
+var _TESSERACT_LOADED = false;
+var _tesseractQueue = [];
+
+function _loadTesseract(cb) {
+  if (window.Tesseract && typeof window.Tesseract.recognize === 'function') {
+    _TESSERACT_LOADED = true;
+    if (cb) cb();
+    return;
+  }
+  if (_TESSERACT_LOADED) {
+    if (cb) cb();
+    return;
+  }
+  if (cb) _tesseractQueue.push(cb);
+  if (document.getElementById('tesseract-cdn')) return;
+
+  var script = document.createElement('script');
+  script.id  = 'tesseract-cdn';
+  script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  script.onload = function () {
+    _TESSERACT_LOADED = true;
+    var q = _tesseractQueue.slice();
+    _tesseractQueue = [];
+    q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+  };
+  script.onerror = function () {
+    console.warn('Gagal memuat tesseract dari jsdelivr, mencoba fallback unpkg...');
+    var fallback = document.createElement('script');
+    fallback.id  = 'tesseract-cdn-fallback';
+    fallback.src = 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';
+    fallback.onload = function () {
+      _TESSERACT_LOADED = true;
+      var q = _tesseractQueue.slice();
+      _tesseractQueue = [];
+      q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+    };
+    fallback.onerror = function () {
+      console.error('Gagal memuat tesseract dari seluruh CDN.');
+      _tesseractQueue = [];
+    };
+    document.head.appendChild(fallback);
+  };
+  document.head.appendChild(script);
+}
+
+function _bmnParseCoordinatesFromText(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  // 1. Format desimal dengan label Lat & Long / Lon / LS / LU / BT / BB
+  // Mis. "Lat -6.178949° Long 106.834359°" atau "Latitude: -6.178949, Longitude: 106.834359"
+  var latMatch = text.match(/(?:Lat(?:itude)?|LS|LU)\s*[:\s]*([+-]?\d+(?:\.\d+)?)/i);
+  var lonMatch = text.match(/(?:Long?(?:itude)?|BT|BB)\s*[:\s]*([+-]?\d+(?:\.\d+)?)/i);
+
+  if (latMatch && lonMatch) {
+    var lat = parseFloat(latMatch[1]);
+    var lon = parseFloat(lonMatch[1]);
+    if (/LS/i.test(latMatch[0]) && lat > 0) lat = -lat;
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return { latitude: lat, longitude: lon, raw: latMatch[0] + ' ' + lonMatch[0] };
+    }
+  }
+
+  // 2. Format DMS (Degrees Minutes Seconds): mis. 6°10'44.2"S 106°50'03.7"E
+  var dmsRegex = /(\d+)[°\s]+(\d+)['`\s]+([\d.]+)?["\s]*([NSEW])/gi;
+  var dmsMatches = [];
+  var m;
+  while ((m = dmsRegex.exec(text)) !== null) {
+    var deg = parseFloat(m[1]) || 0;
+    var min = parseFloat(m[2]) || 0;
+    var sec = parseFloat(m[3]) || 0;
+    var dir = m[4].toUpperCase();
+    var dd = deg + (min / 60) + (sec / 3600);
+    if (dir === 'S' || dir === 'W') dd = -dd;
+    dmsMatches.push({ dd: dd, dir: dir });
+  }
+  if (dmsMatches.length >= 2) {
+    var latObj = dmsMatches.find(function(x) { return x.dir === 'N' || x.dir === 'S'; });
+    var lonObj = dmsMatches.find(function(x) { return x.dir === 'E' || x.dir === 'W'; });
+    if (latObj && lonObj) {
+      return { latitude: latObj.dd, longitude: lonObj.dd, raw: 'DMS' };
+    }
+  }
+
+  // 3. Fallback pasangan angka desimal koordinat Indonesia (Lat berkisar -15 s.d. 10, Lon 90 s.d. 145)
+  var genericRegex = /([+-]?\d{1,2}\.\d{4,8})[^\d\w\r\n]+([+-]?\d{2,3}\.\d{4,8})/;
+  var genMatch = text.match(genericRegex);
+  if (genMatch) {
+    var gLat = parseFloat(genMatch[1]);
+    var gLon = parseFloat(genMatch[2]);
+    if (!isNaN(gLat) && !isNaN(gLon) && gLat >= -15 && gLat <= 10 && gLon >= 90 && gLon <= 145) {
+      return { latitude: gLat, longitude: gLon, raw: genMatch[0] };
+    }
+  }
+
+  return null;
+}
+
+function _bmnScanWatermarkOcr(file, cb) {
+  if (!file || !window.FileReader) {
+    if (cb) cb(null);
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      try {
+        var origW = img.naturalWidth || img.width;
+        var origH = img.naturalHeight || img.height;
+
+        // Potong hanya 35% area bawah tempat watermark GPS Map Camera berada untuk efisiensi komputasi
+        var cropHeightRatio = 0.35;
+        var srcY = Math.round(origH * (1 - cropHeightRatio));
+        var srcH = Math.round(origH * cropHeightRatio);
+
+        var scale = Math.min(1, 1400 / origW);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(origW * scale);
+        canvas.height = Math.round(srcH * scale);
+
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, srcY, origW, srcH, 0, 0, canvas.width, canvas.height);
+
+        _loadTesseract(function() {
+          if (!window.Tesseract || typeof window.Tesseract.recognize !== 'function') {
+            if (cb) cb(null);
+            return;
+          }
+          window.Tesseract.recognize(canvas, 'eng')
+            .then(function(result) {
+              var text = (result && result.data && result.data.text) || '';
+              var coords = _bmnParseCoordinatesFromText(text);
+              if (cb) cb(coords, text);
+            })
+            .catch(function(err) {
+              console.warn('[OCR Watermark] Gagal proses recognize:', err);
+              if (cb) cb(null);
+            });
+        });
+      } catch (err) {
+        console.warn('[OCR Watermark] Gagal crop canvas:', err);
+        if (cb) cb(null);
+      }
+    };
+    img.onerror = function() {
+      if (cb) cb(null);
+    };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function() {
+    if (cb) cb(null);
+  };
+  reader.readAsDataURL(file);
+}
+
+function _bmnClientHaversineKm(lat1, lon1, lat2, lon2) {
+  var R = 6371; // Radius bumi dalam km
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+function _bmnClientMatchNearestUpt(lat, lon, uptList) {
+  if (!lat || !lon || isNaN(lat) || isNaN(lon) || !uptList || !uptList.length) {
+    return null;
+  }
+  var nearest = null;
+  var minDistance = Infinity;
+
+  for (var i = 0; i < uptList.length; i++) {
+    var u = uptList[i];
+    var uLat = parseFloat(u.latitude);
+    var uLon = parseFloat(u.longitude);
+    if (isNaN(uLat) || isNaN(uLon)) continue;
+
+    var dist = _bmnClientHaversineKm(lat, lon, uLat, uLon);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = u;
+    }
+  }
+
+  if (!nearest) return null;
+  var radiusLimit = nearest.radiusVerifikasiKm || 25;
+  return {
+    nearestUpt: nearest,
+    minDistance: minDistance,
+    isWithinRadius: minDistance <= radiusLimit
+  };
+}
+
+function _bmnApplyCoordinates(lat, lon, source, silent) {
+  lat = parseFloat(lat);
+  lon = parseFloat(lon);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  source = source || 'MANUAL';
+
+  var inLat = document.getElementById('bmn-form-lat');
+  var inLon = document.getElementById('bmn-form-lon');
+  var inSrc = document.getElementById('bmn-form-sumber-lokasi');
+  var inDst = document.getElementById('bmn-form-jarak-upt');
+
+  if (inLat) inLat.value = lat.toFixed(6);
+  if (inLon) inLon.value = lon.toFixed(6);
+  if (inSrc) inSrc.value = source;
+
+  var uptList = (_BMN.masters && _BMN.masters.uptList) || [];
+  var match = _bmnClientMatchNearestUpt(lat, lon, uptList);
+
+  if (match) {
+    if (inDst) inDst.value = match.minDistance;
+    // Jika berada dalam radius 25 km, otomatis set dropdown UPT
+    if (match.isWithinRadius) {
+      var selUpt = document.getElementById('bmn-form-upt');
+      if (selUpt && (!selUpt.value || selUpt.value === 'UPT-PUSAT-POA' || source === 'EXIF_FOTO' || source === 'OCR_STEMPEL' || source === 'GPS_PERANGKAT')) {
+        selUpt.value = match.nearestUpt.lokasiId;
+      }
+    }
+  } else {
+    if (inDst) inDst.value = '';
+  }
+
+  _bmnRenderGeotagStatus(lat, lon, source, match);
+}
+
+function _bmnRenderGeotagStatus(lat, lon, source, match) {
+  var emptyEl  = document.getElementById('bmn-geotag-empty-state');
+  var activeEl = document.getElementById('bmn-geotag-active-state');
+  var resetBtn = document.getElementById('bmn-btn-reset-gps');
+  var textEl   = document.getElementById('bmn-geotag-coords-text');
+  var badgeEl  = document.getElementById('bmn-geotag-source-badge');
+  var bannerEl = document.getElementById('bmn-geotag-haversine-banner');
+
+  if (emptyEl)  emptyEl.style.display = 'none';
+  if (activeEl) activeEl.style.display = 'flex';
+  if (resetBtn) resetBtn.style.display = 'inline-block';
+
+  if (textEl) {
+    textEl.textContent = 'Lat: ' + lat.toFixed(5) + ' · Lon: ' + lon.toFixed(5);
+  }
+
+  if (badgeEl) {
+    if (source === 'EXIF_FOTO') {
+      badgeEl.textContent = 'Metadata EXIF Foto';
+      badgeEl.style.background = '#DEF7EC';
+      badgeEl.style.color = '#03543F';
+    } else if (source === 'OCR_STEMPEL') {
+      badgeEl.textContent = 'Stempel Kamera GPS (OCR)';
+      badgeEl.style.background = '#D1FAE5';
+      badgeEl.style.color = '#065F46';
+    } else if (source === 'GPS_PERANGKAT') {
+      badgeEl.textContent = 'GPS Perangkat';
+      badgeEl.style.background = '#E0E7FF';
+      badgeEl.style.color = '#3730A3';
+    } else if (source === 'PROFIL_AKUN') {
+      badgeEl.textContent = 'Homebase Satker';
+      badgeEl.style.background = '#FEF3C7';
+      badgeEl.style.color = '#92400E';
+    } else {
+      badgeEl.textContent = source;
+      badgeEl.style.background = '#F1F5F9';
+      badgeEl.style.color = '#475569';
+    }
+  }
+
+  if (bannerEl) {
+    if (match && match.nearestUpt) {
+      if (match.isWithinRadius) {
+        bannerEl.style.background = '#ECFDF5';
+        bannerEl.style.border = '1px solid #10B981';
+        bannerEl.style.color = '#065F46';
+        bannerEl.innerHTML =
+          '<strong>Terverifikasi di radius UPT:</strong> ' + _esc(match.nearestUpt.namaLokasi) +
+          ' (' + match.minDistance + ' km dari koordinat fisik). Dropdown UPT diselaraskan otomatis.';
+      } else {
+        bannerEl.style.background = '#FFFBEB';
+        bannerEl.style.border = '1px solid #F59E0B';
+        bannerEl.style.color = '#92400E';
+        bannerEl.innerHTML =
+          '<strong>Peringatan Toleransi Jarak:</strong> UPT terdekat adalah ' + _esc(match.nearestUpt.namaLokasi) +
+          ' (' + match.minDistance + ' km \u2014 melebihi radius standar 25 km). Pastikan pilihan UPT sesuai dengan penempatan fisik.';
+      }
+    } else {
+      bannerEl.style.background = 'var(--n-surface-2)';
+      bannerEl.style.border = '1px solid var(--n-border)';
+      bannerEl.style.color = 'var(--n-text-secondary)';
+      bannerEl.innerHTML = 'Koordinat GPS tersimpan (' + lat.toFixed(5) + ', ' + lon.toFixed(5) + ').';
+    }
+  }
+}
+
+function _bmnResetGeotag() {
+  var inLat = document.getElementById('bmn-form-lat');
+  var inLon = document.getElementById('bmn-form-lon');
+  var inSrc = document.getElementById('bmn-form-sumber-lokasi');
+  var inDst = document.getElementById('bmn-form-jarak-upt');
+
+  if (inLat) inLat.value = '';
+  if (inLon) inLon.value = '';
+  if (inSrc) inSrc.value = '';
+  if (inDst) inDst.value = '';
+
+  var emptyEl  = document.getElementById('bmn-geotag-empty-state');
+  var activeEl = document.getElementById('bmn-geotag-active-state');
+  var resetBtn = document.getElementById('bmn-btn-reset-gps');
+
+  if (emptyEl)  emptyEl.style.display = 'block';
+  if (activeEl) activeEl.style.display = 'none';
+  if (resetBtn) resetBtn.style.display = 'none';
+}
+
+function _bmnRemovePhoto() {
+  var fileInp = document.getElementById('bmn-form-foto');
+  if (fileInp) fileInp.value = '';
+
+  _BMN.currentPhoto = null;
+
+  var img = document.getElementById('bmn-photo-preview-img');
+  var ph  = document.getElementById('bmn-photo-placeholder');
+  var clr = document.getElementById('bmn-photo-clear-btn');
+  var evid = document.getElementById('bmn-form-foto-evidence-id');
+
+  if (img) { img.src = ''; img.style.display = 'none'; }
+  if (ph)  ph.style.display = 'block';
+  if (clr) clr.style.display = 'none';
+  if (evid) evid.value = '';
+}
+
+function _bmnHandlePhotoFile(e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  _msg('bmn-form-msg', null);
+
+  // Kompresi kanvas (max-width 1600px, JPEG 0.8) untuk payload & pratinjau thumbnail
+  _compressImageCanvas(file, 1600, 0.8, function (res) {
+    if (res && res.b64) {
+      _BMN.currentPhoto = {
+        dataBase64: res.b64,
+        fileName: res.name,
+        mimeType: res.mime
+      };
+      var img = document.getElementById('bmn-photo-preview-img');
+      var ph  = document.getElementById('bmn-photo-placeholder');
+      var clr = document.getElementById('bmn-photo-clear-btn');
+      if (img) {
+        img.src = 'data:' + res.mime + ';base64,' + res.b64;
+        img.style.display = 'block';
+      }
+      if (ph) ph.style.display = 'none';
+      if (clr) clr.style.display = 'block';
+    }
+  });
+
+  // OPSI 1: Ekstraksi koordinat GPS dari raw file via exifr sebelum kompresi kanvas
+  _loadExifr(function () {
+    if (window.exifr && typeof window.exifr.gps === 'function') {
+      window.exifr.gps(file)
+        .then(function (gps) {
+          if (gps && typeof gps.latitude === 'number' && typeof gps.longitude === 'number' && !isNaN(gps.latitude) && !isNaN(gps.longitude)) {
+            _bmnApplyCoordinates(gps.latitude, gps.longitude, 'EXIF_FOTO');
+            _msg('bmn-form-msg', 'success', 'Koordinat GPS (' + gps.latitude.toFixed(5) + ', ' + gps.longitude.toFixed(5) + ') berhasil diekstraksi dari metadata EXIF foto.');
+          } else {
+            _bmnHandleNoExifGps(file);
+          }
+        })
+        .catch(function (err) {
+          console.warn('[exifr.gps] Gagal membaca EXIF:', err);
+          _bmnHandleNoExifGps(file);
+        });
+    } else {
+      _bmnHandleNoExifGps(file);
+    }
+  });
+}
+
+function _bmnHandleNoExifGps(file) {
+  var curLat = (document.getElementById('bmn-form-lat') || {}).value;
+  var curLon = (document.getElementById('bmn-form-lon') || {}).value;
+  if (curLat && curLon && !isNaN(parseFloat(curLat))) {
+    return;
+  }
+
+  // OPSI 1B: Fallback pemindaian visual watermark koordinat (OCR) jika EXIF GPS tidak tersedia
+  if (file) {
+    _msg('bmn-form-msg', 'info', 'Metadata EXIF tidak ditemukan. Memindai stempel visual koordinat pada foto (OCR)...');
+    _bmnScanWatermarkOcr(file, function(coords) {
+      if (coords && typeof coords.latitude === 'number' && typeof coords.longitude === 'number' && !isNaN(coords.latitude) && !isNaN(coords.longitude)) {
+        _bmnApplyCoordinates(coords.latitude, coords.longitude, 'OCR_STEMPEL');
+        _msg('bmn-form-msg', 'success', 'Koordinat GPS (' + coords.latitude.toFixed(5) + ', ' + coords.longitude.toFixed(5) + ') berhasil diekstraksi dari stempel visual kamera (OCR).');
+      } else {
+        _msg('bmn-form-msg', 'warning', 'Stempel koordinat tidak terdeteksi pada foto. Mengambil lokasi perangkat...');
+        _bmnTriggerDeviceGeolocation(true);
+      }
+    });
+  } else {
+    _msg('bmn-form-msg', 'warning', 'Foto tidak mengandung metadata GPS EXIF. Mengambil lokasi perangkat...');
+    _bmnTriggerDeviceGeolocation(true);
+  }
+}
+
+function _bmnTriggerDeviceGeolocation(isAutoFallback) {
+  var btn = document.getElementById('bmn-btn-device-gps');
+  if (btn) btn.disabled = true;
+
+  if (!navigator.geolocation) {
+    if (btn) btn.disabled = false;
+    _bmnApplyHomebaseFallback('Browser tidak mendukung geolokasi');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      if (btn) btn.disabled = false;
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      _bmnApplyCoordinates(lat, lon, 'GPS_PERANGKAT');
+      _msg('bmn-form-msg', 'success', 'Koordinat GPS (' + lat.toFixed(5) + ', ' + lon.toFixed(5) + ') berhasil diambil dari perangkat pengunggah.');
+    },
+    function (err) {
+      if (btn) btn.disabled = false;
+      var reason = 'Sinyal GPS perangkat tidak terdeteksi';
+      if (err.code === 1) reason = 'Izin akses GPS perangkat ditolak';
+      else if (err.code === 2) reason = 'Posisi perangkat tidak tersedia';
+      else if (err.code === 3) reason = 'Waktu permintaan lokasi habis (timeout)';
+
+      _bmnApplyHomebaseFallback(reason);
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+  );
+}
+
+function _bmnApplyHomebaseFallback(reason) {
+  var uptList = (_BMN.masters && _BMN.masters.uptList) || [];
+  if (!uptList.length) return;
+
+  var selUptId = (document.getElementById('bmn-form-upt') || {}).value;
+  var targetUpt = null;
+
+  if (selUptId) {
+    for (var i = 0; i < uptList.length; i++) {
+      if (uptList[i].lokasiId === selUptId && uptList[i].latitude !== null && uptList[i].longitude !== null) {
+        targetUpt = uptList[i];
+        break;
+      }
+    }
+  }
+
+  if (!targetUpt) {
+    for (var j = 0; j < uptList.length; j++) {
+      if (uptList[j].lokasiId === 'UPT-PUSAT-POA') {
+        targetUpt = uptList[j];
+        break;
+      }
+    }
+  }
+  if (!targetUpt) targetUpt = uptList[0];
+
+  if (targetUpt && targetUpt.latitude !== null && targetUpt.longitude !== null) {
+    _bmnApplyCoordinates(targetUpt.latitude, targetUpt.longitude, 'PROFIL_AKUN');
+    _msg('bmn-form-msg', 'warning', 'Fallback Lokasi: ' + reason + '. Menggunakan koordinat referensi homebase ' + targetUpt.namaLokasi + '.');
+  }
+}
+
 function _bmnSetupForm(a) {
   var titleEl = document.getElementById('bmn-form-title');
   var asetIdEl = document.getElementById('bmn-form-aset-id');
   _msg('bmn-form-msg', null);
+
+  // Reset foto & koordinat geotagging
+  _bmnRemovePhoto();
+  _bmnResetGeotag();
 
   if (a) {
     // Mode Edit / Revisi
@@ -7467,6 +8007,19 @@ function _bmnSetupForm(a) {
     (document.getElementById('bmn-form-ruangan') || {}).value = a.lokasiDetailRuangan || '';
     (document.getElementById('bmn-form-kapal') || {}).value = a.kapalId || '';
     (document.getElementById('bmn-form-ket') || {}).value = a.keterangan || '';
+
+    // Pulihkan koordinat jika aset memiliki data geotag
+    if (a.latitude !== null && a.longitude !== null && !isNaN(a.latitude) && !isNaN(a.longitude)) {
+      _bmnApplyCoordinates(a.latitude, a.longitude, a.sumberLokasi || 'MANUAL', true);
+    }
+    // Pulihkan tanda foto jika aset memiliki lampiran foto
+    if (a.fotoEvidenceId) {
+      (document.getElementById('bmn-form-foto-evidence-id') || {}).value = a.fotoEvidenceId;
+      var ph = document.getElementById('bmn-photo-placeholder');
+      if (ph) {
+        ph.innerHTML = 'Foto tersimpan di Drive<br><span style="font-size:.7rem;color:var(--n-primary);">(' + _esc(a.fotoEvidenceId) + ')</span>';
+      }
+    }
   } else {
     // Mode Tambah Baru
     if (titleEl) titleEl.textContent = 'Tambah Unit Aset BMN';
@@ -7511,6 +8064,13 @@ function _bmnSubmitForm() {
   var kapal  = (document.getElementById('bmn-form-kapal') || {}).value || '';
   var ket    = ((document.getElementById('bmn-form-ket') || {}).value || '').trim();
 
+  // Field Geotagging & Bukti Foto
+  var lat       = parseFloat((document.getElementById('bmn-form-lat') || {}).value) || null;
+  var lon       = parseFloat((document.getElementById('bmn-form-lon') || {}).value) || null;
+  var sumberLok = (document.getElementById('bmn-form-sumber-lokasi') || {}).value || 'MANUAL';
+  var jarakKm   = parseFloat((document.getElementById('bmn-form-jarak-upt') || {}).value) || null;
+  var fotoEvId  = (document.getElementById('bmn-form-foto-evidence-id') || {}).value || '';
+
   if (!kode || !nup || !nama) {
     _msg(msgElId, 'error', 'Kode Barang, NUP, dan Nama Barang wajib diisi.');
     return;
@@ -7552,7 +8112,13 @@ function _bmnSubmitForm() {
       lokasiId: upt,
       lokasiDetailRuangan: ruang,
       kapalId: kapal,
-      keterangan: ket
+      keterangan: ket,
+      latitude: lat,
+      longitude: lon,
+      sumberLokasi: sumberLok,
+      jarakKm: jarakKm,
+      fotoEvidenceId: fotoEvId,
+      photoPayload: _BMN.currentPhoto || null
     });
 }
 
@@ -7600,6 +8166,604 @@ function _bmnConfirmAnulir() {
       rowId: _BMN.pendingRowId,
       alasan: reason
     });
+}
+
+// ────────────────────────────────────────────────────────────
+// SMART BULK IMPORT ENGINE SAKTI BMN (FASE 18B.3)
+// ────────────────────────────────────────────────────────────
+
+var _SHEETJS_LOADED = false;
+var _sheetjsQueue   = [];
+
+function _loadSheetJS(cb) {
+  if (typeof XLSX !== 'undefined' || _SHEETJS_LOADED) {
+    if (cb) { try { cb(); } catch (e) { console.error(e); } }
+    return;
+  }
+  if (cb) _sheetjsQueue.push(cb);
+  if (document.getElementById('sheetjs-cdn')) return;
+
+  var script = document.createElement('script');
+  script.id  = 'sheetjs-cdn';
+  script.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+  script.onload = function () {
+    _SHEETJS_LOADED = true;
+    var q = _sheetjsQueue.slice();
+    _sheetjsQueue = [];
+    q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+  };
+  script.onerror = function () {
+    console.warn('Gagal memuat SheetJS dari cdn.sheetjs.com, mencoba fallback unpkg...');
+    var fallback = document.createElement('script');
+    fallback.id  = 'sheetjs-cdn-fallback';
+    fallback.src = 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';
+    fallback.onload = function () {
+      _SHEETJS_LOADED = true;
+      var q = _sheetjsQueue.slice();
+      _sheetjsQueue = [];
+      q.forEach(function (fn) { try { fn(); } catch (e) { console.error(e); } });
+    };
+    fallback.onerror = function () {
+      console.error('Gagal memuat SheetJS dari seluruh CDN.');
+      _sheetjsQueue = [];
+    };
+    document.head.appendChild(fallback);
+  };
+  document.head.appendChild(script);
+}
+
+var _BMN_IMPORT = {
+  mode: 'file',
+  file: null,
+  validRows: [],
+  invalidRows: [],
+  totalGross: 0,
+  totalNet: 0,
+  isProcessing: false
+};
+
+function _bmnOpenImportModal() {
+  _BMN_IMPORT.mode = 'file';
+  _BMN_IMPORT.file = null;
+  _BMN_IMPORT.validRows = [];
+  _BMN_IMPORT.invalidRows = [];
+  _BMN_IMPORT.totalGross = 0;
+  _BMN_IMPORT.totalNet = 0;
+  _BMN_IMPORT.isProcessing = false;
+
+  var fileInp = document.getElementById('bmn-import-file-input');
+  if (fileInp) fileInp.value = '';
+  var fileInfo = document.getElementById('bmn-file-info');
+  if (fileInfo) { fileInfo.textContent = ''; fileInfo.style.display = 'none'; }
+  var pasteInp = document.getElementById('bmn-paste-input');
+  if (pasteInp) pasteInp.value = '';
+
+  _msg('bmn-import-msg', null);
+  var reportEl = document.getElementById('bmn-dryrun-report');
+  if (reportEl) reportEl.classList.add('n-hidden');
+  var progWrap = document.getElementById('bmn-import-progress-wrap');
+  if (progWrap) progWrap.classList.add('n-hidden');
+
+  var btnCommit = document.getElementById('bmn-btn-commit-import');
+  if (btnCommit) {
+    btnCommit.disabled = true;
+    btnCommit.textContent = 'Simpan Aset ke Database';
+  }
+
+  _bmnSwitchImportMode('file');
+
+  var modal = document.getElementById('modal-bmn-import');
+  if (modal) modal.classList.remove('n-hidden');
+
+  // Bind drag & drop handlers if not yet bound
+  var dropzone = document.getElementById('bmn-import-dropzone');
+  if (dropzone && !dropzone._dndBound) {
+    dropzone._dndBound = true;
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dropzone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      dropzone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+      }, false);
+    });
+    dropzone.addEventListener('drop', function (e) {
+      var dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length) {
+        _bmnHandleFile(dt.files[0]);
+      }
+    }, false);
+  }
+
+  // Pre-load SheetJS silently
+  _loadSheetJS();
+}
+
+function _bmnSwitchImportMode(mode) {
+  _BMN_IMPORT.mode = mode;
+  var btnFile   = document.getElementById('bmn-import-tab-file');
+  var btnPaste  = document.getElementById('bmn-import-tab-paste');
+  var paneFile  = document.getElementById('bmn-import-pane-file');
+  var panePaste = document.getElementById('bmn-import-pane-paste');
+
+  if (mode === 'file') {
+    if (btnFile) btnFile.classList.add('active');
+    if (btnPaste) btnPaste.classList.remove('active');
+    if (paneFile) paneFile.classList.remove('n-hidden');
+    if (panePaste) panePaste.classList.add('n-hidden');
+  } else {
+    if (btnFile) btnFile.classList.remove('active');
+    if (btnPaste) btnPaste.classList.add('active');
+    if (paneFile) paneFile.classList.add('n-hidden');
+    if (panePaste) panePaste.classList.remove('n-hidden');
+  }
+}
+
+function _bmnHandleFileSelect(e) {
+  var files = e.target.files;
+  if (files && files.length) {
+    _bmnHandleFile(files[0]);
+  }
+}
+
+function _bmnHandleFile(file) {
+  _BMN_IMPORT.file = file;
+  var infoEl = document.getElementById('bmn-file-info');
+  if (infoEl) {
+    var sz = (file.size / 1024).toFixed(1) + ' KB';
+    if (file.size > 1048576) sz = (file.size / 1048576).toFixed(2) + ' MB';
+    infoEl.textContent = file.name + ' (' + sz + ')';
+    infoEl.style.display = 'block';
+  }
+  _msg('bmn-import-msg', null);
+}
+
+function _bmnDownloadTemplate() {
+  _loadSheetJS(function () {
+    var wsData = [
+      ['Kode Barang', 'NUP', 'Nama Barang', 'Merek/Tipe', 'Kategori', 'Pencatatan', 'Tanggal Perolehan', 'Nilai Perolehan', 'Nilai Buku', 'Kondisi', 'Lokasi UPT', 'Ruangan', 'Keterangan'],
+      ['3.05.01.04.001', '1', 'Laptop ThinkPad X1 Carbon Gen 11', 'Lenovo Core i7 16GB SSD 512GB', 'Alat Kantor & Rumah Tangga', 'BUKU', '2023-05-15', 25000000, 18500000, 'BAIK', 'Pusat (POA)', 'Ruang Rapat Ditjen', 'Pengadaan APBN 2023'],
+      ['3.01.02.01.002', '12', 'Teropong Binocular Marine 7x50', 'Bushnell Waterproof Compass', 'Alat Komunikasi & Navigasi', 'REGULER', '2024-01-10', 4500000, 4200000, 'BAIK', 'Pangkalan Batam', 'Gudang Logistik', 'Inventaris Pengawasan Patroli'],
+      ['3.01.01.01.005', '3', 'Radio Komunikasi SSB Marine', 'Icom IC-M802 HF', 'Alat Komunikasi & Navigasi', 'BUKU', '2021-08-20', 32000000, 12000000, 'RUSAK_RINGAN', 'Pangkalan Belawan', 'Ruang Radio', 'Perlu kalibrasi antena'],
+      ['3.05.02.01.010', '1', 'Meja Rapat Kayu Jati 10 Kursi', 'Custom Jepara Solid Wood', 'Alat Kantor & Rumah Tangga', 'REGULER', '2018-03-01', 15000000, 0, 'RUSAK_BERAT', 'Pangkalan Cilacap', 'Ruang Arsip', 'Rekomendasi usulan hapus']
+    ];
+    var ws = XLSX.utils.aoa_to_sheet(wsData);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template_BMN_SAKTI');
+    XLSX.writeFile(wb, 'Template_Impor_BMN_SAKTI_Nautika.xlsx');
+  });
+}
+
+function _bmnExecuteDryRun() {
+  _msg('bmn-import-msg', null);
+  var btn = document.getElementById('bmn-btn-dryrun');
+
+  if (_BMN_IMPORT.mode === 'file') {
+    if (!_BMN_IMPORT.file) {
+      _msg('bmn-import-msg', 'error', 'Pilih atau unggah berkas Excel / CSV terlebih dahulu.');
+      return;
+    }
+
+    _setLoading(btn, true);
+    _loadSheetJS(function () {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var data = new Uint8Array(e.target.result);
+          var wb = XLSX.read(data, { type: 'array', cellDates: true });
+          var firstSheetName = wb.SheetNames[0];
+          var ws = wb.Sheets[firstSheetName];
+          var grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          _setLoading(btn, false);
+          _bmnProcessGridData(grid);
+        } catch (ex) {
+          _setLoading(btn, false);
+          _msg('bmn-import-msg', 'error', 'Gagal membaca berkas Excel: ' + ex.message);
+        }
+      };
+      reader.onerror = function () {
+        _setLoading(btn, false);
+        _msg('bmn-import-msg', 'error', 'Gagal membaca file dari disk.');
+      };
+      reader.readAsArrayBuffer(_BMN_IMPORT.file);
+    });
+  } else {
+    // Mode Paste Grid
+    var text = ((document.getElementById('bmn-paste-input') || {}).value || '').trim();
+    if (!text) {
+      _msg('bmn-import-msg', 'error', 'Tempel data teks dari spreadsheet SAKTI terlebih dahulu.');
+      return;
+    }
+
+    _setLoading(btn, true);
+    setTimeout(function () {
+      var lines = text.split(/\r?\n/);
+      var grid = lines.map(function (line) {
+        return line.split('\t').map(function (c) { return c.trim(); });
+      });
+      _setLoading(btn, false);
+      _bmnProcessGridData(grid);
+    }, 50);
+  }
+}
+
+function _bmnProcessGridData(grid) {
+  if (!grid || grid.length < 2) {
+    _msg('bmn-import-msg', 'error', 'Data tidak mencukupi (minimal harus ada 1 baris header dan 1 baris data).');
+    return;
+  }
+
+  // 1. Deteksi Baris Header (Pindai s/d 10 baris pertama)
+  var headerRowIdx = -1;
+  var maxMatch = 0;
+  var scanLimit = Math.min(10, grid.length);
+
+  for (var r = 0; r < scanLimit; r++) {
+    var row = grid[r] || [];
+    var matchCount = 0;
+    for (var c = 0; c < row.length; c++) {
+      var txt = String(row[c] || '').toLowerCase();
+      if (/kode|kd.*brg|nup|nama.*brg|uraian|barang|kondisi|nilai|perolehan|buku/i.test(txt)) {
+        matchCount++;
+      }
+    }
+    if (matchCount > maxMatch) {
+      maxMatch = matchCount;
+      headerRowIdx = r;
+    }
+  }
+
+  if (headerRowIdx === -1 || maxMatch < 2) {
+    _msg('bmn-import-msg', 'error', 'Baris header tidak terdeteksi. Pastikan terdapat kolom Kode Barang, NUP, atau Nama Barang.');
+    return;
+  }
+
+  var rawHeaders = grid[headerRowIdx] || [];
+  var colMap = {};
+
+  // 2. Pemetaan Sinonim Kolom (Fuzzy Matching)
+  rawHeaders.forEach(function (h, idx) {
+    var txt = String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!txt) return;
+
+    if (!colMap.kodeBarang && (txt.indexOf('kodebarang') !== -1 || txt === 'kdbrg' || txt === 'kode' || txt === 'kodebrg')) {
+      colMap.kodeBarang = idx;
+    } else if (!colMap.nup && (txt === 'nup' || txt.indexOf('nourut') !== -1 || txt === 'no' || txt === 'nourutpendaftaran')) {
+      colMap.nup = idx;
+    } else if (!colMap.namaBarang && (txt.indexOf('namabarang') !== -1 || txt.indexOf('uraian') !== -1 || txt === 'nama' || txt === 'deskripsi')) {
+      colMap.namaBarang = idx;
+    } else if (!colMap.merekTipe && (txt.indexOf('merek') !== -1 || txt.indexOf('merk') !== -1 || txt.indexOf('tipe') !== -1 || txt.indexOf('spesifikasi') !== -1)) {
+      colMap.merekTipe = idx;
+    } else if (!colMap.kategoriPencatatan && (txt.indexOf('pencatatan') !== -1 || txt.indexOf('akun') !== -1 || txt.indexOf('intra') !== -1 || txt.indexOf('ekstra') !== -1)) {
+      colMap.kategoriPencatatan = idx;
+    } else if (!colMap.kodeKategori && (txt.indexOf('kategori') !== -1 || txt.indexOf('klasifikasi') !== -1 || txt.indexOf('golongan') !== -1)) {
+      colMap.kodeKategori = idx;
+    } else if (!colMap.tanggalPerolehan && (txt.indexOf('tanggal') !== -1 || txt.indexOf('tgl') !== -1 || txt.indexOf('tahun') !== -1)) {
+      colMap.tanggalPerolehan = idx;
+    } else if (!colMap.nilaiPerolehan && (txt.indexOf('perolehan') !== -1 || txt.indexOf('hargabeli') !== -1 || txt.indexOf('nilaibeli') !== -1)) {
+      colMap.nilaiPerolehan = idx;
+    } else if (!colMap.nilaiBuku && (txt.indexOf('nilaibuku') !== -1 || txt === 'buku' || txt.indexOf('nilaisisa') !== -1)) {
+      colMap.nilaiBuku = idx;
+    } else if (!colMap.kondisi && (txt.indexOf('kondisi') !== -1 || txt.indexOf('keadaan') !== -1)) {
+      colMap.kondisi = idx;
+    } else if (!colMap.lokasiId && (txt.indexOf('lokasi') !== -1 || txt.indexOf('upt') !== -1 || txt.indexOf('pangkalan') !== -1 || txt.indexOf('satker') !== -1)) {
+      colMap.lokasiId = idx;
+    } else if (!colMap.lokasiDetailRuangan && (txt.indexOf('ruang') !== -1 || txt.indexOf('detail') !== -1)) {
+      colMap.lokasiDetailRuangan = idx;
+    } else if (!colMap.keterangan && (txt.indexOf('keterangan') !== -1 || txt.indexOf('catatan') !== -1 || txt === 'ket')) {
+      colMap.keterangan = idx;
+    }
+  });
+
+  if (colMap.kodeBarang === undefined && colMap.namaBarang === undefined) {
+    _msg('bmn-import-msg', 'error', 'Kolom Kode Barang atau Nama Barang tidak berhasil dikenali.');
+    return;
+  }
+
+  // 3. Iterasi dan Validasi Tiap Baris Data
+  var validRows = [];
+  var invalidRows = [];
+  var totalGross = 0;
+  var totalNet = 0;
+
+  var uptMasters = (_BMN.masters && _BMN.masters.uptList) || [];
+  var katMasters = (_BMN.masters && _BMN.masters.kategoriList) || [];
+
+  for (var i = headerRowIdx + 1; i < grid.length; i++) {
+    var r = grid[i];
+    if (!r || r.length === 0) continue;
+
+    // Cek apakah baris kosong total
+    var isAllEmpty = true;
+    for (var k = 0; k < r.length; k++) {
+      if (String(r[k] || '').trim()) { isAllEmpty = false; break; }
+    }
+    if (isAllEmpty) continue;
+
+    var rowNum = i + 1;
+    var kode = colMap.kodeBarang !== undefined ? String(r[colMap.kodeBarang] || '').trim() : '';
+    var nup  = colMap.nup !== undefined ? String(r[colMap.nup] || '').trim() : '';
+    var nama = colMap.namaBarang !== undefined ? String(r[colMap.namaBarang] || '').trim() : '';
+    var merek = colMap.merekTipe !== undefined ? String(r[colMap.merekTipe] || '').trim() : '';
+    var pencRaw = colMap.kategoriPencatatan !== undefined ? String(r[colMap.kategoriPencatatan] || '').toUpperCase() : '';
+    var katRaw = colMap.kodeKategori !== undefined ? String(r[colMap.kodeKategori] || '').trim() : '';
+    var tglRaw = colMap.tanggalPerolehan !== undefined ? r[colMap.tanggalPerolehan] : null;
+    var npRaw = colMap.nilaiPerolehan !== undefined ? r[colMap.nilaiPerolehan] : 0;
+    var nbRaw = colMap.nilaiBuku !== undefined ? r[colMap.nilaiBuku] : 0;
+    var kondRaw = colMap.kondisi !== undefined ? String(r[colMap.kondisi] || '').toUpperCase() : '';
+    var uptRaw = colMap.lokasiId !== undefined ? String(r[colMap.lokasiId] || '').trim() : '';
+    var ruang = colMap.lokasiDetailRuangan !== undefined ? String(r[colMap.lokasiDetailRuangan] || '').trim() : '';
+    var ket = colMap.keterangan !== undefined ? String(r[colMap.keterangan] || '').trim() : '';
+
+    var errors = [];
+    if (!kode) errors.push('Kode Barang kosong');
+    if (!nup) errors.push('NUP kosong');
+    if (!nama) errors.push('Nama Barang kosong');
+
+    // Parse Rupiah
+    var np = _bmnParseRupiah(npRaw);
+    var nb = _bmnParseRupiah(nbRaw);
+
+    // Normalisasi Pencatatan (BUKU vs REGULER)
+    var penc = 'BUKU';
+    if (pencRaw.indexOf('REGULER') !== -1 || pencRaw.indexOf('52') !== -1 || pencRaw.indexOf('EKSTRA') !== -1) {
+      penc = 'REGULER';
+    }
+
+    // Normalisasi Kondisi (BAIK, RUSAK_RINGAN, RUSAK_BERAT)
+    var kond = 'BAIK';
+    if (kondRaw === 'RB' || kondRaw.indexOf('BERAT') !== -1) {
+      kond = 'RUSAK_BERAT';
+    } else if (kondRaw === 'RR' || kondRaw.indexOf('RINGAN') !== -1) {
+      kond = 'RUSAK_RINGAN';
+    }
+
+    // Normalisasi Kategori
+    var kodeKategori = 'KAT-ALAT_KANTOR';
+    if (katRaw && katMasters.length) {
+      for (var km = 0; km < katMasters.length; km++) {
+        var mItem = katMasters[km];
+        if (mItem.kodeKategori.toLowerCase() === katRaw.toLowerCase() ||
+            mItem.namaKategori.toLowerCase().indexOf(katRaw.toLowerCase()) !== -1 ||
+            katRaw.toLowerCase().indexOf(mItem.namaKategori.toLowerCase()) !== -1) {
+          kodeKategori = mItem.kodeKategori;
+          break;
+        }
+      }
+    }
+
+    // Normalisasi UPT
+    var lokasiId = 'UPT-PUSAT';
+    if (uptRaw && uptMasters.length) {
+      for (var um = 0; um < uptMasters.length; um++) {
+        var uItem = uptMasters[um];
+        if (uItem.lokasiId.toLowerCase() === uptRaw.toLowerCase() ||
+            uItem.namaLokasi.toLowerCase().indexOf(uptRaw.toLowerCase()) !== -1 ||
+            uptRaw.toLowerCase().indexOf(uItem.namaLokasi.toLowerCase()) !== -1) {
+          lokasiId = uItem.lokasiId;
+          break;
+        }
+      }
+    }
+
+    // Parse Tanggal
+    var tglIso = _bmnParseDate(tglRaw);
+
+    var itemObj = {
+      rowNum: rowNum,
+      kodeBarang: kode,
+      nup: nup,
+      namaBarang: nama,
+      merekTipe: merek,
+      kategoriPencatatan: penc,
+      kodeKategori: kodeKategori,
+      tanggalPerolehan: tglIso,
+      nilaiPerolehan: np,
+      nilaiBuku: nb,
+      kondisi: kond,
+      lokasiId: lokasiId,
+      lokasiDetailRuangan: ruang,
+      keterangan: ket
+    };
+
+    if (errors.length === 0) {
+      validRows.push(itemObj);
+      totalGross += np;
+      totalNet += nb;
+    } else {
+      itemObj.errors = errors;
+      invalidRows.push(itemObj);
+    }
+  }
+
+  _BMN_IMPORT.validRows = validRows;
+  _BMN_IMPORT.invalidRows = invalidRows;
+  _BMN_IMPORT.totalGross = totalGross;
+  _BMN_IMPORT.totalNet = totalNet;
+
+  // 4. Render Hasil Dry-Run
+  var totalRows = validRows.length + invalidRows.length;
+  var statTotal = document.getElementById('bmn-stat-total');
+  var statValid = document.getElementById('bmn-stat-valid');
+  var statInvalid = document.getElementById('bmn-stat-invalid');
+  var statGross = document.getElementById('bmn-stat-gross');
+
+  if (statTotal) statTotal.textContent = totalRows;
+  if (statValid) statValid.textContent = validRows.length;
+  if (statInvalid) statInvalid.textContent = invalidRows.length;
+  if (statGross) statGross.textContent = _rupiah(totalGross);
+
+  // Render Error Box if any
+  var errBox = document.getElementById('bmn-import-error-list');
+  if (errBox) {
+    if (invalidRows.length > 0) {
+      var errHtml = '<strong>' + invalidRows.length + ' baris dilewati karena data tidak lengkap:</strong><ul style="margin:4px 0 0 16px; padding:0;">';
+      invalidRows.slice(0, 10).forEach(function (ir) {
+        errHtml += '<li>Baris ' + ir.rowNum + ': ' + ir.errors.join(', ') + ' (' + _esc(ir.namaBarang || ir.kodeBarang || 'Tanpa Nama') + ')</li>';
+      });
+      if (invalidRows.length > 10) {
+        errHtml += '<li>... dan ' + (invalidRows.length - 10) + ' baris bermasalah lainnya.</li>';
+      }
+      errHtml += '</ul>';
+      errBox.innerHTML = errHtml;
+      errBox.style.display = 'block';
+    } else {
+      errBox.innerHTML = '';
+      errBox.style.display = 'none';
+    }
+  }
+
+  // Render Preview 5 Baris
+  var tbody = document.getElementById('bmn-import-preview-body');
+  if (tbody) {
+    var sampleRows = validRows.slice(0, 5);
+    if (sampleRows.length === 0 && invalidRows.length > 0) sampleRows = invalidRows.slice(0, 5);
+
+    tbody.innerHTML = sampleRows.map(function (s) {
+      var isValid = !s.errors;
+      var badge = isValid
+        ? '<span class="badge" style="background:#DEF7EC;color:#03543F;">Valid</span>'
+        : '<span class="badge" style="background:#FEE2E2;color:#DC2626;">Galat</span>';
+      return '<tr>' +
+        '<td>' + badge + '</td>' +
+        '<td class="tnum font-bold">' + _esc(s.kodeBarang || '—') + '</td>' +
+        '<td class="tnum">' + _esc(s.nup || '—') + '</td>' +
+        '<td>' + _esc(s.namaBarang || '—') + '</td>' +
+        '<td>' + _esc(s.kondisi || '—') + '</td>' +
+        '<td>' + _esc(s.kategoriPencatatan || '—') + '</td>' +
+        '<td style="text-align:right;" class="tnum">' + _rupiah(s.nilaiPerolehan) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  var reportWrap = document.getElementById('bmn-dryrun-report');
+  if (reportWrap) reportWrap.classList.remove('n-hidden');
+
+  var btnCommit = document.getElementById('bmn-btn-commit-import');
+  if (btnCommit) {
+    if (validRows.length > 0) {
+      btnCommit.disabled = false;
+      btnCommit.textContent = 'Simpan ' + validRows.length + ' Unit ke Database';
+    } else {
+      btnCommit.disabled = true;
+      btnCommit.textContent = 'Tidak Ada Baris Valid';
+    }
+  }
+}
+
+function _bmnParseRupiah(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  var s = String(val).replace(/Rp|\s/gi, '').trim();
+  if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.indexOf('.') !== -1 && s.indexOf(',') === -1) {
+    var parts = s.split('.');
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      s = s.replace(/\./g, '');
+    }
+  } else if (s.indexOf(',') !== -1) {
+    s = s.replace(',', '.');
+  }
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function _bmnParseDate(val) {
+  if (!val) return new Date().toISOString().substring(0, 10);
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? new Date().toISOString().substring(0, 10) : val.toISOString().substring(0, 10);
+  }
+  if (typeof val === 'number') {
+    // Excel serial date number
+    var d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? new Date().toISOString().substring(0, 10) : d.toISOString().substring(0, 10);
+  }
+  var s = String(val).trim();
+  var match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (match) {
+    var dd = match[1].padStart(2, '0');
+    var mm = match[2].padStart(2, '0');
+    var yyyy = match[3];
+    return yyyy + '-' + mm + '-' + dd;
+  }
+  var parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? new Date().toISOString().substring(0, 10) : parsed.toISOString().substring(0, 10);
+}
+
+function _bmnExecuteImportCommit() {
+  if (_BMN_IMPORT.isProcessing) return;
+  var validRows = _BMN_IMPORT.validRows || [];
+  if (!validRows.length) return;
+
+  var btn = document.getElementById('bmn-btn-commit-import');
+  var progWrap = document.getElementById('bmn-import-progress-wrap');
+  var progBar = document.getElementById('bmn-import-progress-bar');
+  var progPct = document.getElementById('bmn-import-progress-pct');
+  var progTxt = document.getElementById('bmn-import-progress-txt');
+
+  _BMN_IMPORT.isProcessing = true;
+  if (btn) btn.disabled = true;
+  if (progWrap) progWrap.classList.remove('n-hidden');
+
+  var chunkSize = 200;
+  var totalChunks = Math.ceil(validRows.length / chunkSize);
+  var currentChunkIdx = 0;
+  var batchId = 'BATCH-BMN-' + (new Date()).toISOString().replace(/[-:T]/g, '').substring(0, 14) + '-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  function sendNextChunk() {
+    var start = currentChunkIdx * chunkSize;
+    var chunk = validRows.slice(start, start + chunkSize);
+    var pct = Math.round((currentChunkIdx / totalChunks) * 100);
+
+    if (progBar) progBar.style.width = pct + '%';
+    if (progPct) progPct.textContent = pct + '%';
+    if (progTxt) progTxt.textContent = 'Menyimpan batch ' + (currentChunkIdx + 1) + ' dari ' + totalChunks + ' (' + start + ' - ' + (start + chunk.length) + ' aset)...';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res.success) {
+          _BMN_IMPORT.isProcessing = false;
+          if (btn) btn.disabled = false;
+          _msg('bmn-import-msg', 'error', 'Galat pada batch ' + (currentChunkIdx + 1) + ': ' + (res.error || 'Gagal menyimpan.'));
+          return;
+        }
+
+        currentChunkIdx++;
+        if (currentChunkIdx < totalChunks) {
+          sendNextChunk();
+        } else {
+          // Selesai seluruh batch!
+          if (progBar) progBar.style.width = '100%';
+          if (progPct) progPct.textContent = '100%';
+          if (progTxt) progTxt.textContent = 'Selesai! ' + validRows.length + ' unit aset berhasil diimpor.';
+
+          setTimeout(function () {
+            _BMN_IMPORT.isProcessing = false;
+            closeModal('modal-bmn-import');
+            _msg('bmn-table-msg', 'success', 'Berhasil mengimpor ' + validRows.length + ' unit aset BMN ke register inventaris.');
+            _tuLoadBMN(true);
+          }, 800);
+        }
+      })
+      .withFailureHandler(function (err) {
+        _BMN_IMPORT.isProcessing = false;
+        if (btn) btn.disabled = false;
+        _msg('bmn-import-msg', 'error', 'Terjadi kesalahan sistem saat mengirim batch: ' + (err.message || 'Koneksi gagal.'));
+      })
+      .bmn_importBatchAset(APP.token, {
+        items: chunk,
+        batchId: batchId
+      });
+  }
+
+  sendNextChunk();
 }
 
 // ============================================================

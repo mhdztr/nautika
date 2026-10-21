@@ -30,6 +30,7 @@ Setiap komponen yang dibangun **wajib bebas** dari 17 cacat desain berikut:
 15. **DILARANG kilatan abu-abu browser saat tap di ponsel**. Wajib mematikan `-webkit-tap-highlight-color: transparent` pada root.
 16. **DILARANG animasi properti pemicu Layout & Paint**. Hanya menganimasikan properti GPU Compositor: `transform` dan `opacity` (serta `clip-path` berkinerja tinggi). Jangan pernah menganimasikan `width`, `height`, `margin`, `padding`, `top`, atau `left`.
 17. **DILARANG huruf kapital penuh abu-abu pudar (washed-out all-caps AI-slop trope)** (seperti `text-transform: uppercase; color: var(--n-text-muted)` dengan tracking renggang pada judul kartu, label form, info row, dan header tabel). Pola visual ini terbukti merusak keterbacaan, tampak artifisial, dan tidak ergonomis untuk sistem kokpit operasional. Seluruh label metrik, header tabel, form label, dan penunjuk data WAJIB menggunakan Title Case atau Sentence Case alami dengan kontras tinggi Slate Navy (`var(--n-text-secondary)` / `#4A5568`), bobot tegas (`font-weight: 600`), dan tracking optik rapat natural (`-0.01em` hingga `-0.005em`).
+18. **DILARANG EMOJI DI SELURUH SISTEM (ZERO EMOJI POLICY)**: Tidak boleh ada emoji grafis apa pun (seperti 📍, 📷, 📄, 📁, 📋, 📊, ⟲, dll.) pada teks antarmuka, judul, tombol, label formulir, placeholder, toast notifikasi, status badge, maupun modal dialog. Seluruh ikon visual wajib menggunakan SVG monokrom sistem (`_ico(name, size)` atau atribut `data-ico`) dengan semantik palet warna resmi Nautika.
 
 ---
 
@@ -162,6 +163,18 @@ Saat berpindah view (misal dari Overview ke Operasi Laut), kartu KPI dan tabel t
 - Tabel Riwayat: delay `175ms`
 
 Setiap item masuk dari `scale(0.97) translateY(8px)` ke posisi normal dalam 240ms dengan kurva `--ease-out`.
+
+### 5.5 Keseragaman Geometri Tombol (Button Sizing & Alignment Standards)
+Seluruh tombol di antarmuka Nautika wajib mematuhi 3 tier ukuran baku dengan tinggi, padding, dan border-radius seragam:
+1. **Regular / Standard (`.btn-primary`, `.btn-secondary`, `.btn-outline`)**:
+   - Tinggi: `40px` (min-height `40px`), padding `10px 18px`, border-radius `var(--n-radius-sm)` (8px), font-size `0.875rem` (14px), font-weight `600`.
+2. **Compact / Bar Action (`.btn-sm`, `.btn-sm-outline`, `.btn-sm-ghost`, `.btn-sm-danger`)**:
+   - Tinggi: `32px` (min-height `32px`), padding `6px 14px`, border-radius `var(--n-radius-sm)` (8px), font-size `0.8125rem` (13px), font-weight `600`.
+3. **Mini / Table Row Action (`.btn-mini`, `.btn-mini-danger`)**:
+   - Tinggi: `26px`, padding `4px 10px`, border-radius `var(--n-radius-pill)` (9999px), font-size `0.75rem` (12px), font-weight `600`.
+
+> [!IMPORTANT]
+> **Aturan Baku Tombol Berdampingan**: Setiap pasangan atau kelompok tombol yang berada berdampingan dalam satu kontainer flex/grid WAJIB menggunakan tier ukuran yang sama persis (mis. sama-sama `.btn-sm`, atau sama-sama `.btn-mini`). DILARANG KERAS mencampur tombol beda ukuran (misal `.btn-outline` besar disandingkan dengan `.btn-mini` kecil) atau menggabungkan kelas yang bertabrakan (`.btn-mini.btn-outline`).
 
 ---
 

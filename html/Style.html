@@ -3451,6 +3451,79 @@ button.btn:active:not(:disabled),
 }
 .ov-map-rank-note { margin-top: 8px; }
 
+/* ── Peta Sebaran Aset BMN (Sub-Fase 18B.5) ─────────────────── */
+#bmn-upt-map {
+  position: relative;
+  height: 320px;
+  width: 100%;
+  background: var(--n-surface-2, #EFF1F6);
+}
+.bmn-upt-marker-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+.bmn-upt-marker {
+  display: inline-flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1.5px solid var(--n-primary);
+  border-radius: 9999px;
+  padding: 2px 8px 2px 2px;
+  box-shadow: 0 2px 6px rgba(43, 54, 116, 0.22);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.bmn-upt-marker:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(43, 54, 116, 0.35);
+  z-index: 1000 !important;
+}
+.bmn-upt-marker-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--n-primary);
+  color: #FFFFFF;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-right: 6px;
+}
+.bmn-upt-marker.has-rusak-berat {
+  border-color: var(--n-crit);
+}
+.bmn-upt-marker.has-rusak-berat .bmn-upt-marker-count {
+  background: var(--n-crit);
+}
+.bmn-upt-marker-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--n-text-primary);
+}
+.bmn-popover {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--n-text-primary);
+  min-width: 210px;
+  max-width: 260px;
+  padding: 2px;
+}
+.bmn-popover-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--n-primary);
+  margin-bottom: 2px;
+}
+.bmn-popover-sub {
+  font-size: 0.75rem;
+  color: var(--n-text-secondary);
+  margin-bottom: 8px;
+}
+
 /* ============================================================
    IKHTISAR — grid kartu divisi dinamis (Fase 14)
    6 kolom; tiap kartu memilih lebar (.s2/.s3/.s4/.s6) sehingga baris

@@ -1,3 +1,27 @@
+## [Sub-Fase 18B.5] — Dashboard BMN, Peta Sebaran Geospasial UPT Leaflet, & Notification Summary Banner
+
+**Tanggal**: 21 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Penyediaan visualisasi spasial sebaran aset BMN nasional di kantor pusat dan 15 UPT PSDKP via peta Leaflet terintegrasi CARTO basemap, penegakan kondisi fisik per-item anti-jebret tersinkronisasi dua arah dengan filter tabel, dan notification summary banner dengan actionable filter untuk aset Rusak Berat kandidat penghapusan).
+
+### Rincian Deliverables Selesai:
+1. **Backend Aggregator & Geo-Coordinates (`services/BMNService.js`)**:
+   - Fungsi `bmn_getSummary()` diperkaya dengan agregasi data spasial komprehensif (`uptList`), memuat nama UPT, jenis, wilayah, koordinat latitude/longitude dari `Master_Lokasi_UPT`, serta rekapitulasi total unit, nilai buku, dan breakdown kondisi (Baik, Rusak Ringan, Rusak Berat) per UPT dalam satu kali panggilan.
+2. **Peta Sebaran Geospasial Aset BMN (`html/views/TataUsaha.html`, `html/Style.html`, `html/Script_Main.html`)**:
+   - Wadah peta Leaflet responsif `#bmn-upt-map` (tinggi 320px) dengan basemap Carto terintegrasi `_ensureCartoKey` & `_cartoTileUrl(key)`.
+   - Custom marker HTML badge konsentrasi: pil putih berbingkai Navy dengan lingkaran hitung unit fisik di sebelah kiri dan nama pangkalan/stasiun di sebelah kanan. Marker otomatis menyala merah (`has-rusak-berat`) apabila UPT tersebut memiliki aset dalam kondisi Rusak Berat.
+   - Popup interaktif informatif: rincian unit, nilai buku, statistik kelaikan fisik, dan tombol aksi *"Tampilkan Aset UPT Ini"* yang secara otomatis memilih dropdown filter `#bmn-filter-upt`, memicu pembaruan tabel, dan melakukan *smooth scroll* ke wadah tabel.
+   - Tombol *"Fokus Indonesia"* untuk me-reset zoom dan koordinat tengah wilayah kepulauan Indonesia.
+   - Penanganan otomatis `map.invalidateSize()` saat beralih ke tab BMN agar tile peta ter-render sempurna tanpa jeda visual.
+3. **Notification Summary & Rekapitulasi Kondisi Fisik**:
+   - Banner ringkasan semantik `#bmn-summary-banner-wrap` yang bersih dan mematuhi Zero-Emoji Policy.
+   - Menampilkan chip badge distribusi kondisi: Baik (hijau), Rusak Ringan (kuning/amber), dan Rusak Berat (merah).
+   - Actionable button terstandarisasi `.btn-danger` di dalam wadah `.ctl-row.ctl-sm` yang otomatis muncul saat terdapat aset Rusak Berat aktif, memicu filter instan untuk persiapan siklus penghapusan legal Kemenkeu (Sub-Fase 18B.6).
+4. **Verifikasi QA & Bebas Eror**:
+   - `node lint_ui.js` lolos: **0 pelanggaran** kohesi kontrol UI.
+   - Validasi sintaks `node --check` dan `node -e` lolos tanpa galat.
+
+---
+
 ## [Governance & Arsitektur UI] — Kohesi Total Kontrol UI Sampai Tulang (Single Scale 3-Tier Container-Driven)
 
 **Tanggal**: 21 Oktober 2026  

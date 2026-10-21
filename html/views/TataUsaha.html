@@ -455,6 +455,56 @@
         </div>
       </div>
 
+      <!-- Notification Summary & Rekapitulasi Kondisi Fisik BMN (Sub-Fase 18B.5) -->
+      <div class="content-section" style="margin-bottom:16px;" id="bmn-summary-banner-wrap">
+        <div class="n-card" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; border-left:4px solid var(--n-primary);">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="font-weight:700; font-size:.875rem; color:var(--n-text-primary);">
+              Rekapitulasi Fisik:
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(16,185,129,0.12); color:#059669; font-weight:600; font-size:.75rem;" id="bmn-sum-badge-baik">
+                Baik: 0 unit (0%)
+              </span>
+              <span class="badge" style="background:rgba(245,158,11,0.12); color:#D97706; font-weight:600; font-size:.75rem;" id="bmn-sum-badge-rr">
+                Rusak Ringan: 0 unit (0%)
+              </span>
+              <span class="badge" style="background:rgba(239,68,68,0.12); color:#DC2626; font-weight:600; font-size:.75rem;" id="bmn-sum-badge-rb">
+                Rusak Berat: 0 unit (0%)
+              </span>
+            </div>
+            <div id="bmn-sum-alert-text" style="font-size:.78rem; color:var(--n-text-secondary);">
+              Memuat status inventaris BMN...
+            </div>
+          </div>
+          <div class="ctl-row ctl-sm" id="bmn-sum-actions">
+            <!-- Actionable button rendered dynamically when Rusak Berat > 0 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Peta Sebaran Geospasial Aset BMN di 15 UPT KKP (Sub-Fase 18B.5) -->
+      <div class="content-section" style="margin-bottom:20px;">
+        <div class="n-card" style="padding:0; overflow:hidden; border-radius:var(--n-radius-md); box-shadow:var(--n-shadow-1);">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--n-border-hairline); gap:12px; flex-wrap:wrap;">
+            <div>
+              <h3 style="margin:0; font-size:.95rem; font-weight:700; color:var(--n-text-primary);">
+                Sebaran Geospasial Aset BMN (Pusat &amp; 15 UPT PSDKP)
+              </h3>
+              <div style="font-size:.75rem; color:var(--n-text-secondary); margin-top:2px;">
+                Konsentrasi unit fisik di Pangkalan, Stasiun, dan Kantor Pusat KKP
+              </div>
+            </div>
+            <div class="ctl-row ctl-sm">
+              <button type="button" class="btn-outline" onclick="_bmnResetMapFocus()">
+                Fokus Indonesia
+              </button>
+            </div>
+          </div>
+          <div id="bmn-upt-map"></div>
+        </div>
+      </div>
+
       <!-- Unified Master Table Container Card -->
       <div class="content-section">
         <div class="n-card"

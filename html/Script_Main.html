@@ -6813,6 +6813,11 @@ function _tuSwitchTab(tabName) {
     _tuLoadPegawai();
   } else if (_TU.activeTab === 'bmn') {
     _tuLoadBMN();
+    setTimeout(function () {
+      if (typeof _BMN_MAP !== 'undefined' && _BMN_MAP.map) {
+        try { _BMN_MAP.map.invalidateSize(); } catch (e) {}
+      }
+    }, 150);
   }
 }
 
@@ -7120,11 +7125,141 @@ var _BMN = {
   currentPhoto: null
 };
 
+var _BMN_MAP = {
+  map: null,
+  layerGroup: null,
+  data: null
+};
+
 function _tuLoadBMN(force) {
   _bmnLoadMasters(function () {
+    _bmnInitMap();
     _bmnLoadSummary(force);
     _bmnLoadAsetList(force);
   });
+}
+
+function _bmnInitMap() {
+  var host = document.getElementById('bmn-upt-map');
+  if (!host) return;
+  if (_BMN_MAP.map) {
+    try { _BMN_MAP.map.invalidateSize(); } catch (e) {}
+    return;
+  }
+  if (typeof L === 'undefined' || !L.map) return;
+
+  if (host._leaflet_id && !_BMN_MAP.map) {
+    try { delete host._leaflet_id; } catch (e) {}
+  }
+
+  _BMN_MAP.map = L.map('bmn-upt-map', {
+    zoomControl: true,
+    scrollWheelZoom: false,
+    center: [-2.5489, 118.0149],
+    zoom: 5
+  });
+
+  _ensureCartoKey(function (key) {
+    if (!_BMN_MAP.map) return;
+    L.tileLayer(_cartoTileUrl(key), {
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }).addTo(_BMN_MAP.map);
+  });
+
+  _BMN_MAP.layerGroup = L.layerGroup().addTo(_BMN_MAP.map);
+
+  setTimeout(function () {
+    if (_BMN_MAP.map) {
+      try { _BMN_MAP.map.invalidateSize(); } catch (e) {}
+    }
+  }, 200);
+
+  if (_BMN_MAP.data) {
+    _bmnRenderMapMarkers(_BMN_MAP.data);
+  }
+}
+
+function _bmnResetMapFocus() {
+  if (_BMN_MAP.map) {
+    _BMN_MAP.map.setView([-2.5489, 118.0149], 5);
+  }
+}
+
+function _bmnRenderMapMarkers(uptList) {
+  _BMN_MAP.data = uptList;
+  if (!_BMN_MAP.map || !_BMN_MAP.layerGroup || !Array.isArray(uptList)) return;
+
+  _BMN_MAP.layerGroup.clearLayers();
+
+  uptList.forEach(function (u) {
+    if (u.latitude == null || u.longitude == null || isNaN(u.latitude) || isNaN(u.longitude)) return;
+
+    var hasRb = (u.rusakBerat > 0);
+    var cleanName = (u.namaLokasi || '')
+      .replace('Pangkalan PSDKP ', '')
+      .replace('Stasiun PSDKP ', '')
+      .replace('Direktorat ', '');
+
+    var iconHtml =
+      '<div class="bmn-upt-marker' + (hasRb ? ' has-rusak-berat' : '') + '">' +
+        '<span class="bmn-upt-marker-count">' + (u.total || 0) + '</span>' +
+        '<span class="bmn-upt-marker-name">' + _esc(cleanName) + '</span>' +
+      '</div>';
+
+    var icon = L.divIcon({
+      className: 'bmn-upt-marker-wrap',
+      html: iconHtml,
+      iconSize: [120, 26],
+      iconAnchor: [20, 13]
+    });
+
+    var marker = L.marker([u.latitude, u.longitude], { icon: icon });
+
+    var popupHtml =
+      '<div class="bmn-popover">' +
+        '<div class="bmn-popover-title">' + _esc(u.namaLokasi) + '</div>' +
+        '<div class="bmn-popover-sub">' + _esc(u.jenis || 'UPT') + ' &bull; ' + _esc(u.wilayah || 'Indonesia') + '</div>' +
+        '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:0.75rem; background:var(--n-surface-2); padding:8px; border-radius:6px; margin-bottom:8px;">' +
+          '<div>Total: <strong class="tnum">' + (u.total || 0) + ' unit</strong></div>' +
+          '<div>Nilai Buku: <strong class="tnum">' + _rupiah(u.nilaiBuku || 0) + '</strong></div>' +
+        '</div>' +
+        '<div style="font-size:0.75rem; margin-bottom:10px;">' +
+          '<div style="display:flex; justify-content:space-between; margin-bottom:3px;">' +
+            '<span style="color:#059669;font-weight:600;">Baik: ' + (u.baik || 0) + '</span>' +
+            '<span style="color:#D97706;font-weight:600;">R. Ringan: ' + (u.rusakRingan || 0) + '</span>' +
+            '<span style="color:#DC2626;font-weight:600;">R. Berat: ' + (u.rusakBerat || 0) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ctl-row ctl-sm">' +
+          '<button type="button" class="btn-primary" onclick="_bmnFilterByUpt(\'' + _esc(u.lokasiId) + '\')">' +
+            'Tampilkan Aset UPT Ini &rarr;' +
+          '</button>' +
+        '</div>' +
+      '</div>';
+
+    marker.bindPopup(popupHtml, { maxWidth: 280, minWidth: 220 });
+    _BMN_MAP.layerGroup.addLayer(marker);
+  });
+}
+
+function _bmnFilterByUpt(lokasiId) {
+  if (_BMN_MAP.map) {
+    _BMN_MAP.map.closePopup();
+  }
+  var sel = document.getElementById('bmn-filter-upt');
+  if (sel) {
+    sel.value = lokasiId;
+  }
+  _BMN.lokasiId = lokasiId;
+  _BMN.page = 1;
+  _bmnLoadAsetList(false);
+
+  var tblCard = document.getElementById('bmn-table-wrap');
+  if (tblCard) {
+    tblCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function _bmnLoadMasters(cb) {
@@ -7233,18 +7368,37 @@ function _bmnRenderSummary(d) {
     elBadgeUnit.textContent = (d.totalUnit || 0) + ' unit';
   }
 
-  // Notification Banner fallback (jika elemen ada)
-  var elDesc = document.getElementById('bmn-notif-desc');
-  var elAct  = document.getElementById('bmn-notif-action');
-  if (elDesc && d.notificationAlert) {
-    elDesc.textContent = d.notificationAlert.text;
+  // Update Notification Summary Banner (Sub-Fase 18B.5)
+  var bBaik = document.getElementById('bmn-sum-badge-baik');
+  var bRR   = document.getElementById('bmn-sum-badge-rr');
+  var bRB   = document.getElementById('bmn-sum-badge-rb');
+  var tAlert = document.getElementById('bmn-sum-alert-text');
+  var actWrap = document.getElementById('bmn-sum-actions');
+
+  if (d.kondisi) {
+    if (bBaik) bBaik.textContent = 'Baik: ' + (d.kondisi.baik.count || 0) + ' unit (' + (d.kondisi.baik.pct || 0) + '%)';
+    if (bRR)   bRR.textContent   = 'Rusak Ringan: ' + (d.kondisi.rusakRingan.count || 0) + ' unit (' + (d.kondisi.rusakRingan.pct || 0) + '%)';
+    if (bRB)   bRB.textContent   = 'Rusak Berat: ' + (d.kondisi.rusakBerat.count || 0) + ' unit (' + (d.kondisi.rusakBerat.pct || 0) + '%)';
   }
-  if (elAct) {
+
+  if (tAlert && d.notificationAlert) {
+    tAlert.textContent = d.notificationAlert.text;
+  }
+
+  if (actWrap) {
     if (d.notificationAlert && d.notificationAlert.hasRusakBeratAlert) {
-      elAct.innerHTML = '<button type="button" class="btn-mini btn-danger" onclick="_bmnFilterRusakBerat()">Lihat ' + d.notificationAlert.kandidatCount + ' Rusak Berat</button>';
+      actWrap.innerHTML =
+        '<button type="button" class="btn-danger" onclick="_bmnFilterRusakBerat()">' +
+          'Filter ' + d.notificationAlert.kandidatCount + ' Rusak Berat' +
+        '</button>';
     } else {
-      elAct.innerHTML = '';
+      actWrap.innerHTML = '';
     }
+  }
+
+  // Render UPT Map Markers (Sub-Fase 18B.5)
+  if (d.uptList) {
+    _bmnRenderMapMarkers(d.uptList);
   }
 }
 

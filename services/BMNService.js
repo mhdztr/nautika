@@ -381,6 +381,32 @@ function bmn_getSummary(token, filter) {
       return String(r['Status']) === ROW_STATUS.ACTIVE;
     });
 
+    var uptSheet = openTuSheet(SHEET_TU.MASTER_LOKASI_UPT);
+    var masterUpts = sheetToObjects(uptSheet).filter(function (u) {
+      return String(u['Status'] || 'AKTIF').toUpperCase() === 'AKTIF';
+    });
+
+    var uptMap = {};
+    for (var m = 0; m < masterUpts.length; m++) {
+      var mu = masterUpts[m];
+      var muId = String(mu['LokasiID']);
+      uptMap[muId] = {
+        lokasiId:   muId,
+        namaLokasi: String(mu['NamaLokasi']),
+        jenis:      String(mu['Jenis'] || 'UPT'),
+        wilayah:    String(mu['Wilayah'] || ''),
+        latitude:   parseFloat(mu['Latitude']) || null,
+        longitude:  parseFloat(mu['Longitude']) || null,
+        total:      0,
+        baik:       0,
+        rusakRingan:0,
+        rusakBerat: 0,
+        nilaiGross: 0,
+        nilaiBuku:  0,
+        antreanHapus: 0
+      };
+    }
+
     var totalAsetGross = 0;
     var totalNilaiBuku  = 0;
     var totalUnit       = activeRows.length;
@@ -407,7 +433,7 @@ function bmn_getSummary(token, filter) {
       var kond = String(r['Kondisi'] || 'BAIK').toUpperCase();
       var penc = String(r['KategoriPencatatan'] || 'BUKU').toUpperCase();
       var stAset = String(r['StatusAset'] || 'AKTIF').toUpperCase();
-      var lokId = String(r['LokasiID'] || 'UPT-PUSAT');
+      var lokId = String(r['LokasiID'] || 'UPT-PUSAT-POA');
 
       totalAsetGross += np;
       totalNilaiBuku += nb;
@@ -435,6 +461,32 @@ function bmn_getSummary(token, filter) {
       }
 
       uptCounts[lokId] = (uptCounts[lokId] || 0) + 1;
+
+      if (!uptMap[lokId]) {
+        uptMap[lokId] = {
+          lokasiId:   lokId,
+          namaLokasi: lokId,
+          jenis:      'UPT',
+          wilayah:    '',
+          latitude:   null,
+          longitude:  null,
+          total:      0,
+          baik:       0,
+          rusakRingan:0,
+          rusakBerat: 0,
+          nilaiGross: 0,
+          nilaiBuku:  0,
+          antreanHapus: 0
+        };
+      }
+      var targetUpt = uptMap[lokId];
+      targetUpt.total++;
+      targetUpt.nilaiGross += np;
+      targetUpt.nilaiBuku += nb;
+      if (kond === 'RUSAK_BERAT') targetUpt.rusakBerat++;
+      else if (kond === 'RUSAK_RINGAN') targetUpt.rusakRingan++;
+      else targetUpt.baik++;
+      if (stAset === 'DALAM_PENGHAPUSAN') targetUpt.antreanHapus++;
     }
 
     var pctKelaikanFisik = totalUnit > 0
@@ -444,6 +496,13 @@ function bmn_getSummary(token, filter) {
     var pctBaik = totalUnit > 0 ? Math.round((kondisiCounts.BAIK / totalUnit) * 1000) / 10 : 0;
     var pctRusakRingan = totalUnit > 0 ? Math.round((kondisiCounts.RUSAK_RINGAN / totalUnit) * 1000) / 10 : 0;
     var pctRusakBerat = totalUnit > 0 ? Math.round((kondisiCounts.RUSAK_BERAT / totalUnit) * 1000) / 10 : 0;
+
+    var uptArray = [];
+    for (var kId in uptMap) {
+      if (uptMap.hasOwnProperty(kId)) {
+        uptArray.push(uptMap[kId]);
+      }
+    }
 
     return {
       success: true,
@@ -464,6 +523,7 @@ function bmn_getSummary(token, filter) {
           rusakBerat: { count: kondisiCounts.RUSAK_BERAT, pct: pctRusakBerat }
         },
         uptCounts: uptCounts,
+        uptList: uptArray,
         notificationAlert: {
           hasRusakBeratAlert: rusakBeratKandidatHapus > 0,
           kandidatCount: rusakBeratKandidatHapus,

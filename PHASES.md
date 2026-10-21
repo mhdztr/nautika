@@ -507,7 +507,7 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 18B — Revamp Suku Bagian Tata Usaha: Kepegawaian & Sistem Informasi Manajemen BMN Terpadu (Dedicated Spreadsheet Nautika_TU)
 
-- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.4 Selesai; Sub-Fase 18B.5 Siap Dikerjakan)**.
+- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.5 Selesai; Sub-Fase 18B.6 Siap Dikerjakan)**.
 - **Dependensi**: Fase 18 Selesai (Lunas).
 - **Tujuan**: Membangun tata kelola mandiri Suku Bagian Tata Usaha melalui spreadsheet dedicated `Nautika_TU`, sistem manajemen kepegawaian 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), sistem register fisik BMN per-item anti-jebret (Reguler vs Buku), dual-option geotagging UPT terdekat, notification summary kondisi kelaikan aset, dan siklus penghapusan legal Kemenkeu.
 - **Ruang Lingkup Deliverables**:
@@ -530,10 +530,10 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
      - Kompresi kanvas foto fisik (max-width 1600px, JPEG 0.8) dan penyimpanan otomatis ke Drive + `TX_Evidence`.
      - Zero-Emoji Policy: Larangan keras emoji unicode di `DESIGN.md` §1 (Rule 18) dan pembersihan total (0 emoji) di seluruh antarmuka dan skrip sistem.
      - Standarisasi Geometri Tombol & Kontrol UI Lintas Modul: Penerapan sistem kontrol terpadu 3-tier container-driven (`LG: 40px`, `MD: 32px`, `SM: 26px`) via kontainer `.ctl-row`, `.ctl-lg`, `.ctl-sm`, `.ctl-stack` pada seluruh modul aplikasi, eliminasi benturan tinggi sebaris, dan penghapusan inline style geometry override (`DESIGN.md` §1 Rule 19 & §5.5, `ARCHITECTURE.md` §17.1).
-  6. **Sub-Fase 18B.5 — Dashboard BMN, Notification Summary & Peta Sebaran UPT**:
-     - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah.
-     - Penegakan kondisi fisik per-item (*anti-jebret*).
-     - Notification Summary Banner di akhir: rekapitulasi aset Baik, Rusak Ringan, Rusak Berat, serta Actionable Alert untuk aset Rusak Berat kandidat penghapusan.
+  6. **Sub-Fase 18B.5 — Dashboard BMN, Notification Summary & Peta Sebaran UPT**: **Selesai**.
+     - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah (`#bmn-upt-map`) dengan basemap Carto, custom marker badge konsentrasi per UPT, dan popup detail breakdown kondisi.
+     - Penegakan kondisi fisik per-item (*anti-jebret*) tersinkronisasi dua arah dengan filter peta spasial ke tabel data.
+     - Notification Summary Banner di atas daftar inventaris BMN: rekapitulasi aset Baik, Rusak Ringan, Rusak Berat, serta Actionable Button untuk filter instan aset Rusak Berat kandidat penghapusan.
   7. **Sub-Fase 18B.6 — Siklus Penghapusan Legal Kemenkeu**:
      - State machine berkas usulan (`DRAFT_USULAN` → `SURAT_USULAN` → `PERSETUJUAN_KEMENKEU` → `SK_PENGHAPUSAN` → `BAST_SELESAI`).
      - Upload wajib dokumen nomor surat dan bukti dukung per tahap, karantina aset (`DALAM_PENGHAPUSAN`), dan eksekusi status akhir `DIHAPUS` tanpa menghapus jejak audit.

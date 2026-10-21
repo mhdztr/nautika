@@ -173,7 +173,7 @@
         <div id="opslaut-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="ops-btn-submit" onclick="opsLautSubmit()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-ops-laut-form')">Batal</button>
       </div>
@@ -247,7 +247,7 @@
       </div>
       <div id="opslaut-revisi-attach"></div>
 
-      <div style="display:flex;gap:12px;margin-top:24px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
         <button class="btn-primary" id="ops-btn-revisi-save" onclick="opsLautRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="closeModal('modal-ops-revisi')">Batal</button>
       </div>
@@ -270,8 +270,8 @@
         <input type="text" id="an-ops-alasan" placeholder="Penjelasan mengapa dianulir...">
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:24px;">
-        <button class="btn-primary" style="background:var(--n-status-critical);" id="ops-btn-anulir-save" onclick="opsLautAnulirConfirm()">Anulir Laporan</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
+        <button class="btn-danger-solid" id="ops-btn-anulir-save" onclick="opsLautAnulirConfirm()">Anulir Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-ops-anulir')">Batal</button>
       </div>
     </div>

@@ -51,7 +51,7 @@
 
       <div id="kgd-attach" style="margin-top:6px;"></div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="kgd-btn-submit" onclick="kgdSubmit()">Simpan Kegiatan</button>
         <button class="btn-outline" onclick="closeModal('modal-kgd-form')">Batal</button>
       </div>
@@ -87,7 +87,7 @@
       </div>
       <div id="kgd-revisi-attach"></div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="kgd-btn-revisi-save" onclick="kgdRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="closeModal('modal-kgd-revisi')">Batal</button>
       </div>
@@ -109,8 +109,8 @@
         <input type="text" id="an-kgd-alasan" placeholder="Jelaskan alasan pembatalan">
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
-        <button class="btn-primary" style="background:var(--n-status-critical);" id="kgd-btn-anulir-save" onclick="kgdAnulirConfirm()">Anulir Kegiatan</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
+        <button class="btn-danger-solid" id="kgd-btn-anulir-save" onclick="kgdAnulirConfirm()">Anulir Kegiatan</button>
         <button class="btn-outline" onclick="closeModal('modal-kgd-anulir')">Batal</button>
       </div>
     </div>

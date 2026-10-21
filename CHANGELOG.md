@@ -1,3 +1,41 @@
+## [Governance & Arsitektur UI] — Kohesi Total Kontrol UI Sampai Tulang (Single Scale 3-Tier Container-Driven)
+
+**Tanggal**: 21 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED 100%)** (Penyatuan seluruh kontrol interaktif antarmuka tombol, icon-button, segmented control, input, select ke dalam skala 3-tier geometrik tunggal container-driven; migrasi seluruh view dan JavaScript string emitter; penyediaan QA tooling linter statis dan runtime probe konsol).
+
+### Ringkasan Pekerjaan Selesai (Work Packages WP0 – WP4):
+1. **WP0: Tata Kelola & Dokumen Arsitektur (Synchronized)**:
+   - `DESIGN.md`: Menambahkan §1 Rule 19 (Negative Prompt: dilarang inline style size override, dilarang benturan tinggi/radius sebaris) dan §5.5 (Spesifikasi Skala Geometri Kontrol 3-Tier: LG 40px, MD 32px, SM 26px; aturan container `.ctl-row`, `.ctl-stack`, concentric radius segmented button, dsb.).
+   - `PRD.md`: Menambahkan §10.6 (Button & Control Uniformity).
+   - `ARCHITECTURE.md`: Menambahkan §17.1 (Single Geometry Control Scale Contract) dan §17.2 (Dev Tooling & QA Otomatis).
+   - `AGENTS.md`: Menambahkan instruksi kohesi kontrol UI ke §2 (Prinsip Kerja) dan §6 (Definition of Done checklist).
+   - `PHASES.md`: Memperbarui lingkup Sub-Fase 18B.4 terkait standardisasi kontrol lintas modul.
+
+2. **WP1: CSS Engine Overhaul (`html/Style.html`)**:
+   - Token geometri baru pada `:root`: `--ctl-h-lg: 40px`, `--ctl-h-md: 32px`, `--ctl-h-sm: 26px`, beserta token padding, radius, dan ukuran font berpasangan.
+   - Penambahan token warna border baku `--n-border: rgba(0, 0, 0, 0.12)` dan `--n-border-strong: rgba(0, 0, 0, 0.22)` untuk mencegah fallback browser ke outline 2px beveled default.
+   - Penulisan ulang fondasi tombol (`.btn`) menjadi deklarasi geometri tunggal tanpa ketergantungan class individual. Semua varian (`.btn-primary`, `.btn-outline`, `.btn-ghost`, `.btn-secondary`, `.btn-danger`, `.btn-danger-solid`) murni mengatur warna/latar/border.
+   - Implementasi wadah kontrol: `.ctl-row` (MD 32px), `.ctl-row.ctl-lg` (LG 40px), `.ctl-row.ctl-sm` (SM 26px), `.ctl-stack` (LG 40px vertikal full-width), `.ctl-fill`, dan `.ctl-nowrap`. Child control dipaksa mengikuti variabel container `--ctl-h` dan `--ctl-r`.
+   - Polishing modern untuk form controls di dalam kontainer: `.ctl-select` dan `.ctl-row > select` (menggunakan chevron SVG elegan, `appearance: none`, border halus, dan micro-shadow), serta `.ctl-search` untuk input pencarian berikon terpusat vertikal.
+   - Harmonisasi Segmented Controls (`.n-seg` dengan formula concentric radius) dan Icon Buttons (`.n-iconbtn`, `.n-iconbtn-sm`, `.n-iconbtn-x`).
+   - Pembersihan class warisan/duplikat (`.btn-sm-ok`, `.btn-sm-crit`).
+
+3. **WP2: View Markup Migration (`html/views/*.html`, `Index.html`, `Auth.html`)**:
+   - Standardisasi seluruh modal footer dan action bar di 8 modul divisi (`TataUsaha`, `Intelijen`, `Kegiatan`, `Logistik`, `OperasiLaut`, `Pemantauan`, `Pengawakan`, `Perawatan`) ke `.ctl-row.ctl-lg.ctl-fill` atau `.ctl-stack`.
+   - Mengganti seluruh tombol Anulir bertema merah/inline-style ke varian baku `.btn-danger-solid`.
+   - Merapikan toolbar Kepegawaian TU, bilah pencarian dan dropdown filter BMN (`.ctl-search` dan `.ctl-select`), pagination footer tabel BMN, kontrol OTP, dan modal approval akun admin (`Admin.html`).
+
+4. **WP3: JavaScript String Emitters & Runtime Probe (`html/Script_Main.html`)**:
+   - Pembersihan seluruh inline style `height`/`padding` pada tombol yang di-render secara dinamis (overview chart, profil kapal, registrasi approval banner & queue, master data kapal & kawasan, riwayat transaksi modul `_histActions`, dan tabel aksi BMN).
+   - Implementasi runtime probe `window._uiAudit()` untuk mendeteksi deviasi visual kontrol langsung dari DevTools browser.
+
+5. **WP4: QA Tooling Otomatis (`lint_ui.js`)**:
+   - Pembuatan script scanner statis [lint_ui.js](file:///home/pinefeast/Projects/nautika/lint_ui.js) untuk mendeteksi inline style ukuran pada `<button>`, kelas deprecated/terlarang, konflik kelas, dan ketiadaan wadah `.ctl-` pada modal footer.
+   - Hasil eksekusi `node lint_ui.js`: **0 pelanggaran (PASS)** pada seluruh 20 file HTML template.
+   - Pendaftaran [lint_ui.js](file:///home/pinefeast/Projects/nautika/lint_ui.js) ke `.claspignore` dan `.gitignore` demi menjaga kebersihan repositori Google Apps Script.
+
+---
+
 ## [Polish UI] — Perapian & Penyatuan Tata Letak Inventaris BMN Tata Usaha (Declutter & Unified Table Container)
 
 **Tanggal**: 21 Oktober 2026  

@@ -12,8 +12,10 @@
   --n-text-primary:          #2B3674;   /* Deep Maritime Navy */
   --n-text-secondary:        #4A5568;   /* Slate Neutral */
   --n-text-muted:            #A3AED0;   /* Muted Hint & Placeholder */
+  --n-border:                rgba(0, 0, 0, 0.12);
   --n-border-subtle:         rgba(0, 0, 0, 0.07);
   --n-border-hairline:       rgba(0, 0, 0, 0.07);
+  --n-border-strong:         rgba(0, 0, 0, 0.22);
   --n-border-highlight:      rgba(255, 255, 255, 0.75); /* Inner Glass Edge */
   --n-border-focused:        rgba(43, 54, 116, 0.35);
   --n-border-focus-ring:     rgba(43, 54, 116, 0.35);
@@ -86,6 +88,28 @@
 
   /* Layout */
   --n-sidebar-w:             248px;
+
+  /* Skala Kontrol Tunggal (Single Geometry Control Scale) — DESIGN.md §5.5 */
+  --ctl-h-lg:                40px;
+  --ctl-px-lg:               18px;
+  --ctl-r-lg:                8px;
+  --ctl-fs-lg:               14px;
+
+  --ctl-h-md:                32px;
+  --ctl-px-md:               14px;
+  --ctl-r-md:                8px;
+  --ctl-fs-md:               13px;
+
+  --ctl-h-sm:                26px;
+  --ctl-px-sm:               10px;
+  --ctl-r-sm:                6px;
+  --ctl-fs-sm:               12px;
+
+  /* Default container tier (MD) */
+  --ctl-h:                   var(--ctl-h-md);
+  --ctl-px:                  var(--ctl-px-md);
+  --ctl-r:                   var(--ctl-r-md);
+  --ctl-fs:                  var(--ctl-fs-md);
 }
 
 /* ============================================================
@@ -553,201 +577,487 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================================
-   BUTTONS (DESIGN.md §1.1, §4, §5c)
+   CONTAINER-DRIVEN CONTROL SCALE & TIERS (DESIGN.md §1 Rule 19 & §5.5)
    ============================================================ */
-/* Tombol utama (submit form) di semua divisi + Index login/register.
-   Mengikuti standar Apple: tanpa 3D bevel kuno, border hairline halus,
-   elevasi ambient Level 1, dan kompresi sentuh fisik (:active scale 0.97). */
-.btn-primary {
-  display: block; width: 100%;
-  padding: 12px 20px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: var(--n-radius-inner);
-  background: var(--n-primary);
-  color: #fff;
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  letter-spacing: -0.010em;
-  box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transition: transform 90ms var(--ease-out), background 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
-  margin-top: 8px;
-  user-select: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover:not(:disabled) {
-    background: var(--n-primary-hover);
-    box-shadow: var(--n-shadow-2);
-  }
-}
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.97) !important;
-  background: var(--n-primary-active);
-}
-.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary:focus-visible { outline: 3px solid var(--n-primary-light); outline-offset: 2px; }
 
-.btn-ghost {
-  display: block; width: 100%;
-  padding: 11px 18px;
-  border: 1px solid var(--n-border-hairline);
-  border-radius: var(--n-radius-inner);
-  background: transparent;
-  color: var(--n-primary);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  transition: background 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
-  margin-top: 8px;
-  user-select: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .btn-ghost:hover:not(:disabled) {
-    background: var(--n-primary-light);
-    border-color: var(--n-primary);
-  }
-}
-.btn-ghost:active:not(:disabled) {
-  transform: scale(0.97) !important;
-}
-
-/* Tombol batalkan dalam modal — garansi outline indigo di atas kartu putih. */
-.btn-outline {
-  display: block; width: 100%;
-  padding: 11px 18px;
-  border: 1px solid var(--n-primary);
-  border-radius: var(--n-radius-inner);
-  background: transparent;
-  color: var(--n-primary);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  transition: background 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
-  margin-top: 8px;
-  user-select: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .btn-outline:hover:not(:disabled) { background: var(--n-primary-light); }
-}
-.btn-outline:active:not(:disabled) { transform: scale(0.97) !important; }
-.btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Tombol aksi mini dalam baris tabel (Revisi/Anulir) — pill outline. */
-.btn-mini {
-  display: inline-flex;
+/* ── KONTROL CONTAINER TIERS ─────────────────────────────── */
+.ctl-row {
+  --ctl-h: var(--ctl-h-md);
+  --ctl-px: var(--ctl-px-md);
+  --ctl-r: var(--ctl-r-md);
+  --ctl-fs: var(--ctl-fs-md);
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 26px;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: var(--n-radius-pill);
-  border: 1px solid var(--n-border-hairline);
-  background: rgba(0, 0, 0, 0.02);
-  color: var(--n-text-primary);
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.12s var(--ease-out), color 0.12s var(--ease-out), border-color 0.12s var(--ease-out), transform 90ms var(--ease-out);
-  user-select: none;
-  white-space: nowrap;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ctl-row.ctl-nowrap {
+  flex-wrap: nowrap;
+}
+.ctl-row.ctl-lg,
+.ctl-lg {
+  --ctl-h: var(--ctl-h-lg);
+  --ctl-px: var(--ctl-px-lg);
+  --ctl-r: var(--ctl-r-lg);
+  --ctl-fs: var(--ctl-fs-lg);
+}
+.ctl-row.ctl-sm,
+.ctl-sm {
+  --ctl-h: var(--ctl-h-sm);
+  --ctl-px: var(--ctl-px-sm);
+  --ctl-r: var(--ctl-r-sm);
+  --ctl-fs: var(--ctl-fs-sm);
+}
+.ctl-stack {
+  --ctl-h: var(--ctl-h-lg);
+  --ctl-px: var(--ctl-px-lg);
+  --ctl-r: var(--ctl-r-lg);
+  --ctl-fs: var(--ctl-fs-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Penegakan Tinggi Kontrol Anak di dalam Kontainer */
+.ctl-row > button,
+.ctl-row > .btn,
+.ctl-row > a.btn,
+.ctl-row > input:not([type="checkbox"]):not([type="radio"]),
+.ctl-row > select,
+.ctl-row > .ctl-search > input,
+.ctl-row > .n-seg,
+.ctl-row > .n-iconbtn,
+.ctl-row > .n-iconbtn-sm,
+.ctl-row > .n-iconbtn-x,
+.ctl-select,
+.ctl-input,
+.ctl-stack > button,
+.ctl-stack > .btn,
+.ctl-stack > a.btn {
+  height: var(--ctl-h) !important;
+  min-height: var(--ctl-h) !important;
+  max-height: var(--ctl-h) !important;
+  border-radius: var(--ctl-r) !important;
+  font-size: var(--ctl-fs) !important;
   box-sizing: border-box;
 }
-@media (hover: hover) and (pointer: fine) {
-  .btn-mini:hover {
-    background: var(--n-primary-light);
-    border-color: var(--n-primary);
-    color: var(--n-primary);
-  }
-}
-.btn-mini:active:not(:disabled) { transform: scale(0.97) !important; }
 
-/* Tier 2: Compact / Action Bar Buttons (.btn-sm) — tinggi seragam 32px */
+/* Polishing Modern Dropdown Select di dalam .ctl-row / .ctl-select */
+.ctl-row > select,
+.ctl-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding: 0 30px 0 12px !important;
+  border: 1px solid var(--n-border);
+  border-radius: var(--ctl-r) !important;
+  font-family: inherit;
+  font-size: var(--ctl-fs) !important;
+  font-weight: 500;
+  color: var(--n-text-primary);
+  background-color: #FFFFFF;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  outline: none;
+  transition: border-color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out), background-color 0.16s var(--ease-out);
+}
+
+.ctl-row.ctl-sm > select,
+.ctl-select.ctl-sm {
+  padding: 0 26px 0 10px !important;
+  background-position: right 8px center;
+}
+
+.ctl-row > select:hover,
+.ctl-select:hover {
+  border-color: var(--n-border-strong);
+  background-color: #FFFFFF;
+}
+
+.ctl-row > select:focus,
+.ctl-select:focus {
+  border-color: var(--n-primary);
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
+}
+
+/* Search Box & Text Input di dalam .ctl-row */
+.ctl-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--ctl-h);
+}
+
+.ctl-search-ico {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--n-text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctl-search > input,
+.ctl-row > input:not([type="checkbox"]):not([type="radio"]),
+.ctl-input {
+  border: 1px solid var(--n-border);
+  border-radius: var(--ctl-r) !important;
+  font-family: inherit;
+  font-size: var(--ctl-fs) !important;
+  color: var(--n-text-primary);
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  outline: none;
+  transition: border-color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out), background-color 0.16s var(--ease-out);
+}
+
+.ctl-search > input {
+  padding-left: 30px !important;
+  padding-right: 12px !important;
+  width: 220px;
+}
+
+.ctl-search > input:hover,
+.ctl-row > input:not([type="checkbox"]):not([type="radio"]):hover,
+.ctl-input:hover {
+  border-color: var(--n-border-strong);
+}
+
+.ctl-search > input:focus,
+.ctl-row > input:not([type="checkbox"]):not([type="radio"]):focus,
+.ctl-input:focus {
+  border-color: var(--n-primary);
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
+  background-color: #FFFFFF;
+}
+
+.ctl-stack > button,
+.ctl-stack > .btn,
+.ctl-stack > a.btn {
+  width: 100%;
+}
+
+.ctl-fill > button,
+.ctl-fill > .btn,
+.ctl-fill > a.btn,
+.ctl-row.ctl-fill > button,
+.ctl-row.ctl-fill > .btn,
+.ctl-row.ctl-fill > a.btn {
+  flex: 1 1 0;
+}
+
+/* Kontekstual Otomatis: Modal (LG) & Tabel (SM) */
+.n-modal:not(.n-modal-hd) .btn-primary,
+.n-modal:not(.n-modal-hd) .btn-outline,
+.n-modal:not(.n-modal-hd) .btn-ghost,
+.n-modal:not(.n-modal-hd) .btn-secondary,
+.n-modal:not(.n-modal-hd) .btn-danger,
+.n-modal:not(.n-modal-hd) .btn-danger-solid {
+  --ctl-h: var(--ctl-h-lg);
+  --ctl-px: var(--ctl-px-lg);
+  --ctl-r: var(--ctl-r-lg);
+  --ctl-fs: var(--ctl-fs-lg);
+}
+
+.n-table .btn,
+.n-table button,
+table .btn,
+table button {
+  --ctl-h: var(--ctl-h-sm);
+  --ctl-px: var(--ctl-px-sm);
+  --ctl-r: var(--ctl-r-sm);
+  --ctl-fs: var(--ctl-fs-sm);
+}
+
+/* ── GEOMETRI DASAR TOMBOL (SINGLE GEOMETRY BASE) ────────── */
+.btn,
+button.btn,
+a.btn,
+.btn-primary,
+.btn-outline,
+.btn-ghost,
+.btn-secondary,
+.btn-danger,
+.btn-danger-solid,
 .btn-sm,
 .btn-sm-outline,
 .btn-sm-ghost,
 .btn-sm-primary,
-.btn-sm-danger {
+.btn-sm-danger,
+.btn-sm-ok,
+.btn-sm-crit,
+.btn-mini {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 14px;
-  border-radius: var(--n-radius-sm);
+  height: var(--ctl-h);
+  min-height: var(--ctl-h);
+  padding: 0 var(--ctl-px);
+  border-radius: var(--ctl-r);
   font-family: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--ctl-fs);
   font-weight: 600;
+  line-height: 1;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
   box-sizing: border-box;
-  transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out), border-color 0.14s var(--ease-out), transform 90ms var(--ease-out);
+  transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out), border-color 0.14s var(--ease-out), box-shadow 0.14s var(--ease-out), transform 90ms var(--ease-out);
 }
+
+/* ── VARIAN MURNI WARNA & GAYA (TANPA OVERRIDE GEOMETRI) ── */
+/* Primary (Solid Navy) */
+.btn-primary,
 .btn-sm-primary {
   background: var(--n-primary);
   color: #FFFFFF;
   border: 1px solid var(--n-primary);
+  box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 @media (hover: hover) and (pointer: fine) {
-  .btn-sm-primary:hover:not(:disabled) { background: #1E2652; }
+  .btn-primary:hover:not(:disabled),
+  .btn-sm-primary:hover:not(:disabled) {
+    background: var(--n-primary-hover);
+    box-shadow: var(--n-shadow-2);
+  }
 }
+
+/* Outline (Border Navy/Border Subtle) */
+.btn-outline,
 .btn-sm-outline {
   background: transparent;
   color: var(--n-primary);
   border: 1px solid var(--n-border);
 }
 @media (hover: hover) and (pointer: fine) {
+  .btn-outline:hover:not(:disabled),
   .btn-sm-outline:hover:not(:disabled) {
     background: var(--n-primary-light);
     border-color: var(--n-primary);
   }
 }
+
+/* Ghost / Secondary */
+.btn-ghost,
 .btn-sm-ghost {
   background: transparent;
   color: var(--n-text-secondary);
   border: 1px solid transparent;
 }
 @media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover:not(:disabled),
   .btn-sm-ghost:hover:not(:disabled) {
     background: var(--n-surface-2);
     color: var(--n-text-primary);
   }
 }
+
+.btn-secondary {
+  background: var(--n-surface-2);
+  color: var(--n-text-primary);
+  border: 1px solid var(--n-border-hairline);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--n-surface-hover);
+    border-color: var(--n-border);
+  }
+}
+
+/* Danger (Outline & Solid) */
+.btn-danger,
 .btn-sm-danger {
   background: transparent;
   color: var(--n-crit);
   border: 1px solid #FECACA;
 }
 @media (hover: hover) and (pointer: fine) {
+  .btn-danger:hover:not(:disabled),
   .btn-sm-danger:hover:not(:disabled) {
     background: #FEF2F2;
     border-color: var(--n-crit);
   }
 }
-.btn-sm:active:not(:disabled),
-.btn-sm-outline:active:not(:disabled),
-.btn-sm-ghost:active:not(:disabled),
-.btn-sm-primary:active:not(:disabled),
-.btn-sm-danger:active:not(:disabled) {
-  transform: scale(0.97) !important;
+
+.btn-danger-solid {
+  background: var(--n-crit);
+  color: #FFFFFF;
+  border: 1px solid var(--n-crit);
+  box-shadow: var(--n-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-danger-solid:hover:not(:disabled) {
+    background: #DC2626;
+    box-shadow: var(--n-shadow-2);
+  }
+}
+
+/* Semantic Success (Ok) & Critical (Crit) Variants */
+.btn-sm-ok,
+.btn-ok {
+  background: var(--n-status-success-bg, #ECFDF5);
+  color: var(--n-status-success, #10B981);
+  border: 1px solid var(--n-status-success-border, #A7F3D0);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-ok:hover:not(:disabled),
+  .btn-ok:hover:not(:disabled) {
+    background: #D1FAE5;
+  }
+}
+
+.btn-sm-crit,
+.btn-crit {
+  background: var(--n-status-critical-bg, #FEF2F2);
+  color: var(--n-status-critical, #EF4444);
+  border: 1px solid var(--n-status-critical-border, #FECACA);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-sm-crit:hover:not(:disabled),
+  .btn-crit:hover:not(:disabled) {
+    background: #FEE2E2;
+  }
+}
+
+/* Mini (alias backward compatibility ke SM tier outline) */
+.btn-mini {
+  --ctl-h: var(--ctl-h-sm);
+  --ctl-px: var(--ctl-px-sm);
+  --ctl-r: var(--ctl-r-sm);
+  --ctl-fs: var(--ctl-fs-sm);
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--n-border-hairline);
+  color: var(--n-text-primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-mini:hover:not(:disabled) {
+    background: var(--n-primary-light);
+    border-color: var(--n-primary);
+    color: var(--n-primary);
+  }
+}
+
+/* Disabled & Focus States */
+.btn:disabled,
+button.btn:disabled,
+.btn-primary:disabled,
+.btn-outline:disabled,
+.btn-ghost:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.btn-danger-solid:disabled,
+.btn-mini:disabled,
+.btn-sm:disabled,
+.btn-sm-outline:disabled,
+.btn-sm-ghost:disabled,
+.btn-sm-primary:disabled,
+.btn-sm-danger:disabled,
+.btn-sm-ok:disabled,
+.btn-sm-crit:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+}
+
+.btn:focus-visible,
+button.btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-outline:focus-visible,
+.btn-danger:focus-visible {
+  outline: 2px solid var(--n-primary-light);
+  outline-offset: 2px;
+}
+
+/* ── SEGMENTED CONTROLS (DESIGN.md §5.5.4) ───────────────── */
+.n-seg {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 3px;
+  border-radius: var(--ctl-r);
+  height: var(--ctl-h);
+  box-sizing: border-box;
+}
+.n-seg > button,
+.n-seg > .n-seg-btn,
+.n-seg > .bmn-seg-btn,
+.n-seg > .filter-mode-btn,
+.n-seg > .tu-subnav-btn,
+.n-seg > .sub-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--ctl-h) - 6px) !important;
+  min-height: calc(var(--ctl-h) - 6px) !important;
+  max-height: calc(var(--ctl-h) - 6px) !important;
+  padding: 0 12px;
+  border: none;
+  border-radius: max(0px, calc(var(--ctl-r) - 3px));
+  font-family: inherit;
+  font-size: calc(var(--ctl-fs) - 1px);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--n-text-secondary);
+  transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out), box-shadow 0.14s var(--ease-out);
+  box-sizing: border-box;
+  margin: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .n-seg > button:hover:not(.active),
+  .n-seg > .n-seg-btn:hover:not(.active),
+  .n-seg > .bmn-seg-btn:hover:not(.active),
+  .n-seg > .filter-mode-btn:hover:not(.active),
+  .n-seg > .tu-subnav-btn:hover:not(.active),
+  .n-seg > .sub-tab-btn:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--n-text-primary);
+  }
+}
+.n-seg > button.active,
+.n-seg > .n-seg-btn.active,
+.n-seg > .bmn-seg-btn.active,
+.n-seg > .filter-mode-btn.active,
+.n-seg > .tu-subnav-btn.active,
+.n-seg > .sub-tab-btn.active {
+  background: #FFFFFF;
+  color: var(--n-primary);
+  font-weight: 600;
+  box-shadow: var(--n-shadow-1);
 }
 
 /* Apple & Emil Kowalski Tactile Compression Feedback */
 .btn:active:not(:disabled),
+button.btn:active:not(:disabled),
 .btn-primary:active:not(:disabled),
 .btn-ghost:active:not(:disabled),
 .btn-outline:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled),
+.btn-danger-solid:active:not(:disabled),
 .btn-mini:active:not(:disabled),
 .btn-sm:active:not(:disabled),
+.btn-sm-outline:active:not(:disabled),
+.btn-sm-ghost:active:not(:disabled),
+.btn-sm-primary:active:not(:disabled),
+.btn-sm-danger:active:not(:disabled),
+.btn-sm-ok:active:not(:disabled),
+.btn-sm-crit:active:not(:disabled),
 .btn-logout:active,
 .n-iconbtn:active:not(:disabled),
 .n-iconbtn-sm:active:not(:disabled),
 .n-iconbtn-x:active:not(:disabled),
+.n-seg > button:active,
 .nav-item:active,
 .n-tab:active,
 .filter-mode-btn:active,
@@ -797,45 +1107,39 @@ a { text-decoration: none; color: inherit; }
   margin-right: 0.45em;
 }
 .n-iconbtn {
-  width: 45px;
-  height: 45px;
+  width: var(--ctl-h);
+  height: var(--ctl-h);
   border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-sm);
+  border-radius: var(--ctl-r);
   background: var(--n-surface-2);
 }
 .n-iconbtn:hover { color: var(--n-crit); border-color: var(--n-crit); background: var(--n-surface-1); }
 .n-iconbtn-sm {
-  /* Box model sama persis dengan `.btn-sm` (pill, padding 4px) supaya tinggi
-     ikon otomatis sama dengan tinggi tombol teks di sel aksi tabel — tanpa
-     angka px yang bisa menyimpang. */
-  padding: 4px 6px;
+  width: var(--ctl-h-sm);
+  height: var(--ctl-h-sm);
+  padding: 0;
   border: 1px solid var(--n-border-subtle);
-  border-radius: var(--n-r-pill);
+  border-radius: var(--ctl-r-sm);
   background: var(--n-surface-2);
-  margin-right: 5px;
 }
-.n-iconbtn-sm:hover { color: var(--n-crit); border-color: var(--n-crit); }
+.n-iconbtn-sm:hover { color: var(--n-crit); border-color: var(--n-crit); background: var(--n-surface-1); }
 
-/* `.n-iconbtn-x` — tombolIKON-SAJA (tanpa teks) untuk konteks sempit tempat
+/* `.n-iconbtn-x` — tombol IKON-SAJA (tanpa teks) untuk konteks sempit tempat
    teks tidak menambah informasi: tutup di header modal/drawer, dan tombol
-   "coba lagi" di dalam pesan error. Bentuk persegi 28px (tinggi ± sama
-   `.btn-mini` sebelumnya, jadi tinggi header tidak bergeser), ghost tanpa
-   border supaya tidak bersaing dengan tombol berlabel di sebelahnya.
-   WAJIB punya `title` + `aria-label` — ikon tidak boleh jadi satu-satunya
-   makna aksi (DESIGN.md §7). Ikon disuntikkan lewat `data-ico="<nama>"`
-   supaya tetap satu sumber ikon (`_ICO`), bukan SVG yang disalin. */
+   "coba lagi" di dalam pesan error. Mengikuti tier MD (32px), ghost tanpa
+   border supaya tidak bersaing dengan tombol berlabel di sebelahnya. */
 .n-iconbtn-x {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--ctl-h-md);
+  height: var(--ctl-h-md);
   padding: 0;
   flex: 0 0 auto;
   cursor: pointer;
   border: 1px solid transparent;
-  border-radius: var(--n-r-sm);
+  border-radius: var(--ctl-r-md);
   background: transparent;
   color: var(--n-text-muted);
   transition: color 0.14s, border-color 0.14s, background 0.14s;
@@ -1930,19 +2234,6 @@ a { text-decoration: none; color: inherit; }
 }
 .hist-section-hd .btn-mini { margin-right: 0; }
 
-.btn-sm {
-  padding: 4px 11px;
-  border-radius: var(--n-r-pill);
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, transform 0.1s var(--n-spring-snappy);
-}
-.btn-sm-ok   { background: #ECFDF5; color: var(--n-ok);   border: 1px solid #A7F3D0; margin-right: 5px; }
-.btn-sm-ok:hover   { background: #D1FAE5; }
-.btn-sm-crit { background: #FEF2F2; color: var(--n-crit); border: 1px solid #FECACA; }
-.btn-sm-crit:hover { background: #FEE2E2; }
 
 /* ============================================================
    TABS — pemisah sub-konten (Operasi Kapal/Pesawat, Master Data)

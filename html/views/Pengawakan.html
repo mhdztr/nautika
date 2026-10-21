@@ -61,7 +61,7 @@
         <input type="text" id="awak-revisi-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
       </div>
       <div id="awak-revisi-attach"></div>
-      <div style="display:flex;gap:12px;margin-top:24px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
         <button class="btn-primary" id="awak-btn-revisi-save" onclick="_awkRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="_awkCloseRevisi()">Batal</button>
       </div>
@@ -84,8 +84,8 @@
         <label for="awak-anulir-alasan">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
         <input type="text" id="awak-anulir-alasan" placeholder="Jelaskan apa yang perlu diperbaiki staf">
       </div>
-      <div style="display:flex;gap:12px;margin-top:24px;">
-        <button class="btn-primary" style="background:var(--n-crit);" id="awak-btn-anulir-save" onclick="_awkAnulirConfirm()">Konfirmasi Anulir</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
+        <button class="btn-danger-solid" id="awak-btn-anulir-save" onclick="_awkAnulirConfirm()">Konfirmasi Anulir</button>
         <button class="btn-outline" onclick="_awkCloseAnulir()">Batal</button>
       </div>
     </div>
@@ -161,7 +161,7 @@
         <div id="awkakn-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="akn-btn-submit" onclick="_awkSubmitAkn()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-akn-form')">Batal</button>
       </div>
@@ -240,7 +240,7 @@
         <div id="awkkeg-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="akk-btn-submit" onclick="_awkSubmitKegiatan()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-akk-form')">Batal</button>
       </div>

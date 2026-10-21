@@ -468,8 +468,10 @@
         <label for="reject-reason">Alasan Penolakan</label>
         <input type="text" id="reject-reason" placeholder="Tuliskan alasan penolakan">
       </div>
-      <button class="btn btn-primary" id="btn-confirm-reject">Konfirmasi Penolakan</button>
-      <button class="btn btn-ghost" onclick="closeRejectModal()" style="margin-top:8px;">Batal</button>
+      <div class="ctl-stack" style="margin-top:16px;">
+        <button class="btn btn-danger-solid" id="btn-confirm-reject">Konfirmasi Penolakan</button>
+        <button class="btn btn-ghost" onclick="closeRejectModal()">Batal</button>
+      </div>
     </div>
   </div>
 

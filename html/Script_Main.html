@@ -1332,7 +1332,7 @@ function _renderOverview(el) {
             '<div class="dr-banner-t"><span id="dr-banner-count">0</span> permintaan registrasi menunggu persetujuan</div>' +
             '<div class="dr-banner-s">Antrean terbatas pada kewenangan Anda</div>' +
           '</div>' +
-          '<button class="btn-sm btn-sm-ok dr-banner-btn" onclick="openApprovalDrawer()">Lihat &amp; Putuskan</button>' +
+          '<button class="btn-primary dr-banner-btn" onclick="openApprovalDrawer()">Lihat &amp; Putuskan</button>' +
         '</div>' +
       '</div>';
   }
@@ -1434,7 +1434,7 @@ function _renderOverview(el) {
               '<div class="chart-cell-title">Kapal Pengawas Teraktif &amp; Evaluasi Armada</div>' +
               '<div class="chart-cell-sub">Top 5 hari operasi &bull; Evaluasi triwulanan armada</div>' +
             '</div>' +
-            '<button type="button" class="btn-sm btn-sm-ghost" style="font-weight:600;font-size:0.75rem;padding:4px 10px;" onclick="_routeTo(\'kapal-terbaik\')">' +
+            '<button type="button" class="btn-ghost" onclick="_routeTo(\'kapal-terbaik\')">' +
               'Kapal Terbaik (TW) &rarr;' +
             '</button>' +
           '</div>' +
@@ -1666,9 +1666,7 @@ function _renderProfilKapal(el) {
           '<div class="content-section-hd" id="pk-nama" style="margin-bottom:2px;">' + _esc(APP.profilKapalId) + '</div>' +
           '<div id="pk-sub" style="font-size:.8rem;color:var(--n-text-muted);">Memuat data&hellip;</div>' +
         '</div>' +
-        '<button class="btn-sm n-has-ico" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;white-space:nowrap;" onclick="_routeTo(\'master-data\')">' +
-          // Glyph "←" diganti ikon arrowLeft (pola sama seperti glyph "＋"
-          // yang diganti ikon `plus`): satu bahasa ikon, bukan karakter.
+        '<button class="btn-outline n-has-ico" onclick="_routeTo(\'master-data\')">' +
           _ico('arrowLeft', 15) + 'Master Data</button>' +
       '</div>' +
     '</div>' +
@@ -3153,10 +3151,10 @@ function _renderApprovalTable(items) {
         '<td>' + _esc(it.namaDivisi || '-') + '</td>' +
         '<td>' + (it.roleDilamar === 'KADIV' ? 'Kepala Divisi / Ketua Tim Kerja' : 'Staf') + '</td>' +
         '<td>' + d + '</td>' +
-        '<td>' +
-          '<button class="btn-sm btn-sm-ok"   onclick="doApprove(\'' + _esc(it.queueId) + '\')">Setujui</button>' +
-          '<button class="btn-sm btn-sm-crit" onclick="openRejectModal(\'' + _esc(it.queueId) + '\')">Tolak</button>' +
-        '</td>' +
+        '<td><div class="ctl-row ctl-sm ctl-nowrap">' +
+          '<button class="btn-primary" onclick="doApprove(\'' + _esc(it.queueId) + '\')">Setujui</button>' +
+          '<button class="btn-danger"  onclick="openRejectModal(\'' + _esc(it.queueId) + '\')">Tolak</button>' +
+        '</div></td>' +
       '</tr>';
     }).join('');
 
@@ -3813,13 +3811,13 @@ function _mdRenderKapal(items) {
       '<td>' + _esc(k.homebaseUpt || '\u2014') + '</td>' +
       '<td>' + _esc(k.jenisKapal ? _mdKapalJenisLabel(k.jenisKapal) : '\u2014') + '</td>' +
       '<td>' + badge + '</td>' +
-      '<td>' +
-        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_openProfilKapal(\'' + _esc(k.kapalId) + '\')">Profil</button>' +
-        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
+      '<td><div class="ctl-row ctl-sm ctl-nowrap">' +
+        '<button class="btn-outline" onclick="_openProfilKapal(\'' + _esc(k.kapalId) + '\')">Profil</button>' +
+        '<button class="btn-outline" onclick="_mdOpenKapalModal(\'' + _esc(k.kapalId) + '\')">Edit</button>' +
         (k.statusAktif
-          ? '<button class="btn-sm btn-sm-crit" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Nonaktifkan</button>'
-          : '<button class="btn-sm btn-sm-ok" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Aktifkan</button>') +
-      '</td>' +
+          ? '<button class="btn-danger" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Nonaktifkan</button>'
+          : '<button class="btn-primary" onclick="_mdToggleKapal(\'' + _esc(k.kapalId) + '\')">Aktifkan</button>') +
+      '</div></td>' +
     '</tr>';
   }).join('');
 
@@ -4011,11 +4009,11 @@ function _mdRenderKawasan(items) {
       '<td>' + _esc(k.nama) + '</td>' +
       '<td>' + _esc(k.provinsi) + '</td>' +
       '<td>' + _esc(loc) + '</td>' +
-      '<td>' +
-        '<button class="btn-sm" style="background:var(--n-primary-light);color:var(--n-primary);border:1px solid #C7CCEC;margin-right:5px;" onclick="_mdOpenKawasanModal(\'' + _esc(k.kawasanId) + '\')">Edit</button>' +
-        '<button class="btn-sm btn-sm-crit n-iconbtn-sm" title="Hapus kawasan" aria-label="Hapus kawasan" ' +
+      '<td><div class="ctl-row ctl-sm ctl-nowrap">' +
+        '<button class="btn-outline" onclick="_mdOpenKawasanModal(\'' + _esc(k.kawasanId) + '\')">Edit</button>' +
+        '<button class="btn-danger n-iconbtn-sm" title="Hapus kawasan" aria-label="Hapus kawasan" ' +
           'onclick="_mdDeleteKawasan(\'' + _esc(k.kawasanId) + '\')">' + _ico('trash') + '</button>' +
-      '</td>' +
+      '</div></td>' +
     '</tr>';
   }).join('');
 
@@ -5828,12 +5826,12 @@ function _histRowAttrs(status) {
 function _histActions(cfg, r) {
   var active = String(r.status || '').toUpperCase() === 'ACTIVE';
   var sheet = (typeof cfg.refSheet === 'function') ? cfg.refSheet(r) : cfg.refSheet;
-  var out = '<button class="btn-mini" onclick="_hdOpen(' +
+  var out = '<button class="btn-outline" onclick="_hdOpen(' +
     _hdPush(sheet, r.rowId, cfg.title(r), cfg.detail(r), cfg.manage ? cfg.manage(r) : null) +
     ')">Lihat</button>';
-  if (active && cfg.revisi) out += '<button class="btn-mini" onclick="' + cfg.revisi(r) + '">Revisi</button>';
-  if (active && cfg.anulir) out += '<button class="btn-mini btn-danger" onclick="' + cfg.anulir(r) + '">Anulir</button>';
-  return '<div class="hist-actions">' + out + '</div>';
+  if (active && cfg.revisi) out += '<button class="btn-outline" onclick="' + cfg.revisi(r) + '">Revisi</button>';
+  if (active && cfg.anulir) out += '<button class="btn-danger" onclick="' + cfg.anulir(r) + '">Anulir</button>';
+  return '<div class="hist-actions ctl-row ctl-sm ctl-nowrap">' + out + '</div>';
 }
 
 function _histRender(wrapId, cfg, rows, prefixHtml) {
@@ -7364,10 +7362,10 @@ function _bmnRenderTable(data) {
                 '<div style="font-size:.72rem;color:var(--n-text-muted);">Beli: ' + _rupiah(a.nilaiPerolehan) + '</div>' +
               '</td>' +
               '<td style="text-align:center;">' +
-                '<div style="display:inline-flex;gap:6px;justify-content:center;">' +
-                  '<button type="button" class="btn-mini btn-outline" onclick="_bmnEditAset(\'' + _esc(a.asetId) + '\')">Edit</button>' +
+                '<div class="ctl-row ctl-sm ctl-nowrap" style="justify-content:center;">' +
+                  '<button type="button" class="btn-outline" onclick="_bmnEditAset(\'' + _esc(a.asetId) + '\')">Edit</button>' +
                   (isAuthorizedAnulir
-                    ? '<button type="button" class="btn-mini btn-danger" onclick="_bmnOpenAnulirModal(\'' + _esc(a.rowId) + '\', \'' + _esc(a.kodeBarang) + '\', \'' + _esc(a.nup) + '\', \'' + _esc(a.namaBarang) + '\')">Anulir</button>'
+                    ? '<button type="button" class="btn-danger" onclick="_bmnOpenAnulirModal(\'' + _esc(a.rowId) + '\', \'' + _esc(a.kodeBarang) + '\', \'' + _esc(a.nup) + '\', \'' + _esc(a.namaBarang) + '\')">Anulir</button>'
                     : '') +
                 '</div>' +
               '</td>' +
@@ -14306,5 +14304,59 @@ function _awkCloseAnulir() {
   _AWK.anulir = { jenis: null, rowId: null };
   closeModal('modal-awak-anulir');
 }
+
+/**
+ * _uiAudit() — Runtime Layout & Geometry Probe (DESIGN.md §5.5.6 & ARCHITECTURE.md §17.2)
+ * Memindai seluruh kontainer kontrol interaktif di DOM aktif.
+ * Memverifikasi bahwa seluruh kontrol berdampingan memiliki getBoundingClientRect().height identik.
+ */
+function _uiAudit() {
+  var rows = document.querySelectorAll('.ctl-row, .hist-actions, .filter-box, .n-seg, [class*="ctl-"]');
+  var results = [];
+  var totalChecked = 0;
+  var violations = 0;
+
+  rows.forEach(function (container) {
+    if (container.offsetParent === null) return; // skip hidden
+    var items = Array.from(container.children).filter(function (el) {
+      var tag = el.tagName.toLowerCase();
+      return (tag === 'button' || tag === 'select' || (tag === 'input' && el.type !== 'hidden') || el.classList.contains('n-seg') || el.classList.contains('btn'));
+    });
+    if (items.length < 2) return;
+    totalChecked++;
+
+    var heights = items.map(function (el) {
+      return { el: el, h: Math.round(el.getBoundingClientRect().height * 10) / 10 };
+    });
+    var baseH = heights[0].h;
+    var mismatched = heights.filter(function (it) {
+      return Math.abs(it.h - baseH) > 1.5;
+    });
+
+    if (mismatched.length > 0) {
+      violations++;
+      results.push({
+        container: container,
+        expectedHeight: baseH,
+        mismatched: mismatched
+      });
+      console.warn('[UI COHESION AUDIT VIOLATION]', container, heights);
+    }
+  });
+
+  var summary = {
+    pass: violations === 0,
+    containersChecked: totalChecked,
+    violations: violations,
+    details: results
+  };
+  if (violations === 0) {
+    console.info('[UI COHESION AUDIT PASS] Seluruh ' + totalChecked + ' kontainer kontrol berbaris memiliki tinggi identik.');
+  } else {
+    console.error('[UI COHESION AUDIT FAIL] Ditemukan ' + violations + ' kontainer dengan tinggi kontrol bertabrakan!');
+  }
+  return summary;
+}
+window._uiAudit = _uiAudit;
 
 </script>

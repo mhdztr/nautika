@@ -122,7 +122,7 @@
         <div id="pem-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="pem-btn-submit" onclick="pemSubmit()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-pem-form')">Batal</button>
       </div>
@@ -186,7 +186,7 @@
       </div>
       <div id="pem-revisi-attach"></div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="pem-btn-revisi-save" onclick="pemRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="closeModal('modal-pem-revisi')">Batal</button>
       </div>
@@ -208,8 +208,8 @@
         <input type="text" id="an-pem-alasan" placeholder="Jelaskan apa yang perlu diperbaiki">
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
-        <button class="btn-primary" style="background:var(--n-status-critical);" id="pem-btn-anulir-save" onclick="pemAnulirConfirm()">Anulir Data</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
+        <button class="btn-danger-solid" id="pem-btn-anulir-save" onclick="pemAnulirConfirm()">Anulir Data</button>
         <button class="btn-outline" onclick="closeModal('modal-pem-anulir')">Batal</button>
       </div>
     </div>

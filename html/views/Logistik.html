@@ -62,7 +62,7 @@
         <input type="text" id="log-revisi-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
       </div>
       <div id="log-revisi-attach"></div>
-      <div style="display:flex;gap:12px;margin-top:24px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
         <button class="btn-primary" id="log-btn-revisi-save" onclick="_logRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="_logCloseRevisi()">Batal</button>
       </div>
@@ -85,8 +85,8 @@
         <label for="log-anulir-alasan">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
         <input type="text" id="log-anulir-alasan" placeholder="Jelaskan apa yang perlu diperbaiki staf">
       </div>
-      <div style="display:flex;gap:12px;margin-top:24px;">
-        <button class="btn-primary" style="background:var(--n-crit);" id="log-btn-anulir-save" onclick="_logAnulirConfirm()">Konfirmasi Anulir</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:24px;">
+        <button class="btn-danger-solid" id="log-btn-anulir-save" onclick="_logAnulirConfirm()">Konfirmasi Anulir</button>
         <button class="btn-outline" onclick="_logCloseAnulir()">Batal</button>
       </div>
     </div>
@@ -187,7 +187,7 @@
         <div id="lga-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="lga-btn-submit" onclick="_logSubmitAmunisi()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-lga-form')">Batal</button>
       </div>
@@ -299,7 +299,7 @@
         <div id="lgb-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="lgb-btn-submit" onclick="_logSubmitBbm()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-lgb-form')">Batal</button>
       </div>
@@ -369,7 +369,7 @@
         <div id="lgp-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="lgp-btn-submit" onclick="_logSubmitPersonil()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-lgp-form')">Batal</button>
       </div>

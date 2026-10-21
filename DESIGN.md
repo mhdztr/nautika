@@ -11,7 +11,7 @@ Nama produk: **Nautika**. Tidak ada subtitle/tagline di bawah nama produk maupun
 
 ## 1. Negative Prompt — Larangan Keras (Strict Anti-Slop & Anti-Outdated)
 
-Setiap komponen yang dibangun **wajib bebas** dari 17 cacat desain berikut:
+Setiap komponen yang dibangun **wajib bebas** dari 19 cacat desain berikut:
 
 1. **DILARANG tombol 3D bevel / hard bottom border** (misal: `border-bottom: 4px solid rgba(0,0,0,0.25)` atau efek tombol timbul tebal). Seluruh tombol berasa *tactile* melalui kompresi pegas aktif (`transform: scale(0.97)` via `--ease-out` pada `:active`/`pointerdown`).
 2. **DILARANG tabrakan multi-font (font collision)** (seperti Poppins bercampur Plus Jakarta Sans). Seluruh antarmuka 100% menggunakan **Plus Jakarta Sans** dengan tabel optical tracking yang presisi.
@@ -31,6 +31,7 @@ Setiap komponen yang dibangun **wajib bebas** dari 17 cacat desain berikut:
 16. **DILARANG animasi properti pemicu Layout & Paint**. Hanya menganimasikan properti GPU Compositor: `transform` dan `opacity` (serta `clip-path` berkinerja tinggi). Jangan pernah menganimasikan `width`, `height`, `margin`, `padding`, `top`, atau `left`.
 17. **DILARANG huruf kapital penuh abu-abu pudar (washed-out all-caps AI-slop trope)** (seperti `text-transform: uppercase; color: var(--n-text-muted)` dengan tracking renggang pada judul kartu, label form, info row, dan header tabel). Pola visual ini terbukti merusak keterbacaan, tampak artifisial, dan tidak ergonomis untuk sistem kokpit operasional. Seluruh label metrik, header tabel, form label, dan penunjuk data WAJIB menggunakan Title Case atau Sentence Case alami dengan kontras tinggi Slate Navy (`var(--n-text-secondary)` / `#4A5568`), bobot tegas (`font-weight: 600`), dan tracking optik rapat natural (`-0.01em` hingga `-0.005em`).
 18. **DILARANG EMOJI DI SELURUH SISTEM (ZERO EMOJI POLICY)**: Tidak boleh ada emoji grafis apa pun (seperti 📍, 📷, 📄, 📁, 📋, 📊, ⟲, dll.) pada teks antarmuka, judul, tombol, label formulir, placeholder, toast notifikasi, status badge, maupun modal dialog. Seluruh ikon visual wajib menggunakan SVG monokrom sistem (`_ico(name, size)` atau atribut `data-ico`) dengan semantik palet warna resmi Nautika.
+19. **DILARANG KOMPONEN KONTROL TIDAK KOHESIF (KOHESI TOTAL SAMPAI TULANG)**: Seluruh kontrol interaktif (tombol, ikon-tombol, segmented/tab, select, input) yang berada **sebaris/berdampingan WAJIB memiliki tinggi dan base shape yang identik**, di **SELURUH** bagian aplikasi tanpa pengecualian modul (Ikhtisar, 9 divisi, Master Data, Admin, Notifikasi, Riwayat, Kapal Terbaik, Auth, modal, tabel, tombol yang dipancarkan JavaScript). Tinggi ditentukan oleh **kontainer/tier** (lihat §5.5), BUKAN oleh kelas tombol atau `style=""` inline. DILARANG: (a) `style=` inline yang menimpa tinggi/padding/font-size/radius/warna pada tombol; (b) dua definisi CSS untuk satu kelas tombol; (c) kombinasi kelas bertabrakan (`btn-mini btn-outline`); (d) mencampur tier dalam satu baris; (e) menambah kelas tombol baru di luar sistem §5.5. Pelanggaran dianggap bug, bukan preferensi gaya.
 
 ---
 
@@ -164,17 +165,49 @@ Saat berpindah view (misal dari Overview ke Operasi Laut), kartu KPI dan tabel t
 
 Setiap item masuk dari `scale(0.97) translateY(8px)` ke posisi normal dalam 240ms dengan kurva `--ease-out`.
 
-### 5.5 Keseragaman Geometri Tombol (Button Sizing & Alignment Standards)
-Seluruh tombol di antarmuka Nautika wajib mematuhi 3 tier ukuran baku dengan tinggi, padding, dan border-radius seragam:
-1. **Regular / Standard (`.btn-primary`, `.btn-secondary`, `.btn-outline`)**:
-   - Tinggi: `40px` (min-height `40px`), padding `10px 18px`, border-radius `var(--n-radius-sm)` (8px), font-size `0.875rem` (14px), font-weight `600`.
-2. **Compact / Bar Action (`.btn-sm`, `.btn-sm-outline`, `.btn-sm-ghost`, `.btn-sm-danger`)**:
-   - Tinggi: `32px` (min-height `32px`), padding `6px 14px`, border-radius `var(--n-radius-sm)` (8px), font-size `0.8125rem` (13px), font-weight `600`.
-3. **Mini / Table Row Action (`.btn-mini`, `.btn-mini-danger`)**:
-   - Tinggi: `26px`, padding `4px 10px`, border-radius `var(--n-radius-pill)` (9999px), font-size `0.75rem` (12px), font-weight `600`.
+### 5.5 Kohesi Total Kontrol — Satu Skala, Tier Ditentukan Kontainer
 
 > [!IMPORTANT]
-> **Aturan Baku Tombol Berdampingan**: Setiap pasangan atau kelompok tombol yang berada berdampingan dalam satu kontainer flex/grid WAJIB menggunakan tier ukuran yang sama persis (mis. sama-sama `.btn-sm`, atau sama-sama `.btn-mini`). DILARANG KERAS mencampur tombol beda ukuran (misal `.btn-outline` besar disandingkan dengan `.btn-mini` kecil) atau menggabungkan kelas yang bertabrakan (`.btn-mini.btn-outline`).
+> **Prinsip inti**: tinggi sebuah kontrol ditentukan oleh **baris/kontainer tempat ia berada**, bukan oleh kelas tombolnya. Kelas tombol (`.btn-primary`, `.btn-outline`, `.btn-ghost`, `.btn-danger`, dst.) HANYA mengatur **warna & gaya**. Geometri (tinggi, padding-x, radius, font) berasal dari token tier. Dengan begitu dua kontrol berdampingan **mustahil** berbeda tinggi, apa pun kelasnya.
+
+#### 5.5.1 Token Skala Kontrol (sumber kebenaran tunggal, `:root`)
+| Tier | Tinggi | Padding-x | Radius | Font | Dipakai di |
+|---|---|---|---|---|---|
+| **LG** | `--ctl-h-lg: 40px` | `18px` | `8px` | `14px / 600` | Footer form & modal, Auth, field form (`.form-grp`) |
+| **MD** | `--ctl-h-md: 32px` | `14px` | `8px` | `13px / 600` | Header seksi, toolbar, filter bar, topbar, pagination |
+| **SM** | `--ctl-h-sm: 26px` | `10px` | `6px` | `12px / 600` | Aksi di dalam sel tabel (Edit, Anulir, Lihat) |
+
+Seluruh tier: `display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; line-height:1; white-space:nowrap`. Tidak ada tombol yang `display:block; width:100%` secara bawaan; lebar penuh hanya lewat `.ctl-stack`.
+
+#### 5.5.2 Kontainer Penetap Tier
+- `.ctl-row` — baris flex (`gap:8px; align-items:center`), tier **MD** (default header seksi/toolbar).
+- `.ctl-row.ctl-lg` — footer form/modal, tier **LG**.
+- `.ctl-row.ctl-sm` — aksi di sel tabel, tier **SM**.
+- `.ctl-stack` — tumpukan vertikal lebar penuh di modal (mis. Konfirmasi di atas Batal), tinggi tier **LG** untuk semua anak.
+- Seluruh anak interaktif (`button`, `select`, `input`, `.n-seg`, `.n-iconbtn`) di dalam kontainer tersebut dipaksa `height: var(--ctl-h)` oleh aturan kontainer.
+
+#### 5.5.3 Satu Sistem Varian (hanya warna/gaya)
+`.btn-primary` (navy solid) · `.btn-outline` · `.btn-ghost` · `.btn-secondary` · `.btn-danger` (outline merah) · `.btn-danger-solid` (konfirmasi destruktif). Kelas lama (`.btn-mini`, `.btn-sm*`, `.btn-sm-ok/-crit`) hanyalah **alias** ke tier + varian di atas. Setiap kelas tombol hanya boleh memiliki **satu** definisi CSS di seluruh `Style.html`.
+
+#### 5.5.4 Keluarga Kontrol Lain — Semua Ikut Skala yang Sama
+| Keluarga | Aturan |
+|---|---|
+| **Segmented / tab pill** (`.n-seg`; menggantikan `.filter-mode-btn`, `.tu-subnav-btn`, `.bmn-seg-btn`, `.sub-tab-btn`) | *Outer track* = tinggi tier (MD `32px`); item di dalam `26px`, `padding:3px`, radius dalam = `max(0, 8 − 3) = 5px` (hukum konsentris §4.1) |
+| **Tab garis bawah** (`.n-tab`) | Navigasi halaman; tinggi diikat tier **LG** |
+| **Ikon-tombol** (`.n-iconbtn`, `-x`, `-sm`) | Persegi mengikuti tier: LG `40×40`, MD `32×32`, SM `26×26` |
+| **Select / input sebaris dengan tombol** | Otomatis tinggi tier kontainer; DILARANG `padding`/`height` inline |
+| **Field form** (`.form-grp input/select`) | Tier **LG** `40px` |
+| **Tombol khusus** (`.kt-*`, `.btn-logout`, `.dr-banner-btn`, pagination) | Dimigrasikan ke tier + varian; DILARANG padding sendiri |
+
+#### 5.5.5 Pengecualian (tertutup, tidak boleh diperluas)
+- **Badge/chip status** (`.badge`, `.chart-chip`, `.status-badge`) bukan tombol; tetap pill. Bila dapat diklik, ia otomatis menjadi tombol MD/SM.
+- **Kartu klik** (kartu Kapal Terbaik, nav-item sidebar) bukan kontrol baris; hanya font/radius yang diseragamkan.
+- Tidak ada tombol "bebas ukuran": tombol tunggal pun memakai tier konteksnya (LG di footer, MD di toolbar, SM di tabel).
+
+#### 5.5.6 Penegakan (agar tidak regresi)
+- **Statis**: skrip `lint_ui.js` gagal bila ada `style=` geometri/warna pada `<button>`, kelas tombol legacy/terlarang, kombinasi kelas bertabrakan, emoji, atau tier campuran dalam satu induk.
+- **Runtime**: `_uiAudit()` (konsol) membandingkan tinggi seluruh anak interaktif pada tiap induk yang memiliki ≥2 kontrol dan melaporkan pelanggaran.
+- **Definition of Done**: setiap modul/komponen baru wajib lolos kedua pemeriksaan di atas.
 
 ---
 

@@ -112,7 +112,7 @@
         <div id="intel-attach" style="margin-top:20px;"></div>
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="int-btn-submit" onclick="intelSubmit()">Simpan Laporan</button>
         <button class="btn-outline" onclick="closeModal('modal-int-form')">Batal</button>
       </div>
@@ -156,7 +156,7 @@
       </div>
       <div id="intel-revisi-attach"></div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
         <button class="btn-primary" id="int-btn-revisi-save" onclick="intelRevisiConfirm()">Simpan Revisi</button>
         <button class="btn-outline" onclick="closeModal('modal-int-revisi')">Batal</button>
       </div>
@@ -178,8 +178,8 @@
         <input type="text" id="an-int-alasan" placeholder="Jelaskan apa yang perlu diperbaiki">
       </div>
 
-      <div style="display:flex;gap:12px;margin-top:20px;">
-        <button class="btn-primary" style="background:var(--n-status-critical);" id="int-btn-anulir-save" onclick="intelAnulirConfirm()">Anulir Data</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
+        <button class="btn-danger-solid" id="int-btn-anulir-save" onclick="intelAnulirConfirm()">Anulir Data</button>
         <button class="btn-outline" onclick="closeModal('modal-int-anulir')">Batal</button>
       </div>
     </div>

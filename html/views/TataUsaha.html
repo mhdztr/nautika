@@ -9,15 +9,29 @@
   <div class="content-section" style="margin-bottom: 20px;">
     <div class="tu-subnav-bar">
       <button type="button" class="tu-subnav-btn active" id="tu-tab-btn-anggaran" onclick="_tuSwitchTab('anggaran')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="2" y="4" width="20" height="16" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;">
+          <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+          <line x1="2" y1="10" x2="22" y2="10"></line>
+        </svg>
         Anggaran &amp; Realisasi
       </button>
       <button type="button" class="tu-subnav-btn" id="tu-tab-btn-pegawai" onclick="_tuSwitchTab('pegawai')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
         Kepegawaian
       </button>
       <button type="button" class="tu-subnav-btn" id="tu-tab-btn-bmn" onclick="_tuSwitchTab('bmn')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
         Inventaris BMN &amp; Aset
       </button>
     </div>
@@ -85,9 +99,15 @@
           <div class="form-grp">
             <label for="tu-periode-tahun">Periode</label>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-              <select id="tu-periode-tahun"><option value="">Tahun</option></select>
-              <select id="tu-periode-bulan"><option value="">Bulan</option></select>
-              <select id="tu-periode-minggu"><option value="">Minggu Ke-</option></select>
+              <select id="tu-periode-tahun">
+                <option value="">Tahun</option>
+              </select>
+              <select id="tu-periode-bulan">
+                <option value="">Bulan</option>
+              </select>
+              <select id="tu-periode-minggu">
+                <option value="">Minggu Ke-</option>
+              </select>
             </div>
             <div class="n-form-hint" id="tu-periode-hint">Periode: —</div>
           </div>
@@ -107,50 +127,62 @@
           <!-- Bar kunci Pagu -->
           <div class="tu-pagu-bar n-hidden" id="tu-pagu-bar">
             <span id="tu-pagu-bar-txt" style="font-size:.78rem;color:var(--n-text-muted);"></span>
-            <button type="button" id="tu-btn-unlock-pagu" class="btn-mini" onclick="tuUnlockPagu(true)">Ubah Pagu</button>
-            <button type="button" id="tu-btn-lock-pagu" class="btn-mini n-hidden" onclick="tuUnlockPagu(false)">Batalkan</button>
+            <button type="button" id="tu-btn-unlock-pagu" class="btn-mini" onclick="tuUnlockPagu(true)">Ubah
+              Pagu</button>
+            <button type="button" id="tu-btn-lock-pagu" class="btn-mini n-hidden"
+              onclick="tuUnlockPagu(false)">Batalkan</button>
           </div>
 
           <!-- Berapa kali pagu sudah direvisi (dihitung server dari seluruh riwayat) -->
           <div class="tu-pagu-rev" id="tu-pagu-rev">—</div>
 
           <!-- Realisasi 2x2 Matrix: SP2D & Akrual x Reguler & ABT -->
-          <div style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:12px;margin-bottom:6px;">Realisasi SP2D Minggu Ini (Kas / Pencairan)</div>
+          <div
+            style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:12px;margin-bottom:6px;">
+            Realisasi SP2D Minggu Ini (Kas / Pencairan)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
             <div class="form-grp">
               <label for="tu-real-sp2d-reguler">SP2D Reguler (Rp)</label>
-              <input type="number" id="tu-real-sp2d-reguler" min="0" step="1" placeholder="0" oninput="_tuUpdateFormRealTotals()">
+              <input type="number" id="tu-real-sp2d-reguler" min="0" step="1" placeholder="0"
+                oninput="_tuUpdateFormRealTotals()">
             </div>
             <div class="form-grp">
               <label for="tu-real-sp2d-abt">SP2D ABT (Rp)</label>
-              <input type="number" id="tu-real-sp2d-abt" min="0" step="1" placeholder="0" oninput="_tuUpdateFormRealTotals()">
+              <input type="number" id="tu-real-sp2d-abt" min="0" step="1" placeholder="0"
+                oninput="_tuUpdateFormRealTotals()">
             </div>
           </div>
 
-          <div style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:10px;margin-bottom:6px;">Realisasi Akrual Minggu Ini (Beban / Fisik)</div>
+          <div
+            style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:10px;margin-bottom:6px;">
+            Realisasi Akrual Minggu Ini (Beban / Fisik)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
             <div class="form-grp">
               <label for="tu-real-akrual-reguler">Akrual Reguler (Rp)</label>
-              <input type="number" id="tu-real-akrual-reguler" min="0" step="1" placeholder="0" oninput="_tuUpdateFormRealTotals()">
+              <input type="number" id="tu-real-akrual-reguler" min="0" step="1" placeholder="0"
+                oninput="_tuUpdateFormRealTotals()">
             </div>
             <div class="form-grp">
               <label for="tu-real-akrual-abt">Akrual ABT (Rp)</label>
-              <input type="number" id="tu-real-akrual-abt" min="0" step="1" placeholder="0" oninput="_tuUpdateFormRealTotals()">
+              <input type="number" id="tu-real-akrual-abt" min="0" step="1" placeholder="0"
+                oninput="_tuUpdateFormRealTotals()">
             </div>
           </div>
 
-          <div id="tu-real-totals-hint" class="n-form-hint" style="margin-top:-4px;margin-bottom:12px;">Total Minggu Ini — SP2D: Rp 0 · Akrual: Rp 0</div>
+          <div id="tu-real-totals-hint" class="n-form-hint" style="margin-top:-4px;margin-bottom:12px;">Total Minggu Ini
+            — SP2D: Rp 0 · Akrual: Rp 0</div>
 
           <!-- Catatan revisi pagu (muncul & wajib hanya saat "Ubah Pagu" ditekan) -->
           <div class="form-grp n-hidden" id="tu-catatan-wrap">
-            <label for="tu-catatan">Catatan Revisi Pagu <span style="color:var(--n-crit);font-weight:500;">(wajib isi)</span></label>
+            <label for="tu-catatan">Catatan Revisi Pagu <span style="color:var(--n-crit);font-weight:500;">(wajib
+                isi)</span></label>
             <input type="text" id="tu-catatan" placeholder="Alasan perubahan pagu...">
           </div>
 
           <div id="tu-attach"></div>
         </div>
 
-        <div style="display:flex;gap:12px;margin-top:20px;">
+        <div class="ctl-row ctl-lg ctl-fill" style="margin-top:20px;">
           <button class="btn-primary" id="tu-btn-submit" onclick="tuSubmit()">Simpan Laporan</button>
           <button class="btn-outline" onclick="closeModal('modal-tu-form')">Batal</button>
         </div>
@@ -185,40 +217,52 @@
         </div>
         <div class="tu-pagu-rev" id="rv-pagu-rev">—</div>
         <!-- Realisasi 2x2 Matrix Revisi -->
-        <div style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:12px;margin-bottom:6px;">Realisasi SP2D Minggu Ini (Kas / Pencairan)</div>
+        <div
+          style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:12px;margin-bottom:6px;">
+          Realisasi SP2D Minggu Ini (Kas / Pencairan)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="rv-real-sp2d-reguler">SP2D Reguler (Rp)</label>
-            <input type="number" id="rv-real-sp2d-reguler" min="0" step="1" placeholder="0" oninput="_tuUpdateRvRealTotals()">
+            <input type="number" id="rv-real-sp2d-reguler" min="0" step="1" placeholder="0"
+              oninput="_tuUpdateRvRealTotals()">
           </div>
           <div class="form-grp">
             <label for="rv-real-sp2d-abt">SP2D ABT (Rp)</label>
-            <input type="number" id="rv-real-sp2d-abt" min="0" step="1" placeholder="0" oninput="_tuUpdateRvRealTotals()">
+            <input type="number" id="rv-real-sp2d-abt" min="0" step="1" placeholder="0"
+              oninput="_tuUpdateRvRealTotals()">
           </div>
         </div>
-        <div style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:10px;margin-bottom:6px;">Realisasi Akrual Minggu Ini (Beban / Fisik)</div>
+        <div
+          style="font-size:.8125rem;font-weight:600;color:var(--n-text-secondary);margin-top:10px;margin-bottom:6px;">
+          Realisasi Akrual Minggu Ini (Beban / Fisik)</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <div class="form-grp">
             <label for="rv-real-akrual-reguler">Akrual Reguler (Rp)</label>
-            <input type="number" id="rv-real-akrual-reguler" min="0" step="1" placeholder="0" oninput="_tuUpdateRvRealTotals()">
+            <input type="number" id="rv-real-akrual-reguler" min="0" step="1" placeholder="0"
+              oninput="_tuUpdateRvRealTotals()">
           </div>
           <div class="form-grp">
             <label for="rv-real-akrual-abt">Akrual ABT (Rp)</label>
-            <input type="number" id="rv-real-akrual-abt" min="0" step="1" placeholder="0" oninput="_tuUpdateRvRealTotals()">
+            <input type="number" id="rv-real-akrual-abt" min="0" step="1" placeholder="0"
+              oninput="_tuUpdateRvRealTotals()">
           </div>
         </div>
-        <div id="rv-real-totals-hint" class="n-form-hint" style="margin-top:-4px;margin-bottom:12px;">Total Minggu Ini — SP2D: Rp 0 · Akrual: Rp 0</div>
+        <div id="rv-real-totals-hint" class="n-form-hint" style="margin-top:-4px;margin-bottom:12px;">Total Minggu Ini —
+          SP2D: Rp 0 · Akrual: Rp 0</div>
         <div class="form-grp">
           <label for="rv-alasan">Alasan Revisi <span style="color:var(--n-crit)">*</span></label>
           <input type="text" id="rv-alasan" placeholder="Jelaskan apa yang diubah dan mengapa">
         </div>
         <div class="form-grp">
-          <label for="rv-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(jika Pagu berubah)</span></label>
+          <label for="rv-catatan">Catatan Revisi Pagu <span style="color:var(--n-text-muted);font-weight:400;">(jika
+              Pagu berubah)</span></label>
           <input type="text" id="rv-catatan" placeholder="Opsional">
         </div>
         <div id="tu-revisi-attach"></div>
-        <button class="btn-primary" id="btn-confirm-revisi" onclick="tuRevisiConfirm()">Simpan Revisi</button>
-        <button class="btn-ghost" onclick="tuCloseRevisiModal()" style="margin-top:8px;">Batal</button>
+        <div class="ctl-stack" style="margin-top:16px;">
+          <button class="btn-primary" id="btn-confirm-revisi" onclick="tuRevisiConfirm()">Simpan Revisi</button>
+          <button class="btn-ghost" onclick="tuCloseRevisiModal()">Batal</button>
+        </div>
       </div>
     </div>
 
@@ -236,8 +280,11 @@
           <label for="anulir-reason">Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
           <input type="text" id="anulir-reason" placeholder="Jelaskan apa yang perlu diperbaiki staf">
         </div>
-        <button class="btn-primary" style="background:var(--n-crit);" id="btn-confirm-anulir" onclick="tuAnulirConfirm()">Konfirmasi Anulir</button>
-        <button class="btn-ghost" onclick="tuCloseAnulirModal()" style="margin-top:8px;">Batal</button>
+        <div class="ctl-stack" style="margin-top:16px;">
+          <button class="btn-danger-solid" id="btn-confirm-anulir" onclick="tuAnulirConfirm()">Konfirmasi
+            Anulir</button>
+          <button class="btn-ghost" onclick="tuCloseAnulirModal()">Batal</button>
+        </div>
       </div>
     </div>
   </div><!-- /tu-pane-anggaran -->
@@ -247,7 +294,7 @@
   <!-- TAB 2: KEPEGAWAIAN (5 KATEGORI: PNS, P3K, P3K-PW, PJLP, MAGANG) -->
   <!-- ══════════════════════════════════════════════════════════ -->
   <div id="tu-pane-pegawai" class="tu-pane n-hidden">
-    
+
     <!-- KPI Counters 5 Kategori -->
     <div class="content-section">
       <div class="tu-pegawai-kpi-grid" id="tu-pegawai-kpi-strip">
@@ -277,12 +324,16 @@
     <div class="content-section">
       <div class="content-section-hd" style="display:flex; justify-content:space-between; align-items:center;">
         <div>Riwayat Mutasi &amp; Snapshot Kepegawaian</div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button type="button" class="btn-primary" onclick="_tuOpenPegawaiModal()" style="display:inline-flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <div class="ctl-row">
+          <button type="button" class="btn-primary" onclick="_tuOpenPegawaiModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
             Perbarui Jumlah Pegawai
           </button>
-          <button type="button" class="btn-mini" onclick="_tuLoadPegawai(true)">Muat Ulang</button>
+          <button type="button" class="btn-outline" onclick="_tuLoadPegawai(true)">Muat Ulang</button>
         </div>
       </div>
       <div id="tu-pegawai-hist-msg" class="n-msg"></div>
@@ -299,7 +350,8 @@
             <h2 style="margin:0 0 4px 0;">Pembaruan Jumlah Pegawai</h2>
             <div style="font-size:0.78rem; color:var(--n-text-muted);">Snapshot headcount personil aktif terkini</div>
           </div>
-          <span class="badge" style="background:rgba(43,54,116,0.08);color:var(--n-primary);font-size:.75rem;">Carry-Forward</span>
+          <span class="badge"
+            style="background:rgba(43,54,116,0.08);color:var(--n-primary);font-size:.75rem;">Carry-Forward</span>
         </div>
 
         <div class="n-modal-form-scroll">
@@ -329,13 +381,14 @@
               </div>
               <div class="form-grp" style="grid-column: span 2;">
                 <label for="tu-peg-keterangan">Keterangan / Catatan Mutasi</label>
-                <input type="text" id="tu-peg-keterangan" placeholder="Contoh: 2 PNS purna tugas TMT 1 Okt, 3 Magang baru dari IPB">
+                <input type="text" id="tu-peg-keterangan"
+                  placeholder="Contoh: 2 PNS purna tugas TMT 1 Okt, 3 Magang baru dari IPB">
               </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+            <div class="ctl-row ctl-lg" style="justify-content:flex-end; margin-top:20px;">
               <button type="button" class="btn-ghost" onclick="closeModal('modal-tu-pegawai-form')">Batal</button>
-              <button type="submit" class="btn-primary" id="tu-peg-btn-save" style="min-width: 150px;">
+              <button type="submit" class="btn-primary" id="tu-peg-btn-save">
                 Simpan Pembaruan
               </button>
             </div>
@@ -348,7 +401,8 @@
     <div class="n-overlay n-hidden" id="modal-tu-pegawai-anulir">
       <div class="n-modal">
         <h2>Anulir Catatan Mutasi Pegawai</h2>
-        <div id="tu-pegawai-anulir-info" style="margin-bottom:14px; font-size:.875rem; color:var(--n-text-secondary);"></div>
+        <div id="tu-pegawai-anulir-info" style="margin-bottom:14px; font-size:.875rem; color:var(--n-text-secondary);">
+        </div>
         <div class="n-info-static" style="margin-bottom:14px;">
           Entri kepegawaian yang dianulir tidak lagi dihitung dalam total aktif dan akan dicatat di log audit.
         </div>
@@ -357,8 +411,11 @@
           <label for="tu-peg-anulir-reason">Komentar / Alasan Anulir <span style="color:var(--n-crit)">*</span></label>
           <input type="text" id="tu-peg-anulir-reason" placeholder="Jelaskan alasan pembatalan mutasi...">
         </div>
-        <button class="btn-primary" style="background:var(--n-crit);" id="btn-confirm-peg-anulir" onclick="_tuConfirmAnulirPegawai()">Konfirmasi Anulir</button>
-        <button class="btn-ghost" onclick="closeModal('modal-tu-pegawai-anulir')" style="margin-top:8px;">Batal</button>
+        <div class="ctl-stack" style="margin-top:16px;">
+          <button class="btn-danger-solid" id="btn-confirm-peg-anulir" onclick="_tuConfirmAnulirPegawai()">Konfirmasi
+            Anulir</button>
+          <button class="btn-ghost" onclick="closeModal('modal-tu-pegawai-anulir')">Batal</button>
+        </div>
       </div>
     </div>
 
@@ -369,7 +426,7 @@
   <!-- TAB 3: INVENTARIS BMN & ASET (FASE 18B.2 PREVIEW)         -->
   <!-- ══════════════════════════════════════════════════════════ -->
   <div id="tu-pane-bmn" class="tu-pane n-hidden">
-    
+
     <!-- SUB-VIEW 1: DAFTAR / DASHBOARD BMN -->
     <div id="bmn-view-list">
       <!-- 4 KPI Cards BMN -->
@@ -400,50 +457,72 @@
 
       <!-- Unified Master Table Container Card -->
       <div class="content-section">
-        <div class="n-card" style="padding:0; overflow:hidden; border-radius:var(--n-radius-md); box-shadow:var(--n-shadow-1);">
-          
+        <div class="n-card"
+          style="padding:0; overflow:hidden; border-radius:var(--n-radius-md); box-shadow:var(--n-shadow-1);">
+
           <!-- Baris 1: Header Tabel & Tombol Aksi Utama -->
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--n-border-hairline); gap:12px; flex-wrap:wrap;">
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--n-border-hairline); gap:12px; flex-wrap:wrap;">
             <div style="display:flex; align-items:center; gap:10px;">
-              <h3 style="margin:0; font-size:1rem; font-weight:700; color:var(--n-text-primary);">Daftar Inventaris BMN</h3>
-              <span class="badge" id="bmn-badge-total-unit" style="background:rgba(43,54,116,0.08); color:var(--n-primary); font-size:.75rem; font-weight:600;">Memuat…</span>
+              <h3 style="margin:0; font-size:1rem; font-weight:700; color:var(--n-text-primary);">Daftar Inventaris BMN
+              </h3>
+              <span class="badge" id="bmn-badge-total-unit"
+                style="background:rgba(43,54,116,0.08); color:var(--n-primary); font-size:.75rem; font-weight:600;">Memuat…</span>
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button type="button" class="btn-sm btn-sm-outline" onclick="_bmnOpenImportModal()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <div class="ctl-row">
+              <button type="button" class="btn-outline" onclick="_bmnOpenImportModal()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
                 Impor SAKTI
               </button>
-              <button type="button" class="btn-sm btn-sm-primary" onclick="_bmnSwitchView('form')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <button type="button" class="btn-primary" onclick="_bmnSwitchView('form')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
                 Tambah Aset
               </button>
             </div>
           </div>
 
           <!-- Baris 2: Toolbar Filter & Pencarian Cepat -->
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 20px; background:rgba(0,0,0,0.015); border-bottom:1px solid var(--n-border-hairline); gap:12px; flex-wrap:wrap;">
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; padding:10px 20px; background:rgba(0,0,0,0.015); border-bottom:1px solid var(--n-border-hairline); gap:12px; flex-wrap:wrap;">
             <!-- Segmented Klasifikasi (Buku vs Reguler) -->
-            <div style="display:flex; background:rgba(0,0,0,0.05); padding:3px; border-radius:8px;">
-              <button type="button" class="bmn-seg-btn active" data-bmn-pencatatan="ALL" onclick="_bmnSetPencatatan('ALL')">Semua Aset</button>
-              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="BUKU" onclick="_bmnSetPencatatan('BUKU')">Buku (53)</button>
-              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="REGULER" onclick="_bmnSetPencatatan('REGULER')">Reguler (52)</button>
+            <div class="n-seg">
+              <button type="button" class="bmn-seg-btn active" data-bmn-pencatatan="ALL"
+                onclick="_bmnSetPencatatan('ALL')">Semua Aset</button>
+              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="BUKU"
+                onclick="_bmnSetPencatatan('BUKU')">Buku (53)</button>
+              <button type="button" class="bmn-seg-btn" data-bmn-pencatatan="REGULER"
+                onclick="_bmnSetPencatatan('REGULER')">Reguler (52)</button>
             </div>
 
             <!-- Filter Dropdowns & Live Search -->
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <div style="position:relative;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--n-text-muted); pointer-events:none;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="bmn-search-input" placeholder="Cari kode, NUP, nama..." oninput="_bmnDebouncedSearch()" style="font-size:.8125rem; height:32px; padding:0 10px 0 30px; border-radius:8px; border:1px solid var(--n-border); background:var(--n-surface-1); width:200px; box-sizing:border-box;">
+            <div class="ctl-row">
+              <div class="ctl-search">
+                <svg class="ctl-search-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="bmn-search-input" placeholder="Cari kode, NUP, nama..."
+                  oninput="_bmnDebouncedSearch()">
               </div>
 
-              <select id="bmn-filter-kondisi" onchange="_bmnFilterChange()" style="font-size:.8125rem; height:32px; padding:0 10px; border-radius:8px; border:1px solid var(--n-border); background:var(--n-surface-1); box-sizing:border-box;">
+              <select id="bmn-filter-kondisi" class="ctl-select" onchange="_bmnFilterChange()">
                 <option value="ALL">Semua Kondisi</option>
                 <option value="BAIK">Baik</option>
                 <option value="RUSAK_RINGAN">Rusak Ringan</option>
                 <option value="RUSAK_BERAT">Rusak Berat</option>
               </select>
 
-              <select id="bmn-filter-upt" onchange="_bmnFilterChange()" style="font-size:.8125rem; height:32px; padding:0 10px; border-radius:8px; border:1px solid var(--n-border); background:var(--n-surface-1); max-width:180px; box-sizing:border-box;">
+              <select id="bmn-filter-upt" class="ctl-select" onchange="_bmnFilterChange()" style="max-width:180px;">
                 <option value="ALL">Semua Lokasi UPT</option>
               </select>
             </div>
@@ -452,16 +531,20 @@
           <!-- Wadah Isi Tabel Register -->
           <div id="bmn-table-msg" class="n-msg" style="margin:8px 20px 0 20px;"></div>
           <div style="overflow-x:auto;" id="bmn-table-wrap">
-            <div style="padding:32px; text-align:center; color:var(--n-text-muted); font-size:.875rem;">Memuat daftar inventaris BMN…</div>
+            <div style="padding:32px; text-align:center; color:var(--n-text-muted); font-size:.875rem;">Memuat daftar
+              inventaris BMN…</div>
           </div>
 
           <!-- Pagination Footer -->
-          <div id="bmn-pagination-bar" style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px; border-top:1px solid var(--n-border-hairline); background:var(--n-surface-1); font-size:.8125rem; color:var(--n-text-secondary);">
+          <div id="bmn-pagination-bar"
+            style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px; border-top:1px solid var(--n-border-hairline); background:var(--n-surface-1); font-size:.8125rem; color:var(--n-text-secondary);">
             <div id="bmn-page-info">Menampilkan 0 aset</div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button type="button" id="bmn-btn-prev" class="btn-sm btn-sm-outline" onclick="_bmnChangePage(-1)" disabled style="height:28px; padding:0 10px; font-size:.75rem;">Sebelumnya</button>
+            <div class="ctl-row ctl-sm">
+              <button type="button" id="bmn-btn-prev" class="btn-outline" onclick="_bmnChangePage(-1)"
+                disabled>Sebelumnya</button>
               <span id="bmn-page-num" style="padding:2px 6px; font-weight:600; font-size:.78rem;">Halaman 1</span>
-              <button type="button" id="bmn-btn-next" class="btn-sm btn-sm-outline" onclick="_bmnChangePage(1)" disabled style="height:28px; padding:0 10px; font-size:.75rem;">Berikutnya</button>
+              <button type="button" id="bmn-btn-next" class="btn-outline" onclick="_bmnChangePage(1)"
+                disabled>Berikutnya</button>
             </div>
           </div>
 
@@ -473,12 +556,12 @@
     <div id="bmn-view-form" class="n-hidden">
       <div class="content-section">
         <div class="n-card" style="padding:24px 28px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--n-border); padding-bottom:14px;">
+          <div
+            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--n-border); padding-bottom:14px;">
             <div>
               <h2 id="bmn-form-title" style="margin:0; font-size:1.25rem; font-weight:700;">Tambah Unit Aset BMN</h2>
-              <div style="font-size:.8125rem; color:var(--n-text-secondary); margin-top:4px;">Pencatatan fisik per-item anti-jebret (1 unit fisik = 1 baris register)</div>
             </div>
-            <button type="button" class="btn-outline" onclick="_bmnSwitchView('list')" style="font-size:.8125rem;">
+            <button type="button" class="btn-outline" onclick="_bmnSwitchView('list')">
               ← Kembali ke Daftar Aset
             </button>
           </div>
@@ -499,7 +582,8 @@
                 <input type="text" id="bmn-form-nup" placeholder="Mis. 1, 2, dst." required>
               </div>
               <div class="form-grp">
-                <label for="bmn-form-pencatatan">Klasifikasi Akuntansi <span style="color:var(--n-crit)">*</span></label>
+                <label for="bmn-form-pencatatan">Klasifikasi Akuntansi <span
+                    style="color:var(--n-crit)">*</span></label>
                 <select id="bmn-form-pencatatan" required>
                   <option value="BUKU">BMN Buku (Intrakomptabel / Belanja Modal 53)</option>
                   <option value="REGULER">BMN Reguler (Ekstrakomptabel / Belanja Barang 52)</option>
@@ -509,7 +593,8 @@
               <!-- Baris 2: Nama & Kategori -->
               <div class="form-grp" style="grid-column: span 2;">
                 <label for="bmn-form-nama">Nama Barang <span style="color:var(--n-crit)">*</span></label>
-                <input type="text" id="bmn-form-nama" placeholder="Mis. Laptop HP EliteBook, Speedboat 12m, Drone DJI Matrice" required>
+                <input type="text" id="bmn-form-nama"
+                  placeholder="Mis. Laptop HP EliteBook, Speedboat 12m, Drone DJI Matrice" required>
               </div>
               <div class="form-grp">
                 <label for="bmn-form-kategori">Kategori SIMAK / SAKTI <span style="color:var(--n-crit)">*</span></label>
@@ -546,7 +631,8 @@
                 <input type="number" id="bmn-form-nb" min="0" step="1" placeholder="0" class="tnum" required>
               </div>
               <div class="form-grp">
-                <label for="bmn-form-upt">Lokasi Penempatan UPT / Satker <span style="color:var(--n-crit)">*</span></label>
+                <label for="bmn-form-upt">Lokasi Penempatan UPT / Satker <span
+                    style="color:var(--n-crit)">*</span></label>
                 <select id="bmn-form-upt" required>
                   <!-- Populated from Master_Lokasi_UPT -->
                 </select>
@@ -555,7 +641,8 @@
               <!-- Baris 5: Lokasi Fisik & Geotagging -->
               <div class="form-grp" style="grid-column: span 2;">
                 <label for="bmn-form-ruangan">Detail Ruangan / Posisi Fisik</label>
-                <input type="text" id="bmn-form-ruangan" placeholder="Mis. Ruang Rapat Pangkalan Batam, Anjungan KP Hiu 01, Gudang Amunisi">
+                <input type="text" id="bmn-form-ruangan"
+                  placeholder="Mis. Ruang Rapat Pangkalan Batam, Anjungan KP Hiu 01, Gudang Amunisi">
               </div>
               <div class="form-grp">
                 <label for="bmn-form-kapal">Inventaris Melekat Kapal (Opsional)</label>
@@ -566,21 +653,27 @@
               </div>
 
               <!-- SEKSI FOTO FISIK & GEOTAGGING OTOMATIS (SUB-FASE 18B.4) -->
-              <div class="form-grp" style="grid-column: span 3; background: var(--n-surface-2); border: 1px solid var(--n-border); border-radius: var(--n-radius-md); padding: 18px 20px; margin-top: 4px;">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px; gap: 12px; flex-wrap: wrap;">
+              <div class="form-grp"
+                style="grid-column: span 3; background: var(--n-surface-2); border: 1px solid var(--n-border); border-radius: var(--n-radius-md); padding: 18px 20px; margin-top: 4px;">
+                <div
+                  style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 14px; gap: 12px; flex-wrap: wrap;">
                   <div>
-                    <label style="font-weight: 700; font-size: .875rem; color: var(--n-text-primary); margin-bottom: 2px;">
+                    <label
+                      style="font-weight: 700; font-size: .875rem; color: var(--n-text-primary); margin-bottom: 2px;">
                       Foto Fisik & Geotagging Otomatis
                     </label>
                     <div style="font-size: .75rem; color: var(--n-text-secondary);">
-                      Opsi 1: Ekstraksi GPS otomatis dari metadata EXIF foto mentah. Opsi 2: Fallback geolokasi perangkat / homebase satker terdekat.
+                      Opsi 1: Ekstraksi GPS otomatis dari metadata EXIF foto mentah. Opsi 2: Fallback geolokasi
+                      perangkat / homebase satker terdekat.
                     </div>
                   </div>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    <button type="button" id="bmn-btn-device-gps" class="btn-sm btn-sm-outline" onclick="_bmnTriggerDeviceGeolocation(false)">
+                  <div class="ctl-row">
+                    <button type="button" id="bmn-btn-device-gps" class="btn-outline"
+                      onclick="_bmnTriggerDeviceGeolocation(false)">
                       Ambil GPS Perangkat
                     </button>
-                    <button type="button" id="bmn-btn-reset-gps" class="btn-sm btn-sm-outline" onclick="_bmnResetGeotag()" style="display:none;">
+                    <button type="button" id="bmn-btn-reset-gps" class="btn-outline" onclick="_bmnResetGeotag()"
+                      style="display:none;">
                       Reset Koordinat
                     </button>
                   </div>
@@ -593,23 +686,35 @@
                 <input type="hidden" id="bmn-form-jarak-upt" value="">
                 <input type="hidden" id="bmn-form-foto-evidence-id" value="">
 
-                <div style="display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 18px; align-items: start;">
+                <div
+                  style="display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 18px; align-items: start;">
                   <!-- Sub-kolom kiri: Unggah Foto Fisik -->
                   <div>
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      <label for="bmn-form-foto" style="font-size:.75rem; font-weight:600; color:var(--n-text-secondary);">
+                      <label for="bmn-form-foto"
+                        style="font-size:.75rem; font-weight:600; color:var(--n-text-secondary);">
                         Pilih / Ambil Foto Aset (Kamera / Berkas)
                       </label>
-                      <input type="file" id="bmn-form-foto" accept="image/*" onchange="_bmnHandlePhotoFile(event)" style="font-size:.8125rem;">
-                      
+                      <input type="file" id="bmn-form-foto" accept="image/*" onchange="_bmnHandlePhotoFile(event)"
+                        style="font-size:.8125rem;">
+
                       <!-- Thumbnail preview box -->
-                      <div id="bmn-photo-preview-wrap" style="position:relative; width:100%; height:130px; border-radius:var(--n-radius-sm); border:1px dashed var(--n-border); background:var(--n-surface-1); display:flex; align-items:center; justify-content:center; overflow:hidden; margin-top:4px;">
-                        <img id="bmn-photo-preview-img" src="" alt="Pratinjau Foto" style="max-width:100%; max-height:100%; object-fit:contain; display:none;">
-                        <div id="bmn-photo-placeholder" style="font-size:.75rem; color:var(--n-text-muted); text-align:center; padding:12px;">
+                      <div id="bmn-photo-preview-wrap"
+                        style="position:relative; width:100%; height:130px; border-radius:var(--n-radius-sm); border:1px dashed var(--n-border); background:var(--n-surface-1); display:flex; align-items:center; justify-content:center; overflow:hidden; margin-top:4px;">
+                        <img id="bmn-photo-preview-img" src="" alt="Pratinjau Foto"
+                          style="max-width:100%; max-height:100%; object-fit:contain; display:none;">
+                        <div id="bmn-photo-placeholder"
+                          style="font-size:.75rem; color:var(--n-text-muted); text-align:center; padding:12px;">
                           Belum ada foto fisik<br><span style="font-size:.7rem;">(Format JPG/PNG, auto-kompres)</span>
                         </div>
-                        <button type="button" id="bmn-photo-clear-btn" class="btn-mini btn-danger" onclick="_bmnRemovePhoto()" style="position:absolute; top:6px; right:6px; display:none; padding:0 8px; font-size:.75rem;" title="Hapus foto">
-                          Hapus
+                        <button type="button" id="bmn-photo-clear-btn" class="btn-danger n-iconbtn-sm"
+                          onclick="_bmnRemovePhoto()" style="position:absolute; top:6px; right:6px; display:none;"
+                          title="Hapus foto">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
                         </button>
                       </div>
                     </div>
@@ -617,27 +722,36 @@
 
                   <!-- Sub-kolom kanan: Telemetri Koordinat & Status Haversine Match -->
                   <div>
-                    <div id="bmn-geotag-status-card" style="background:var(--n-surface-1); border:1px solid var(--n-border); border-radius:var(--n-radius-sm); padding:14px 16px; min-height:130px; display:flex; flex-direction:column; justify-content:center;">
-                      <div id="bmn-geotag-empty-state" style="text-align:center; color:var(--n-text-muted); font-size:.8125rem;">
+                    <div id="bmn-geotag-status-card"
+                      style="background:var(--n-surface-1); border:1px solid var(--n-border); border-radius:var(--n-radius-sm); padding:14px 16px; min-height:130px; display:flex; flex-direction:column; justify-content:center;">
+                      <div id="bmn-geotag-empty-state"
+                        style="text-align:center; color:var(--n-text-muted); font-size:.8125rem;">
                         <div style="font-weight:600; color:var(--n-text-primary);">Belum ada koordinat lokasi</div>
-                        <div style="font-size:.75rem; margin-top:4px; color:var(--n-text-secondary);">Unggah foto ber-GPS (atau kamera ber-watermark lokasi) atau klik "Ambil GPS Perangkat" untuk mencocokkan UPT terdekat secara otomatis via Haversine.</div>
+                        <div style="font-size:.75rem; margin-top:4px; color:var(--n-text-secondary);">Unggah foto
+                          ber-GPS (atau kamera ber-watermark lokasi) atau klik "Ambil GPS Perangkat" untuk mencocokkan
+                          UPT terdekat secara otomatis via Haversine.</div>
                       </div>
 
                       <div id="bmn-geotag-active-state" style="display:none; flex-direction:column; gap:10px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                        <div
+                          style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                           <div style="display:flex; align-items:center; gap:8px;">
-                            <span id="bmn-geotag-source-badge" class="badge" style="background:#E0E7FF; color:#3730A3; font-weight:600; font-size:.7rem;">
+                            <span id="bmn-geotag-source-badge" class="badge"
+                              style="background:#E0E7FF; color:#3730A3; font-weight:600; font-size:.7rem;">
                               EXIF_FOTO
                             </span>
-                            <span style="font-size:.8125rem; font-weight:600; color:var(--n-text-primary);">Koordinat Terdeteksi</span>
+                            <span style="font-size:.8125rem; font-weight:600; color:var(--n-text-primary);">Koordinat
+                              Terdeteksi</span>
                           </div>
-                          <div class="tnum" style="font-size:.8125rem; font-weight:600; color:var(--n-text-primary);" id="bmn-geotag-coords-text">
+                          <div class="tnum" style="font-size:.8125rem; font-weight:600; color:var(--n-text-primary);"
+                            id="bmn-geotag-coords-text">
                             Lat: — · Lon: —
                           </div>
                         </div>
 
                         <!-- Banner Haversine Match -->
-                        <div id="bmn-geotag-haversine-banner" style="border-radius:var(--n-radius-xs); padding:10px 12px; font-size:.8125rem; line-height:1.4;">
+                        <div id="bmn-geotag-haversine-banner"
+                          style="border-radius:var(--n-radius-xs); padding:10px 12px; font-size:.8125rem; line-height:1.4;">
                           <!-- Diisi secara dinamis oleh _bmnRenderGeotagStatus() -->
                         </div>
                       </div>
@@ -649,13 +763,15 @@
               <!-- Baris 6: Keterangan -->
               <div class="form-grp" style="grid-column: span 3;">
                 <label for="bmn-form-ket">Keterangan / Catatan Inventaris</label>
-                <input type="text" id="bmn-form-ket" placeholder="Mis. Bantuan hibah JICA 2024, No. Seri S/N: 893128913">
+                <input type="text" id="bmn-form-ket"
+                  placeholder="Mis. Bantuan hibah JICA 2024, No. Seri S/N: 893128913">
               </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px; padding-top:16px; border-top:1px solid var(--n-border);">
+            <div class="ctl-row ctl-lg"
+              style="justify-content:flex-end; margin-top:24px; padding-top:16px; border-top:1px solid var(--n-border);">
               <button type="button" class="btn-outline" onclick="_bmnSwitchView('list')">Batal</button>
-              <button type="submit" class="btn-primary" id="bmn-btn-save" style="min-width:160px;">
+              <button type="submit" class="btn-primary" id="bmn-btn-save">
                 Simpan Data Aset
               </button>
             </div>
@@ -677,8 +793,11 @@
           <label for="bmn-anulir-reason">Alasan / Komentar Anulir <span style="color:var(--n-crit)">*</span></label>
           <input type="text" id="bmn-anulir-reason" placeholder="Jelaskan alasan pembatalan aset...">
         </div>
-        <button class="btn-primary" style="background:var(--n-crit);" id="btn-confirm-bmn-anulir" onclick="_bmnConfirmAnulir()">Konfirmasi Anulir</button>
-        <button class="btn-ghost" onclick="closeModal('modal-bmn-anulir')" style="margin-top:8px;">Batal</button>
+        <div class="ctl-stack" style="margin-top:16px;">
+          <button class="btn-danger-solid" id="btn-confirm-bmn-anulir" onclick="_bmnConfirmAnulir()">Konfirmasi
+            Anulir</button>
+          <button class="btn-ghost" onclick="closeModal('modal-bmn-anulir')">Batal</button>
+        </div>
       </div>
     </div>
 
@@ -692,8 +811,13 @@
               Unggah berkas Excel / CSV atau salin-tempel langsung dari aplikasi SAKTI Kemenkeu.
             </div>
           </div>
-          <button type="button" class="btn-mini btn-outline" onclick="_bmnDownloadTemplate()" style="display:inline-flex; align-items:center; gap:6px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <button type="button" class="btn-outline" onclick="_bmnDownloadTemplate()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
             Unduh Template
           </button>
         </div>
@@ -702,21 +826,30 @@
           <div id="bmn-import-msg" class="n-msg"></div>
 
           <!-- Segmented Mode Selector: File vs Paste Grid -->
-          <div style="display:flex; background:rgba(0,0,0,0.05); padding:4px; border-radius:10px; margin-bottom:14px; gap:4px;">
-            <button type="button" class="bmn-seg-btn active" id="bmn-import-tab-file" onclick="_bmnSwitchImportMode('file')" style="flex:1; justify-content:center; text-align:center;">
+          <div class="n-seg" style="display:flex; width:100%; margin-bottom:14px;">
+            <button type="button" class="bmn-seg-btn active" id="bmn-import-tab-file"
+              onclick="_bmnSwitchImportMode('file')" style="flex:1;">
               Unggah Berkas (.xlsx / .csv)
             </button>
-            <button type="button" class="bmn-seg-btn" id="bmn-import-tab-paste" onclick="_bmnSwitchImportMode('paste')" style="flex:1; justify-content:center; text-align:center;">
+            <button type="button" class="bmn-seg-btn" id="bmn-import-tab-paste" onclick="_bmnSwitchImportMode('paste')"
+              style="flex:1;">
               Salin-Tempel (Paste Grid)
             </button>
           </div>
 
           <!-- PANE 1: File Upload (Drag and Drop) -->
           <div id="bmn-import-pane-file">
-            <div class="bmn-dropzone" id="bmn-import-dropzone" onclick="document.getElementById('bmn-import-file-input').click()">
-              <input type="file" id="bmn-import-file-input" accept=".xlsx, .xls, .csv" style="display:none;" onchange="_bmnHandleFileSelect(event)">
+            <div class="bmn-dropzone" id="bmn-import-dropzone"
+              onclick="document.getElementById('bmn-import-file-input').click()">
+              <input type="file" id="bmn-import-file-input" accept=".xlsx, .xls, .csv" style="display:none;"
+                onchange="_bmnHandleFileSelect(event)">
               <div style="display:flex; justify-content:center; margin-bottom:8px; color:var(--n-text-muted);">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
               </div>
               <div style="font-weight:600; font-size:.9rem; color:var(--n-text-primary);">
                 Pilih atau seret berkas Excel / CSV ke sini
@@ -724,26 +857,36 @@
               <div style="font-size:.78rem; color:var(--n-text-muted); margin-top:4px;">
                 Mendukung format .xlsx, .xls, atau .csv dari SAKTI / SIMAK BMN (Maksimal 5.000 baris)
               </div>
-              <div id="bmn-file-info" style="margin-top:10px; font-size:.8125rem; font-weight:600; color:var(--n-primary); display:none;"></div>
+              <div id="bmn-file-info"
+                style="margin-top:10px; font-size:.8125rem; font-weight:600; color:var(--n-primary); display:none;">
+              </div>
             </div>
           </div>
 
           <!-- PANE 2: Paste Grid -->
           <div id="bmn-import-pane-paste" class="n-hidden">
-            <label for="bmn-paste-input" style="font-size:.8125rem; font-weight:600; color:var(--n-text-secondary); display:block; margin-bottom:6px;">
+            <label for="bmn-paste-input"
+              style="font-size:.8125rem; font-weight:600; color:var(--n-text-secondary); display:block; margin-bottom:6px;">
               Tempel data dari spreadsheet SAKTI (Ctrl+V):
             </label>
-            <textarea id="bmn-paste-input" class="bmn-paste-area" placeholder="Salin baris dan kolom dari Excel/Spreadsheet SAKTI (termasuk baris header), lalu tempel di sini...&#10;&#10;Contoh format kolom:&#10;Kode Barang	NUP	Nama Barang	Merek/Tipe	Kategori	Pencatatan	Nilai Perolehan	Nilai Buku	Kondisi	Lokasi UPT"></textarea>
+            <textarea id="bmn-paste-input" class="bmn-paste-area"
+              placeholder="Salin baris dan kolom dari Excel/Spreadsheet SAKTI (termasuk baris header), lalu tempel di sini...&#10;&#10;Contoh format kolom:&#10;Kode Barang	NUP	Nama Barang	Merek/Tipe	Kategori	Pencatatan	Nilai Perolehan	Nilai Buku	Kondisi	Lokasi UPT"></textarea>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-              <span style="font-size:.72rem; color:var(--n-text-muted);">Pisahkan kolom dengan Tab (standar copy dari Excel)</span>
-              <button type="button" class="btn-ghost" style="font-size:.75rem; padding:2px 8px;" onclick="document.getElementById('bmn-paste-input').value = ''">Bersihkan</button>
+              <span style="font-size:.72rem; color:var(--n-text-muted);">Pisahkan kolom dengan Tab (standar copy dari
+                Excel)</span>
+              <button type="button" class="btn-ghost"
+                onclick="document.getElementById('bmn-paste-input').value = ''">Bersihkan</button>
             </div>
           </div>
 
           <!-- Action Button: Dry-Run Analysis -->
-          <div style="margin-top:14px; display:flex; justify-content:flex-end;">
-            <button type="button" class="btn-secondary" id="bmn-btn-dryrun" onclick="_bmnExecuteDryRun()" style="display:inline-flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <div class="ctl-row" style="margin-top:14px; justify-content:flex-end;">
+            <button type="button" class="btn-secondary" id="bmn-btn-dryrun" onclick="_bmnExecuteDryRun()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
               <span>Uji Validasi (Dry-Run)</span>
             </button>
           </div>
@@ -775,14 +918,17 @@
             </div>
 
             <!-- Error List if any -->
-            <div id="bmn-import-error-list" style="margin-top:10px; font-size:.78rem; max-height:100px; overflow-y:auto; background:#FEF2F2; color:#991B1B; padding:8px 12px; border-radius:8px; border:1px solid #FCA5A5; display:none;"></div>
+            <div id="bmn-import-error-list"
+              style="margin-top:10px; font-size:.78rem; max-height:100px; overflow-y:auto; background:#FEF2F2; color:#991B1B; padding:8px 12px; border-radius:8px; border:1px solid #FCA5A5; display:none;">
+            </div>
 
             <!-- Mini Preview Table -->
             <div style="margin-top:12px;">
               <div style="font-size:.78rem; font-weight:600; color:var(--n-text-muted); margin-bottom:6px;">
                 Pratinjau 5 Baris Pertama Terpetakan:
               </div>
-              <div style="max-height:180px; overflow-x:auto; overflow-y:auto; border:1px solid var(--n-border); border-radius:8px;">
+              <div
+                style="max-height:180px; overflow-x:auto; overflow-y:auto; border:1px solid var(--n-border); border-radius:8px;">
                 <table class="n-table" style="width:100%; font-size:.75rem;" id="bmn-import-preview-table">
                   <thead>
                     <tr>
@@ -809,15 +955,18 @@
               <span id="bmn-import-progress-pct" class="tnum font-bold">0%</span>
             </div>
             <div style="width:100%; height:8px; background:rgba(0,0,0,0.08); border-radius:4px; overflow:hidden;">
-              <div id="bmn-import-progress-bar" style="width:0%; height:100%; background:var(--n-primary); transition:width 0.3s ease;"></div>
+              <div id="bmn-import-progress-bar"
+                style="width:0%; height:100%; background:var(--n-primary); transition:width 0.3s ease;"></div>
             </div>
           </div>
 
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px; padding-top:14px; border-top:1px solid var(--n-border);">
+        <div class="ctl-row ctl-lg"
+          style="justify-content:flex-end; margin-top:20px; padding-top:14px; border-top:1px solid var(--n-border);">
           <button type="button" class="btn-ghost" onclick="closeModal('modal-bmn-import')">Tutup</button>
-          <button type="button" class="btn-primary" id="bmn-btn-commit-import" onclick="_bmnExecuteImportCommit()" disabled style="min-width:180px;">
+          <button type="button" class="btn-primary" id="bmn-btn-commit-import" onclick="_bmnExecuteImportCommit()"
+            disabled>
             Simpan Aset ke Database
           </button>
         </div>

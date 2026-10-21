@@ -326,6 +326,33 @@ Integrasi data lintas divisi ditegakkan secara server-side:
   - Anchored modal presentation: animasi modal dialog membesar secara mulus (`scale(0.94)` ke `1.0`) berakar dari posisi tombol pemicu (*trigger origin*) dengan backdrop blur 8px.
   - Sheet swipe gesture handler: deteksi sentuhan/geseran vertikal pada drawer dan bottom sheet untuk swipe-to-dismiss berkecepatan inersia dengan spring snap back.
 
+### 17.1 Sistem Kontrol Antarmuka Terpadu (Single Geometry Control Scale & Container-Driven Sizing)
+- **Akar Masalah Sizing Konfliktual**: Fragmentasi kelas tombol (`.btn-primary` ~44px vs `.btn-mini` 26px vs `.btn-sm` 32px) dan inline styles menyebabkan elemen yang berada sebaris bertabrakan tinggi dan bentuknya secara visual.
+- **Kontrak Arsitektur**: Tinggi kontrol sepenuhnya ditentukan oleh **kontainer penampungnya** (`container-driven`), bukan oleh kelas visual tombol atau style inline.
+- **Skala 3-Tier Baku (Tokens `:root`)**:
+  - **Tier LG (`--ctl-h-lg: 40px`, radius 8px, font 14px/600)**: Form input, field formulir (`.form-grp`), modal footer, form actions, Auth.
+  - **Tier MD (`--ctl-h-md: 32px`, radius 8px, font 13px/600)**: Section header toolbar, filter bars, topbar, pagination, segmented tabs (`.n-seg`).
+  - **Tier SM (`--ctl-h-sm: 26px`, radius 6px, font 12px/600)**: Baris aksi tabel riwayat data (Edit, Anulir, Lihat).
+- **Struktur Kontainer**:
+  - `.ctl-row`: flex row (`gap: 8px; align-items: center`), default tier MD.
+  - `.ctl-row.ctl-lg`: flex row tier LG.
+  - `.ctl-row.ctl-sm`: flex row tier SM.
+  - `.ctl-stack`: tumpukan vertikal full-width tier LG (khusus modal confirm/cancel bertumpuk).
+  - Seluruh anak interaktif (`button`, `select`, `input`, `.n-seg`, `.n-iconbtn`) di dalam kontainer secara mutlak mengikuti `height: var(--ctl-h)`.
+- **Sistem Varian Murni Gaya/Warna**:
+  - `.btn-primary` (solid navy), `.btn-outline` (border stroke), `.btn-ghost` (transparan), `.btn-secondary`, `.btn-danger` (outline red), `.btn-danger-solid` (solid red).
+  - Kelas tombol hanya mengatur warna, background, border, dan state hover/active. Dilarang mendeklarasikan `height` atau `padding-block` pada varian.
+
+### 17.2 Dev Tooling & QA Kontrol Otomatis
+- **Static Scanner (`lint_ui.js`)**: Pemindai statis berbasis AST/regex pada root repositori yang memvalidasi seluruh file markup HTML:
+  - Memverifikasi 0 atribut `style=""` pada elemen `<button>` yang memanipulasi geometri (`height`, `padding`, `font-size`, `border-radius`) atau warna.
+  - Memverifikasi 0 definisi kelas tombol ganda atau kelas legacy terlarang.
+  - Memverifikasi 0 percampuran tier ukuran dalam kontainer baris yang sama.
+  - Terintegrasi dalam automated validation script dan masuk ke `.gitignore`/`.claspignore`.
+- **Runtime Layout Probe (`_uiAudit()`)**: Helper fungsi pengembang di konsol browser (`Script_Main.html`):
+  - Memindai seluruh kontainer beranak interaktif $\ge 2$ dan membandingkan `getBoundingClientRect().height`.
+  - Melemparkan peringatan tegas jika ditemukan variasi tinggi $> 0\text{px}$ pada kontrol sebaris.
+
 ## 18. Arsitektur BMN Terpadu, Dual-Option Geotagging & Legal State Machine Penghapusan
 
 ### 18.1 Penegakan Kondisi Fisik Per-Item (Anti-Jebret)

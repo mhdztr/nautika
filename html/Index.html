@@ -103,13 +103,13 @@
                  placeholder="6 digit" autocomplete="one-time-code">
           <span class="n-form-hint" id="reg-otp-hint">Kode dikirim ke</span>
         </div>
-        <div style="display:flex;gap:8px">
+        <div class="ctl-row ctl-lg ctl-fill">
           <button type="button" class="btn-primary" id="btn-otp-verify"
                   onclick="_regVerifyOtp()">Verifikasi</button>
-          <button type="button" class="btn-sm" id="btn-otp-resend"
+          <button type="button" class="btn-outline" id="btn-otp-resend"
                   onclick="_regResendOtp()">Kirim Ulang</button>
         </div>
-        <button type="button" class="btn-sm" style="margin-top:8px;width:100%"
+        <button type="button" class="btn-ghost" style="margin-top:8px;width:100%"
                 onclick="_regResetOtp()">Ganti Email</button>
       </div>
       <div class="auth-foot">
@@ -133,9 +133,9 @@
         <span class="pending-pulse-dot"></span>
         <span>Memeriksa status persetujuan secara otomatis…</span>
       </div>
-      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
-        <button type="button" class="btn-ghost" onclick="showAuthView('login')">Halaman Masuk</button>
-        <button type="button" class="btn-ghost" onclick="_pendingCancelOrNew()" style="color:var(--n-text-muted);">Daftar Baru</button>
+      <div class="ctl-row ctl-lg ctl-fill" style="justify-content:center;margin-top:20px;">
+        <button type="button" class="btn-outline" onclick="showAuthView('login')">Halaman Masuk</button>
+        <button type="button" class="btn-ghost" onclick="_pendingCancelOrNew()">Daftar Baru</button>
       </div>
     </div>
   </div>
@@ -271,8 +271,10 @@
       <label for="reject-reason">Alasan Penolakan</label>
       <input type="text" id="reject-reason" placeholder="Tuliskan alasan penolakan">
     </div>
-    <button class="btn-primary" id="btn-confirm-reject">Konfirmasi Penolakan</button>
-    <button class="btn-ghost" onclick="closeRejectModal()">Batal</button>
+    <div class="ctl-stack" style="margin-top:16px;">
+      <button class="btn-danger-solid" id="btn-confirm-reject">Konfirmasi Penolakan</button>
+      <button class="btn-ghost" onclick="closeRejectModal()">Batal</button>
+    </div>
   </div>
 </div>
 
@@ -324,9 +326,11 @@
       <label for="adn-f-password">Reset Password (opsional)</label>
       <input type="password" id="adn-f-password" placeholder="Minimal 8 karakter" autocomplete="new-password">
     </div>
-    <button class="btn-primary" id="btn-adn-save" onclick="_adnSaveUser()">Simpan Perubahan</button>
-    <button class="btn-ghost" id="btn-adn-reset" onclick="_adnResetPassword()">Reset Password</button>
-    <button class="btn-ghost" onclick="_adnCloseForm()">Batal</button>
+    <div class="ctl-stack" style="margin-top:16px;">
+      <button class="btn-primary" id="btn-adn-save" onclick="_adnSaveUser()">Simpan Perubahan</button>
+      <button class="btn-outline" id="btn-adn-reset" onclick="_adnResetPassword()">Reset Password</button>
+      <button class="btn-ghost" onclick="_adnCloseForm()">Batal</button>
+    </div>
   </div>
 </div>
 

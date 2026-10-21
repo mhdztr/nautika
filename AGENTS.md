@@ -22,6 +22,7 @@ Jika ada instruksi dari user dalam percakapan yang bertentangan dengan dokumen i
 - **Semua kalkulasi (persentase, sisa, akumulasi, stok akhir) dihitung server-side.** Tidak ada logika hitung penting yang hanya ada di frontend.
 - **Versioning, bukan overwrite.** Setiap edit data transaksi mengikuti mekanisme di `ARCHITECTURE.md` §5 — insert baris baru + tandai lama `SUPERSEDED`, jangan pernah `UPDATE` langsung menimpa baris lama untuk data historis mingguan.
 - **Desain: cek negative prompt di `DESIGN.md` §1 setiap kali membuat komponen baru.** Kalau ragu apakah sesuatu "kelihatan AI-slop", cek daftar itu dulu sebelum implementasi.
+- **Kohesi Total Kontrol UI (Single Geometry Scale & Container-Driven)**: Dilarang membuat tombol atau kontrol berdampingan yang berbeda tinggi atau radius secara ad-hoc (mis. tombol mini 26px bersanding dengan tombol 40px/44px). Seluruh tombol, icon-button, segmented button, dan input form wajib terikat ke 3 tier tinggi standar (`LG: 40px`, `MD: 32px`, `SM: 26px`) dan dibungkus container tier (`.ctl-row`, `.ctl-lg`, `.ctl-sm`, `.ctl-stack`). Dilarang inline style override pada ukuran kontrol (lihat `DESIGN.md` §1 Rule 19 & §5.5).
 
 ## 3. Konvensi Kode
 
@@ -68,4 +69,5 @@ Satu modul divisi (mis. Operasi Laut) dianggap selesai jika:
 - [ ] Upload evidence per-item berfungsi (dual mode: file & drive-link-copy), tersimpan ke folder sesuai `ARCHITECTURE.md` §6
 - [ ] Chart & visualisasi modul sesuai `DESIGN.md` §6 (tipe chart yang diizinkan untuk data tersebut)
 - [ ] Filter periode global (bulanan/rentang tanggal) memengaruhi seluruh tampilan halaman
+- [ ] Kontrol UI (tombol, input, dropdown, pagination) 100% kohesif sesuai skala 3-tier (`LG: 40px`, `MD: 32px`, `SM: 26px`), menggunakan `.ctl-row`, tanpa benturan tinggi sebaris dan bebas inline style size overrides
 - [ ] Entri baru ditambahkan ke `CHANGELOG.md`

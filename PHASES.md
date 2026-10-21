@@ -529,7 +529,7 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
      - Haversine matching real-time dua arah (client & server) ke 15 UPT dengan auto-select & verifikasi radius toleransi 25 km.
      - Kompresi kanvas foto fisik (max-width 1600px, JPEG 0.8) dan penyimpanan otomatis ke Drive + `TX_Evidence`.
      - Zero-Emoji Policy: Larangan keras emoji unicode di `DESIGN.md` §1 (Rule 18) dan pembersihan total (0 emoji) di seluruh antarmuka dan skrip sistem.
-     - Standarisasi Geometri Tombol: Penerapan kelas `.btn-sm.btn-sm-outline` (tinggi 32px) seragam pada tombol berdampingan sesuai aturan `DESIGN.md` §5.5.
+     - Standarisasi Geometri Tombol & Kontrol UI Lintas Modul: Penerapan sistem kontrol terpadu 3-tier container-driven (`LG: 40px`, `MD: 32px`, `SM: 26px`) via kontainer `.ctl-row`, `.ctl-lg`, `.ctl-sm`, `.ctl-stack` pada seluruh modul aplikasi, eliminasi benturan tinggi sebaris, dan penghapusan inline style geometry override (`DESIGN.md` §1 Rule 19 & §5.5, `ARCHITECTURE.md` §17.1).
   6. **Sub-Fase 18B.5 — Dashboard BMN, Notification Summary & Peta Sebaran UPT**:
      - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah.
      - Penegakan kondisi fisik per-item (*anti-jebret*).

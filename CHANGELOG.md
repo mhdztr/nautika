@@ -1,3 +1,59 @@
+## [Rencana Induk / Arsitektur] — Rencana Transformasi Arsitektur Terdistribusi: Radar POA & 4 Satelit Mandiri (SIKAP, Sistik, Nakhoda, Siaga)
+
+**Tanggal**: 26 Oktober 2026  
+**Status**: **SELESAI (PLANNING ARTIFACT UPDATED)** (Penyusunan dokumen master blueprint komprehensif `PLAN_DESENTRALISASI_RADAR_POA.md` mengenai rearsitektur Nautika menjadi **Radar POA (Rekapitulasi Data Strategis POA)** sebagai Central Aggregator & Portal Input Kegiatan Direktorat, serta desentralisasi input ke 4 aplikasi satelit mandiri berprinsip "Anti-Gabruk": **SIKAP**, **Sistik**, **Nakhoda**, dan **Siaga**).
+
+### Rincian Pokok Arsitektur & Nomenklatur Aplikasi:
+1. **Penyusunan Dokumen Master Blueprint (`PLAN_DESENTRALISASI_RADAR_POA.md`)**:
+   - Dokumentasi teknis masif dan terperinci mencakup 12 bab utama (latar belakang kebijakan, topologi arsitektur terdistribusi, data federation lintas-spreadsheet, prinsip desain anti-gabruk, spesifikasi 4 aplikasi satelit, spesifikasi Radar POA pusat, protokol master data federated, kepatuhan 3-tier kontrol UI, dan 6 fase roadmap implementasi).
+2. **Nomenklatur Resmi & Desentralisasi Input 4 Aplikasi Satelit Mandiri**:
+   - **SIKAP** (*Sistem Informasi Keuangan, Anggaran, dan Kepegawaian* — Subbag TU): Terbagi 5 sub-modul input terisolasi (Realisasi SP2D/Akrual Reguler vs ABT, Progres 6 Tahap Paket Pengadaan, Snapshot Kepegawaian Headcount 5 kategori, Register BMN Per-Item Anti-Jebret dengan Geotagging EXIF/GPS, dan Siklus Usulan Penghapusan Legal BMN Kemenkeu).
+   - **Sistik** (*Sistem Informasi Logistik* — Timja Logistik): Terbagi 3 sub-modul input terisolasi (Baseline & Penggunaan Mingguan Amunisi 5 jenis senjata, Baseline & Realisasi Mingguan Kuota BBM Reguler/ABT dengan harga acuan & status tunggakan, serta Realisasi Komponen Hak Personil).
+   - **Nakhoda** (*Naungan Awak Kapal Armada* — Timja Pengawakan): Terbagi 2 sub-modul input terisolasi (Komposisi AKN Keseluruhan vs POA carry-forward 5 kategori, dan Log Kegiatan/Bimtek/Pelatihan Personil ber-evidence).
+   - **Siaga** (*Sistem Informasi Armada, Galangan, dan Perawatan* — Timja Harwat): Terbagi 3 sub-modul input terisolasi (Status Kesiapan Armada 34 Kapal Laik Laut, Monitoring 4 Tahap Docking Galangan, dan Item Pekerjaan Pemeliharaan multi-evidence).
+3. **Rekayasa Radar POA (Central Aggregator & Kegiatan Direktorat)**:
+   - Nautika bertransformasi menjadi **Radar POA** (Executive Cockpit SiMata-style).
+   - Penempatan **Modul Input Eksklusif: Kegiatan Direktorat** di Radar POA (RBAC: Superadmin, Direktur, Kadiv lintas divisi) dilengkapi timeline feed interaktif.
+   - Pembangunan Aggregator Engine untuk konsolidasi data batch dari 4 spreadsheet satelit (`RadarPOA_SIKAP_DB`, `RadarPOA_Sistik_DB`, `RadarPOA_Nakhoda_DB`, `RadarPOA_Siaga_DB`) dan spreadsheet eksternal (Operasi, Intelijen, Pelayanan yang dikembangkan tim terpisah) dengan in-memory cache dan sinkronisasi instan (*Sync Now*).
+4. **Batas Ruang Lingkup Pengembang (Scope Boundary)**:
+   - Modul pasca-Fase 18 (Operasi Laut/Udara, Intelijen, dan Pelayanan VMS) resmi dikeluarkan dari roadmap pengembangan internal karena dikerjakan oleh tim lain. Radar POA hanya menyediakan interface pembacaan hasil agregat datanya.
+
+---
+
+## [Sub-Fase 18B.6] — Siklus Usulan Penghapusan Legal Kemenkeu (State Machine 5-Tahap, Karantina Aset, & Eksekusi Status Akhir DIHAPUS)
+
+**Tanggal**: 21 Oktober 2026  
+**Status**: **SELESAI PENUH (COMPLETED & VERIFIED)** (Penerapan state machine siklus usulan penghapusan BMN berjenjang 5 tahap menuju Kemenkeu RI [DJKN/KPKNL], karantina aset saat masuk berkas usulan, eksekusi status akhir DIHAPUS saat BAST selesai tanpa penghapusan fisik database, pemulihan otomatis ke status AKTIF saat usulan ditolak atau dianulir, serta antarmuka tab switcher BMN, strip KPI usulan, filter 7-tahap, live search, dan 3 modal interaktif).
+
+### Rincian Deliverables Selesai:
+1. **Backend State Machine & Atomic Transaction (`services/BMNService.js`)**:
+   - `bmn_getAsetEligibleHapus(token)`: Mengambil aset berstatus `AKTIF` yang belum terikat pada usulan penghapusan aktif mana pun, dengan prioritas urutan kondisi Rusak Berat dan Kadaluwarsa.
+   - `bmn_createPenghapusan(token, payload)`: Validasi RBAC (hanya DIV-TU, Direktur, Superadmin), pembuatan ID usulan otomatis (`HPS-YYYY-XXXX`), pencatatan master usulan ke `TX_BMN_Penghapusan`, penyimpanan batch detail item ke `TX_BMN_Penghapusan_Detail`, serta karantina status aset di `TX_BMN_Aset` (`StatusAset = 'DALAM_PENGHAPUSAN'`) dalam satu transaksi terlindungi `LockService`.
+   - `bmn_getPenghapusanList(token, params)`: Mengambil daftar berkas usulan dengan filter fleksibel per tahapan (`DRAFT_USULAN`, `SURAT_USULAN`, `PERSETUJUAN_KEMENKEU`, `SK_PENGHAPUSAN`, `BAST_SELESAI`, `DITOLAK`, `ALL`) dan pencarian nomor surat/alasan.
+   - `bmn_getPenghapusanDetail(token, penghapusanId)`: Mengambil metadata lengkap berkas usulan beserta join seluruh item aset terkait dari `TX_BMN_Penghapusan_Detail` dan data aktual terkini dari `TX_BMN_Aset`.
+   - `bmn_advancePenghapusan(token, payload)`: Transisi tahapan berkas usulan dengan validasi ketat kelengkapan dokumen per tahap (nomor surat, tanggal, bukti PDF/Drive). Pada tahap akhir `BAST_SELESAI`, status seluruh aset dalam usulan otomatis dimutakhirkan menjadi `DIHAPUS`. Bila diputuskan `DITOLAK` (oleh Kemenkeu), berkas ditandai ditolak dan seluruh aset otomatis dipulihkan kembali ke status `AKTIF`.
+   - `bmn_voidPenghapusan(token, params)`: Pembatalan/anulir berkas usulan penghapusan yang mencatat jejak audit (`VOID`), dan memulihkan seluruh aset yang dikarantina kembali ke status `AKTIF`.
+2. **CSS Stepper Engine (`html/Style.html`)**:
+   - Komponen visual stepper responsif `.n-stepper`, `.n-step-item`, `.n-step-circle`, dan `.n-step-label` dengan connector line otomatis, status aktif (`.active`), selesai (`.completed`), dan ditolak/batal (`.rejected`).
+3. **Antarmuka Pengguna & Manajemen Usulan (`html/views/TataUsaha.html`)**:
+   - Sub-tab switcher BMN di bagian atas: *"Daftar Inventaris Aset"* vs *"Siklus Usulan Penghapusan (Kemenkeu)"*.
+   - Strip KPI usulan penghapusan: Total Usulan, Sedang Berjalan (Aktif), Selesai (BAST), dan Nilai Buku Terhapus.
+   - Toolbar daftar usulan: filter segmented 7-tahap, bilah live search, dan tombol terstandarisasi *"Buat Usulan Penghapusan"*.
+   - Tabel riwayat usulan responsif dengan badge status tahapan semantik.
+   - 3 Modal terpadu berstandar 3-tier container-driven:
+     - `#modal-bmn-create-hapus`: Form usulan dengan pilihan alasan (Rusak Berat, Kadaluwarsa, Hilang, dll), surat usulan awal, keterangan pertimbangan, dan tabel checklist seleksi aset eligible dengan live counter unit terpilih serta akumulasi nilai perolehan dan nilai buku.
+     - `#modal-bmn-detail-hapus`: Tampilan komprehensif berkas usulan dengan stepper 5-tahap, banner penolakan/anulir, ringkasan metadata finansial dan tautan berkas dokumen, tabel daftar aset dalam usulan, dan form dinamis advance tahapan (termasuk opsi penolakan dari Kemenkeu).
+     - `#modal-bmn-void-hapus`: Modal konfirmasi pembatalan/anulir berkas usulan berstatus bahaya dengan alasan wajib.
+4. **Logika Frontend & Sinkronisasi Data (`html/Script_Main.html`)**:
+   - State controller `_BMN_HPS` dengan fungsi pergantian tab `_bmnSwitchMainTab()`, reload list `_bmnLoadPenghapusanList()`, render dinamis `_bmnRenderPenghapusanList()`, filter search ber-debounce, handler pendaftaran usulan `_bmnSubmitCreateHapus()`, visualisasi detail stepper `_bmnRenderDetailHapus()`, advance tahapan `_bmnSubmitAdvanceStage()`, dan eksekusi anulir `_bmnExecuteVoidHapus()`.
+   - Sinkronisasi otomatis: setelah usulan dibuat, dimajukan ke BAST, atau dianulir, sistem otomatis me-refresh register inventaris aset, dashboard summary, peta UPT, dan tabel usulan.
+5. **Kepatuhan QA & Standarisasi UI**:
+   - `node lint_ui.js` lolos: **0 pelanggaran** (mematuhi 100% aturan container-driven scale dan modal footer).
+   - Validasi sintaks `node --check` dan pemeriksaan AST JavaScript lolos tanpa galat.
+   - Zero-Emoji Policy: Seluruh teks, badge, tombol, dan stepper bersih dari karakter emoji unicode.
+
+---
+
 ## [Sub-Fase 18B.5] — Dashboard BMN, Peta Sebaran Geospasial UPT Leaflet, & Notification Summary Banner
 
 **Tanggal**: 21 Oktober 2026  

@@ -507,7 +507,7 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
 
 ### Fase 18B — Revamp Suku Bagian Tata Usaha: Kepegawaian & Sistem Informasi Manajemen BMN Terpadu (Dedicated Spreadsheet Nautika_TU)
 
-- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.5 Selesai; Sub-Fase 18B.6 Siap Dikerjakan)**.
+- **Status**: **Sedang Berjalan (Sub-Fase 18B.0 s/d 18B.6 Selesai; Sub-Fase 18B.7 Siap Dikerjakan)**.
 - **Dependensi**: Fase 18 Selesai (Lunas).
 - **Tujuan**: Membangun tata kelola mandiri Suku Bagian Tata Usaha melalui spreadsheet dedicated `Nautika_TU`, sistem manajemen kepegawaian 5 kategori (PNS, P3K, P3K Paruh Waktu, PJLP, Magang), sistem register fisik BMN per-item anti-jebret (Reguler vs Buku), dual-option geotagging UPT terdekat, notification summary kondisi kelaikan aset, dan siklus penghapusan legal Kemenkeu.
 - **Ruang Lingkup Deliverables**:
@@ -534,10 +534,12 @@ Fase ini dipecah menjadi **dua sub-fase berurutan** agar implementasi bertahap, 
      - Peta Leaflet sebaran konsentrasi aset di kantor pusat dan UPT daerah (`#bmn-upt-map`) dengan basemap Carto, custom marker badge konsentrasi per UPT, dan popup detail breakdown kondisi.
      - Penegakan kondisi fisik per-item (*anti-jebret*) tersinkronisasi dua arah dengan filter peta spasial ke tabel data.
      - Notification Summary Banner di atas daftar inventaris BMN: rekapitulasi aset Baik, Rusak Ringan, Rusak Berat, serta Actionable Button untuk filter instan aset Rusak Berat kandidat penghapusan.
-  7. **Sub-Fase 18B.6 — Siklus Penghapusan Legal Kemenkeu**:
-     - State machine berkas usulan (`DRAFT_USULAN` → `SURAT_USULAN` → `PERSETUJUAN_KEMENKEU` → `SK_PENGHAPUSAN` → `BAST_SELESAI`).
-     - Upload wajib dokumen nomor surat dan bukti dukung per tahap, karantina aset (`DALAM_PENGHAPUSAN`), dan eksekusi status akhir `DIHAPUS` tanpa menghapus jejak audit.
-  8. **Sub-Fase 18B.7 — Validasi, Mobile Camera Test & Zero-Git Handover**:
+  7. **Sub-Fase 18B.6 — Siklus Penghapusan Legal Kemenkeu**: **Selesai**.
+     - State machine berkas usulan 5 tahap berjenjang (`DRAFT_USULAN` → `SURAT_USULAN` → `PERSETUJUAN_KEMENKEU` → `SK_PENGHAPUSAN` → `BAST_SELESAI`) serta penanganan `DITOLAK` (Kemenkeu) dan `VOID` (Anulir Internal).
+     - Karantina aset terpilih (`DALAM_PENGHAPUSAN`) pada `TX_BMN_Aset` saat pendaftaran usulan, dan eksekusi otomatis status akhir `DIHAPUS` pada tahap `BAST_SELESAI` (tanpa menghapus jejak audit, zero physical deletion).
+     - Pemulihan status aset kembali ke `AKTIF` secara otomatis saat usulan dianulir (`VOID`) atau ditolak (`DITOLAK`).
+     - Antarmuka Tab Switcher BMN (Register Inventaris vs Siklus Penghapusan), Strip KPI Usulan (Total Usulan, Sedang Berjalan, Selesai BAST, Nilai Buku Terhapus), Segmented Filter Tahapan, Live Search, dan 3 Modal: Buat Usulan (dengan tabel seleksi aset eligible + kalkulasi instan), Detail Berkas (dengan `.n-stepper` 5-tahap, daftar aset, ringkasan dokumen, dan form dinamis advance tahap), serta Modal Anulir Berkas.
+  8. **Sub-Fase 18B.7 — Validasi, Mobile Camera Test & Zero-Git Handover**: **Siap Dikerjakan**.
      - Verifikasi integritas relasional, pengujian kamera mobile & EXIF di Android/iOS, AST check, dan laporan kesiapan commit/push untuk user.
 
 ---

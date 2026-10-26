@@ -8919,6 +8919,940 @@ function _bmnExecuteImportCommit() {
 }
 
 // ============================================================
+// SUB-MODUL BMN: SIKLUS USULAN PENGHAPUSAN KEMENKEU (FASE 18B.6)
+// ============================================================
+
+var _BMN_HPS = {
+  activeTab: 'register',
+  tahap: 'ALL',
+  q: '',
+  timer: null,
+  list: null,
+  activeDetail: null,
+  eligibleAsets: [],
+  selectedAsetIds: {},
+  pendingVoidId: null,
+  isRejectMode: false
+};
+
+function _bmnSwitchMainTab(tab) {
+  _BMN_HPS.activeTab = tab;
+  var btnReg = document.getElementById('btn-bmn-mode-register');
+  var btnHps = document.getElementById('btn-bmn-mode-hapus');
+  var viewReg = document.getElementById('bmn-view-register');
+  var viewHps = document.getElementById('bmn-view-penghapusan');
+
+  if (tab === 'hapus') {
+    if (btnReg) btnReg.classList.remove('active');
+    if (btnHps) btnHps.classList.add('active');
+    if (viewReg) viewReg.classList.add('n-hidden');
+    if (viewHps) viewHps.classList.remove('n-hidden');
+    _bmnLoadPenghapusanList();
+  } else {
+    if (btnReg) btnReg.classList.add('active');
+    if (btnHps) btnHps.classList.remove('active');
+    if (viewReg) viewReg.classList.remove('n-hidden');
+    if (viewHps) viewHps.classList.add('n-hidden');
+    if (_BMN_MAP.map) {
+      setTimeout(function () { _BMN_MAP.map.invalidateSize(); }, 150);
+    }
+  }
+}
+
+function _bmnLoadPenghapusanList(force) {
+  var wrap = document.getElementById('bmn-hps-table-wrap');
+  if (wrap && (!wrap.innerHTML || force)) {
+    wrap.innerHTML = '<div style="padding:32px; text-align:center; color:var(--n-text-muted); font-size:.875rem;">' +
+      'Memuat berkas usulan penghapusan aset BMN...' +
+      '</div>';
+  }
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        if (wrap) wrap.innerHTML = '<div style="padding:24px; color:var(--n-crit); font-size:.875rem;">' + (res.error || 'Gagal memuat data penghapusan.') + '</div>';
+        return;
+      }
+      _BMN_HPS.list = res.data || [];
+      _bmnRenderPenghapusanList(_BMN_HPS.list);
+    })
+    .withFailureHandler(function (err) {
+      if (wrap) wrap.innerHTML = '<div style="padding:24px; color:var(--n-crit); font-size:.875rem;">Terjadi kesalahan sistem: ' + (err.message || 'Koneksi gagal.') + '</div>';
+    })
+    .bmn_getPenghapusanList(APP.token, {
+      tahap: _BMN_HPS.tahap,
+      q: _BMN_HPS.q
+    });
+}
+
+function _bmnGetTahapBadge(tahap) {
+  tahap = String(tahap || '').toUpperCase();
+  if (tahap === 'DRAFT_USULAN') {
+    return '<span class="n-badge n-badge-subtle n-badge-neutral">Draft Usulan</span>';
+  } else if (tahap === 'SURAT_USULAN') {
+    return '<span class="n-badge n-badge-subtle n-badge-primary">Surat Usulan</span>';
+  } else if (tahap === 'PERSETUJUAN_KEMENKEU') {
+    return '<span class="n-badge n-badge-subtle n-badge-warn">Persetujuan Kemenkeu</span>';
+  } else if (tahap === 'SK_PENGHAPUSAN') {
+    return '<span class="n-badge n-badge-subtle n-badge-primary">SK Penghapusan</span>';
+  } else if (tahap === 'BAST_SELESAI') {
+    return '<span class="n-badge n-badge-subtle n-badge-ok">BAST Selesai (Dihapus)</span>';
+  } else if (tahap === 'DITOLAK') {
+    return '<span class="n-badge n-badge-subtle n-badge-crit">Ditolak Kemenkeu</span>';
+  } else if (tahap === 'VOID') {
+    return '<span class="n-badge n-badge-subtle n-badge-crit">Dianulir (Batal)</span>';
+  }
+  return '<span class="n-badge n-badge-subtle">' + _esc(tahap) + '</span>';
+}
+
+function _bmnGetAlasanLabel(alasan) {
+  if (alasan === 'RUSAK_BERAT') return 'Rusak Berat';
+  if (alasan === 'KADALUWARSA') return 'Kadaluwarsa';
+  if (alasan === 'HILANG') return 'Hilang / Kahar';
+  if (alasan === 'SEBAB_LAIN') return 'Sebab Lain';
+  return alasan || '-';
+}
+
+function _bmnRenderPenghapusanList(list) {
+  var totalCount = list.length;
+  var prosesCount = 0;
+  var selesaiCount = 0;
+  var totalBukuSelesai = 0;
+
+  list.forEach(function (h) {
+    var th = String(h.tahap || '');
+    if (th === 'BAST_SELESAI') {
+      selesaiCount++;
+      totalBukuSelesai += (Number(h.totalNilaiBuku) || 0);
+    } else if (th !== 'DITOLAK' && th !== 'VOID') {
+      prosesCount++;
+    }
+  });
+
+  var elKpiTotal = document.getElementById('bmn-hps-kpi-total');
+  var elKpiProses = document.getElementById('bmn-hps-kpi-proses');
+  var elKpiSelesai = document.getElementById('bmn-hps-kpi-selesai');
+  var elKpiBuku = document.getElementById('bmn-hps-kpi-buku');
+
+  if (elKpiTotal) elKpiTotal.textContent = totalCount;
+  if (elKpiProses) elKpiProses.textContent = prosesCount;
+  if (elKpiSelesai) elKpiSelesai.textContent = selesaiCount;
+  if (elKpiBuku) elKpiBuku.textContent = _rupiah(totalBukuSelesai);
+
+  var wrap = document.getElementById('bmn-hps-table-wrap');
+  if (!wrap) return;
+
+  if (list.length === 0) {
+    wrap.innerHTML = '<div style="padding:48px 24px; text-align:center; color:var(--n-text-muted); font-size:.875rem;">' +
+      'Tidak ada berkas usulan penghapusan yang sesuai dengan filter.' +
+      '</div>';
+    return;
+  }
+
+  var isAuthorizedAnulir = APP.user && (
+    APP.user.role === 'SUPERADMIN' ||
+    APP.user.role === 'DIREKTUR' ||
+    (APP.user.role === 'KADIV' && APP.user.divisiId === 'DIV-TU')
+  );
+
+  var html = '<table class="n-table" style="width:100%;">';
+  html += '<thead><tr>' +
+            '<th style="width:140px;">No. Usulan</th>' +
+            '<th style="width:130px;">Alasan</th>' +
+            '<th style="width:160px;">Tahap Siklus</th>' +
+            '<th>Dokumen Terkait</th>' +
+            '<th style="width:90px; text-align:right;">Total Aset</th>' +
+            '<th style="width:140px; text-align:right;">Nilai Buku</th>' +
+            '<th style="width:140px; text-align:center;">Aksi</th>' +
+          '</tr></thead><tbody>';
+
+  list.forEach(function (h) {
+    var docInfo = [];
+    if (h.nomorSuratUsulan) docInfo.push('Surat: ' + _esc(h.nomorSuratUsulan));
+    if (h.nomorSuratPersetujuan) docInfo.push('Kemenkeu: ' + _esc(h.nomorSuratPersetujuan));
+    if (h.nomorSK) docInfo.push('SK: ' + _esc(h.nomorSK));
+    var docSummary = docInfo.length > 0 ? docInfo.join('<br>') : '<span style="color:var(--n-text-muted); font-size:.75rem;">Belum ada surat</span>';
+
+    var canVoid = isAuthorizedAnulir && h.tahap !== 'BAST_SELESAI' && h.tahap !== 'VOID';
+
+    html += '<tr>' +
+              '<td>' +
+                '<strong class="tnum">' + _esc(h.penghapusanId) + '</strong>' +
+                '<div style="font-size:.72rem; color:var(--n-text-muted);">' + _esc(h.timestamp ? String(h.timestamp).substring(0, 10) : '') + '</div>' +
+              '</td>' +
+              '<td>' +
+                '<div style="font-weight:600;">' + _bmnGetAlasanLabel(h.alasanPenghapusan) + '</div>' +
+              '</td>' +
+              '<td>' + _bmnGetTahapBadge(h.tahap) + '</td>' +
+              '<td style="font-size:.8125rem;">' + docSummary + '</td>' +
+              '<td style="text-align:right;" class="tnum font-bold">' + (h.totalUnit || 0) + ' unit</td>' +
+              '<td style="text-align:right;" class="tnum">' +
+                '<div style="font-weight:600; color:var(--n-primary);">' + _rupiah(h.totalNilaiBuku) + '</div>' +
+                '<div style="font-size:.72rem; color:var(--n-text-muted);">Beli: ' + _rupiah(h.totalNilaiPerolehan) + '</div>' +
+              '</td>' +
+              '<td style="text-align:center;">' +
+                '<div class="ctl-row ctl-sm ctl-nowrap" style="justify-content:center;">' +
+                  '<button type="button" class="btn-outline" onclick="_bmnOpenDetailHapusModal(\'' + _esc(h.penghapusanId) + '\')">Detail</button>' +
+                  (canVoid ? '<button type="button" class="btn-danger" onclick="_bmnPromptVoidHapus(\'' + _esc(h.penghapusanId) + '\')">Anulir</button>' : '') +
+                '</div>' +
+              '</td>' +
+            '</tr>';
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function _bmnSetHpsFilter(tahap, btnEl) {
+  _BMN_HPS.tahap = tahap;
+  document.querySelectorAll('.bmn-hps-tab-btn').forEach(function (b) {
+    b.classList.remove('active');
+  });
+  if (btnEl) btnEl.classList.add('active');
+  _bmnLoadPenghapusanList();
+}
+
+function _bmnHpsDebouncedSearch() {
+  clearTimeout(_BMN_HPS.timer);
+  _BMN_HPS.timer = setTimeout(function () {
+    var input = document.getElementById('bmn-hps-search-input');
+    _BMN_HPS.q = input ? input.value.trim() : '';
+    _bmnLoadPenghapusanList();
+  }, 300);
+}
+
+// ==========================================
+// CREATE USULAN PENGHAPUSAN
+// ==========================================
+
+function _bmnOpenCreateHapusModal() {
+  _BMN_HPS.selectedAsetIds = {};
+  _BMN_HPS.eligibleAsets = [];
+
+  var elMsg = document.getElementById('bmn-create-hps-msg');
+  if (elMsg) elMsg.innerHTML = '';
+
+  var elAlasan = document.getElementById('bmn-hps-alasan');
+  var elNoSurat = document.getElementById('bmn-hps-no-surat');
+  var elTglSurat = document.getElementById('bmn-hps-tgl-surat');
+  var elLinkSurat = document.getElementById('bmn-hps-link-surat');
+  var elKet = document.getElementById('bmn-hps-keterangan');
+  var elSearch = document.getElementById('bmn-hps-eligible-search');
+
+  if (elAlasan) elAlasan.value = 'RUSAK_BERAT';
+  if (elNoSurat) elNoSurat.value = '';
+  if (elTglSurat) elTglSurat.value = '';
+  if (elLinkSurat) elLinkSurat.value = '';
+  if (elKet) elKet.value = '';
+  if (elSearch) elSearch.value = '';
+
+  _bmnUpdateHpsSelectionTotals();
+
+  var tbody = document.getElementById('bmn-hps-eligible-tbody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-text-muted);">' +
+      'Memuat daftar aset eligible untuk penghapusan...' +
+      '</td></tr>';
+  }
+
+  openModal('modal-bmn-create-hapus');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-crit);">' + (res.error || 'Gagal memuat aset.') + '</td></tr>';
+        return;
+      }
+      _BMN_HPS.eligibleAsets = res.data || [];
+      _bmnRenderEligibleTable(_BMN_HPS.eligibleAsets);
+    })
+    .withFailureHandler(function (err) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-crit);">Kesalahan: ' + (err.message || 'Koneksi gagal.') + '</td></tr>';
+    })
+    .bmn_getAsetEligibleHapus(APP.token);
+}
+
+function _bmnRenderEligibleTable(asets) {
+  var tbody = document.getElementById('bmn-hps-eligible-tbody');
+  if (!tbody) return;
+
+  if (asets.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--n-text-muted);">' +
+      'Tidak ada aset yang eligible (seluruh aset dalam status non-aktif atau telah diusulkan).' +
+      '</td></tr>';
+    return;
+  }
+
+  var html = '';
+  asets.forEach(function (a) {
+    var isChecked = !!_BMN_HPS.selectedAsetIds[a.asetId];
+    var kBadge = '';
+    if (a.kondisi === 'RUSAK_BERAT') {
+      kBadge = '<span class="badge" style="background:#FEE2E2;color:#DC2626;">Rusak Berat</span>';
+    } else if (a.kondisi === 'RUSAK_RINGAN') {
+      kBadge = '<span class="badge" style="background:#FEF08A;color:#854D0E;">Rusak Ringan</span>';
+    } else {
+      kBadge = '<span class="badge" style="background:#DEF7EC;color:#03543F;">Baik</span>';
+    }
+
+    html += '<tr>' +
+              '<td style="text-align:center;">' +
+                '<input type="checkbox" class="bmn-hps-item-cb" data-id="' + _esc(a.asetId) + '" ' + (isChecked ? 'checked' : '') + ' onchange="_bmnToggleItemSelect(\'' + _esc(a.asetId) + '\', this.checked)">' +
+              '</td>' +
+              '<td>' +
+                '<strong class="tnum">' + _esc(a.kodeBarang) + '</strong>' +
+                '<div style="font-size:.72rem; color:var(--n-text-muted);">NUP: ' + _esc(a.nup) + '</div>' +
+              '</td>' +
+              '<td>' +
+                '<div style="font-weight:600;">' + _esc(a.namaBarang) + '</div>' +
+                (a.merekTipe ? '<div style="font-size:.72rem; color:var(--n-text-muted);">' + _esc(a.merekTipe) + '</div>' : '') +
+              '</td>' +
+              '<td>' + kBadge + '</td>' +
+              '<td>' + _esc(a.lokasiId) + '</td>' +
+              '<td style="text-align:right;" class="tnum">' +
+                '<div style="font-weight:600;">' + _rupiah(a.nilaiBuku) + '</div>' +
+                '<div style="font-size:.72rem; color:var(--n-text-muted);">Beli: ' + _rupiah(a.nilaiPerolehan) + '</div>' +
+              '</td>' +
+            '</tr>';
+  });
+
+  tbody.innerHTML = html;
+}
+
+function _bmnFilterEligibleAsets() {
+  var input = document.getElementById('bmn-hps-eligible-search');
+  var q = input ? input.value.trim().toLowerCase() : '';
+  if (!q) {
+    _bmnRenderEligibleTable(_BMN_HPS.eligibleAsets);
+    return;
+  }
+  var filtered = _BMN_HPS.eligibleAsets.filter(function (a) {
+    return (a.kodeBarang && a.kodeBarang.toLowerCase().indexOf(q) !== -1) ||
+           (a.nup && String(a.nup).toLowerCase().indexOf(q) !== -1) ||
+           (a.namaBarang && a.namaBarang.toLowerCase().indexOf(q) !== -1) ||
+           (a.lokasiId && a.lokasiId.toLowerCase().indexOf(q) !== -1);
+  });
+  _bmnRenderEligibleTable(filtered);
+}
+
+function _bmnToggleItemSelect(asetId, checked) {
+  if (checked) {
+    _BMN_HPS.selectedAsetIds[asetId] = true;
+  } else {
+    delete _BMN_HPS.selectedAsetIds[asetId];
+  }
+  _bmnUpdateHpsSelectionTotals();
+}
+
+function _bmnToggleAllEligibleCheckboxes(toggleEl) {
+  var checked = toggleEl ? toggleEl.checked : false;
+  var cbs = document.querySelectorAll('.bmn-hps-item-cb');
+  cbs.forEach(function (cb) {
+    cb.checked = checked;
+    var id = cb.getAttribute('data-id');
+    if (checked) {
+      _BMN_HPS.selectedAsetIds[id] = true;
+    } else {
+      delete _BMN_HPS.selectedAsetIds[id];
+    }
+  });
+  _bmnUpdateHpsSelectionTotals();
+}
+
+function _bmnSelectAllEligible(selectAll) {
+  if (selectAll) {
+    _BMN_HPS.eligibleAsets.forEach(function (a) {
+      _BMN_HPS.selectedAsetIds[a.asetId] = true;
+    });
+  } else {
+    _BMN_HPS.selectedAsetIds = {};
+  }
+  _bmnFilterEligibleAsets();
+  _bmnUpdateHpsSelectionTotals();
+}
+
+function _bmnUpdateHpsSelectionTotals() {
+  var selectedKeys = Object.keys(_BMN_HPS.selectedAsetIds);
+  var count = selectedKeys.length;
+  var totalPerolehan = 0;
+  var totalBuku = 0;
+
+  _BMN_HPS.eligibleAsets.forEach(function (a) {
+    if (_BMN_HPS.selectedAsetIds[a.asetId]) {
+      totalPerolehan += (Number(a.nilaiPerolehan) || 0);
+      totalBuku += (Number(a.nilaiBuku) || 0);
+    }
+  });
+
+  var elCount = document.getElementById('bmn-hps-sel-count');
+  var elPerolehan = document.getElementById('bmn-hps-sel-perolehan');
+  var elBuku = document.getElementById('bmn-hps-sel-buku');
+
+  if (elCount) elCount.textContent = count;
+  if (elPerolehan) elPerolehan.textContent = _rupiah(totalPerolehan);
+  if (elBuku) elBuku.textContent = _rupiah(totalBuku);
+}
+
+function _bmnSubmitCreateHapus() {
+  var elAlasan = document.getElementById('bmn-hps-alasan');
+  var elNoSurat = document.getElementById('bmn-hps-no-surat');
+  var elTglSurat = document.getElementById('bmn-hps-tgl-surat');
+  var elLinkSurat = document.getElementById('bmn-hps-link-surat');
+  var elKet = document.getElementById('bmn-hps-keterangan');
+  var btn = document.getElementById('btn-submit-create-hapus');
+
+  var alasan = elAlasan ? elAlasan.value : '';
+  var keterangan = elKet ? elKet.value.trim() : '';
+  var noSurat = elNoSurat ? elNoSurat.value.trim() : '';
+  var tglSurat = elTglSurat ? elTglSurat.value : '';
+  var linkSurat = elLinkSurat ? elLinkSurat.value.trim() : '';
+
+  if (!alasan) {
+    _msg('bmn-create-hps-msg', 'error', 'Pilih alasan penghapusan.');
+    return;
+  }
+  if (!keterangan) {
+    _msg('bmn-create-hps-msg', 'error', 'Keterangan / pertimbangan usulan wajib diisi.');
+    return;
+  }
+
+  var asetIds = Object.keys(_BMN_HPS.selectedAsetIds);
+  if (asetIds.length === 0) {
+    _msg('bmn-create-hps-msg', 'error', 'Pilih minimal satu aset yang akan diusulkan untuk dihapus.');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  _msg('bmn-create-hps-msg', 'info', 'Menyimpan berkas usulan penghapusan dan mengkarantina aset...');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (btn) btn.disabled = false;
+      if (!res.success) {
+        _msg('bmn-create-hps-msg', 'error', res.error || 'Gagal membuat usulan.');
+        return;
+      }
+      closeModal('modal-bmn-create-hapus');
+      _msg('bmn-table-msg', 'success', 'Berkas usulan penghapusan ' + res.penghapusanId + ' berhasil dibuat dengan ' + asetIds.length + ' aset dikarantina.');
+      _bmnLoadPenghapusanList(true);
+      _bmnLoadAsetList(true);
+      _bmnLoadSummary(true);
+    })
+    .withFailureHandler(function (err) {
+      if (btn) btn.disabled = false;
+      _msg('bmn-create-hps-msg', 'error', 'Terjadi kesalahan sistem: ' + (err.message || 'Koneksi gagal.'));
+    })
+    .bmn_createPenghapusan(APP.token, {
+      alasanPenghapusan: alasan,
+      keteranganAlasan: keterangan,
+      nomorSuratUsulan: noSurat,
+      tanggalSuratUsulan: tglSurat,
+      evidenceSuratUsulan: linkSurat,
+      asetIds: asetIds
+    });
+}
+
+// ==========================================
+// DETAIL & ADVANCE TAHAP PENGHAPUSAN
+// ==========================================
+
+function _bmnOpenDetailHapusModal(penghapusanId) {
+  _BMN_HPS.activeDetail = null;
+  _BMN_HPS.isRejectMode = false;
+
+  var elId = document.getElementById('bmn-detail-hps-id');
+  if (elId) elId.textContent = penghapusanId;
+
+  var elStepper = document.getElementById('bmn-detail-hps-stepper');
+  if (elStepper) {
+    elStepper.querySelectorAll('.n-step-item').forEach(function (step) {
+      step.classList.remove('active', 'completed', 'rejected');
+    });
+  }
+
+  var elAlert = document.getElementById('bmn-detail-hps-alert');
+  if (elAlert) {
+    elAlert.classList.add('n-hidden');
+    elAlert.innerHTML = '';
+  }
+
+  var elMsg = document.getElementById('bmn-detail-advance-msg');
+  if (elMsg) elMsg.innerHTML = '';
+
+  var tbody = document.getElementById('bmn-detail-hps-items-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-text-muted);">Memuat berkas usulan...</td></tr>';
+
+  openModal('modal-bmn-detail-hapus');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res.success) {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-crit);">' + (res.error || 'Gagal memuat detail.') + '</td></tr>';
+        return;
+      }
+      _BMN_HPS.activeDetail = res.data;
+      _bmnRenderDetailHapus(res.data);
+    })
+    .withFailureHandler(function (err) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-crit);">Kesalahan: ' + (err.message || 'Koneksi gagal.') + '</td></tr>';
+    })
+    .bmn_getPenghapusanDetail(APP.token, penghapusanId);
+}
+
+function _bmnRenderDetailHapus(detail) {
+  var master = detail.master || {};
+  var items = detail.items || [];
+  var currentTahap = String(master.tahap || 'DRAFT_USULAN').toUpperCase();
+
+  var elBadge = document.getElementById('bmn-detail-hps-badge');
+  if (elBadge) elBadge.innerHTML = _bmnGetTahapBadge(currentTahap);
+
+  var stepOrder = ['DRAFT_USULAN', 'SURAT_USULAN', 'PERSETUJUAN_KEMENKEU', 'SK_PENGHAPUSAN', 'BAST_SELESAI'];
+  var currentIdx = stepOrder.indexOf(currentTahap);
+
+  var elStepper = document.getElementById('bmn-detail-hps-stepper');
+  if (elStepper) {
+    elStepper.querySelectorAll('.n-step-item').forEach(function (stepEl) {
+      var stepName = stepEl.getAttribute('data-step');
+      var stepIdx = stepOrder.indexOf(stepName);
+      stepEl.classList.remove('active', 'completed', 'rejected');
+
+      if (currentTahap === 'DITOLAK') {
+        if (stepIdx <= 2) stepEl.classList.add('completed');
+        if (stepIdx === 2) stepEl.classList.add('rejected');
+      } else if (currentTahap === 'VOID') {
+        stepEl.classList.add('rejected');
+      } else {
+        if (stepIdx < currentIdx) {
+          stepEl.classList.add('completed');
+        } else if (stepIdx === currentIdx) {
+          stepEl.classList.add('active');
+        }
+      }
+    });
+  }
+
+  var elAlert = document.getElementById('bmn-detail-hps-alert');
+  if (elAlert) {
+    if (currentTahap === 'DITOLAK') {
+      elAlert.className = 'n-msg n-msg-error';
+      elAlert.classList.remove('n-hidden');
+      elAlert.innerHTML = '<strong>Usulan Ditolak oleh Kemenkeu</strong><br>' + _esc(master.keteranganAlasan || '');
+    } else if (currentTahap === 'VOID') {
+      elAlert.className = 'n-msg n-msg-error';
+      elAlert.classList.remove('n-hidden');
+      elAlert.innerHTML = '<strong>Berkas Usulan Telah Dianulir</strong><br>' + _esc(master.voidReason || 'Usulan dibatalkan internal.');
+    } else {
+      elAlert.classList.add('n-hidden');
+    }
+  }
+
+  var elAlasan = document.getElementById('bmn-detail-hps-alasan');
+  var elKet = document.getElementById('bmn-detail-hps-keterangan');
+  var elUnit = document.getElementById('bmn-detail-hps-total-unit');
+  var elPerolehan = document.getElementById('bmn-detail-hps-total-perolehan');
+  var elBuku = document.getElementById('bmn-detail-hps-total-buku');
+
+  if (elAlasan) elAlasan.textContent = _bmnGetAlasanLabel(master.alasanPenghapusan);
+  if (elKet) elKet.textContent = master.keteranganAlasan || '-';
+  if (elUnit) elUnit.textContent = (master.totalUnit || items.length) + ' Unit';
+  if (elPerolehan) elPerolehan.textContent = _rupiah(master.totalNilaiPerolehan);
+  if (elBuku) elBuku.textContent = _rupiah(master.totalNilaiBuku);
+
+  var elDocs = document.getElementById('bmn-detail-docs-summary');
+  if (elDocs) {
+    var docHtml = '';
+    if (master.nomorSuratUsulan) {
+      docHtml += '<div style="margin-bottom:4px;"><strong>Surat Usulan:</strong> ' + _esc(master.nomorSuratUsulan);
+      if (master.evidenceSuratUsulan) {
+        docHtml += ' <a href="' + _esc(master.evidenceSuratUsulan) + '" target="_blank" rel="noopener" style="color:var(--n-primary); text-decoration:underline;">[Lihat Berkas]</a>';
+      }
+      docHtml += '</div>';
+    } else {
+      docHtml += '<div style="color:var(--n-text-muted); margin-bottom:4px;">Surat Usulan: Belum diterbitkan</div>';
+    }
+
+    if (master.nomorSuratPersetujuan) {
+      docHtml += '<div style="margin-bottom:4px;"><strong>Persetujuan Kemenkeu:</strong> ' + _esc(master.nomorSuratPersetujuan) + ' (' + _esc(master.instansiKemenkeu || 'DJKN') + ')';
+      if (master.evidenceSuratPersetujuan) {
+        docHtml += ' <a href="' + _esc(master.evidenceSuratPersetujuan) + '" target="_blank" rel="noopener" style="color:var(--n-primary); text-decoration:underline;">[Lihat Berkas]</a>';
+      }
+      docHtml += '</div>';
+    } else {
+      docHtml += '<div style="color:var(--n-text-muted); margin-bottom:4px;">Persetujuan Kemenkeu: Belum ada</div>';
+    }
+
+    if (master.nomorSK) {
+      docHtml += '<div style="margin-bottom:4px;"><strong>SK Penghapusan:</strong> ' + _esc(master.nomorSK);
+      if (master.evidenceSK) {
+        docHtml += ' <a href="' + _esc(master.evidenceSK) + '" target="_blank" rel="noopener" style="color:var(--n-primary); text-decoration:underline;">[Lihat Berkas]</a>';
+      }
+      docHtml += '</div>';
+    }
+
+    if (master.evidenceBAST) {
+      docHtml += '<div style="margin-bottom:4px;"><strong>BAST Selesai:</strong> <a href="' + _esc(master.evidenceBAST) + '" target="_blank" rel="noopener" style="color:var(--n-primary); text-decoration:underline;">[Lihat Berkas BAST]</a></div>';
+    }
+
+    elDocs.innerHTML = docHtml;
+  }
+
+  var elCount = document.getElementById('bmn-detail-hps-items-count');
+  if (elCount) elCount.textContent = items.length + ' item';
+
+  var tbody = document.getElementById('bmn-detail-hps-items-tbody');
+  if (tbody) {
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--n-text-muted);">Tidak ada daftar aset dalam usulan ini.</td></tr>';
+    } else {
+      var itemHtml = '';
+      items.forEach(function (it) {
+        var stBadge = '';
+        var st = String(it.statusAset || '').toUpperCase();
+        if (st === 'DALAM_PENGHAPUSAN') {
+          stBadge = '<span class="badge" style="background:#FEF08A;color:#854D0E;">Karantina Usulan</span>';
+        } else if (st === 'DIHAPUS') {
+          stBadge = '<span class="badge" style="background:#FEE2E2;color:#DC2626;">Dihapus (Final)</span>';
+        } else {
+          stBadge = '<span class="badge" style="background:#DEF7EC;color:#03543F;">' + _esc(st) + '</span>';
+        }
+
+        itemHtml += '<tr>' +
+                      '<td>' +
+                        '<strong class="tnum">' + _esc(it.kodeBarang) + '</strong>' +
+                        '<div style="font-size:.72rem; color:var(--n-text-muted);">NUP: ' + _esc(it.nup) + '</div>' +
+                      '</td>' +
+                      '<td>' +
+                        '<div style="font-weight:600;">' + _esc(it.namaBarang) + '</div>' +
+                        (it.merekTipe ? '<div style="font-size:.72rem; color:var(--n-text-muted);">' + _esc(it.merekTipe) + '</div>' : '') +
+                      '</td>' +
+                      '<td>' + _esc(it.kondisiSaatUsulan || '-') + '</td>' +
+                      '<td>' + _esc(it.lokasiId || '-') + '</td>' +
+                      '<td style="text-align:right;" class="tnum font-semibold">' + _rupiah(it.nilaiBukuSaatUsulan) + '</td>' +
+                      '<td>' + stBadge + '</td>' +
+                    '</tr>';
+      });
+      tbody.innerHTML = itemHtml;
+    }
+  }
+
+  _bmnRenderAdvanceForm(currentTahap, master);
+}
+
+function _bmnRenderAdvanceForm(currentTahap, master) {
+  var advanceWrap = document.getElementById('bmn-detail-advance-wrap');
+  var advanceTitle = document.getElementById('bmn-detail-advance-title');
+  var nextBadge = document.getElementById('bmn-detail-next-step-badge');
+  var advanceFields = document.getElementById('bmn-detail-advance-fields');
+  var btnReject = document.getElementById('btn-advance-reject');
+  var btnAdvance = document.getElementById('btn-confirm-advance');
+  var btnVoid = document.getElementById('btn-open-void-hapus');
+
+  if (btnVoid) {
+    if (currentTahap === 'BAST_SELESAI' || currentTahap === 'VOID') {
+      btnVoid.style.display = 'none';
+    } else {
+      btnVoid.style.display = '';
+    }
+  }
+
+  if (currentTahap === 'BAST_SELESAI' || currentTahap === 'DITOLAK' || currentTahap === 'VOID') {
+    if (advanceWrap) advanceWrap.style.display = 'none';
+    return;
+  }
+
+  if (advanceWrap) advanceWrap.style.display = '';
+  if (btnReject) btnReject.style.display = 'none';
+  _BMN_HPS.isRejectMode = false;
+
+  var fieldsHtml = '';
+
+  if (currentTahap === 'DRAFT_USULAN') {
+    if (advanceTitle) advanceTitle.textContent = 'Terbitkan Surat Usulan Internal Satker';
+    if (nextBadge) nextBadge.textContent = 'Lanjut ke: SURAT_USULAN';
+    if (btnAdvance) btnAdvance.textContent = 'Kirim & Catat Surat Usulan';
+
+    fieldsHtml = '<div class="form-grp">' +
+                   '<label for="bmn-adv-no-surat">Nomor Surat Usulan Internal <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-no-surat" class="n-input" value="' + _esc(master.nomorSuratUsulan || '') + '" placeholder="Contoh: B.123/TU/BMN/X/2026">' +
+                 '</div>' +
+                 '<div class="form-grp">' +
+                   '<label for="bmn-adv-tgl-surat">Tanggal Surat Usulan <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="date" id="bmn-adv-tgl-surat" class="n-input" value="' + _esc(master.tanggalSuratUsulan || '') + '">' +
+                 '</div>' +
+                 '<div class="form-grp" style="grid-column:1 / -1;">' +
+                   '<label for="bmn-adv-link-surat">Bukti Dukung / Salinan Surat (Link Google Drive / PDF) <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-link-surat" class="n-input" value="' + _esc(master.evidenceSuratUsulan || '') + '" placeholder="https://drive.google.com/...">' +
+                 '</div>';
+
+  } else if (currentTahap === 'SURAT_USULAN') {
+    if (advanceTitle) advanceTitle.textContent = 'Persetujuan / Keputusan Kemenkeu RI (DJKN/KPKNL)';
+    if (nextBadge) nextBadge.textContent = 'Lanjut ke: PERSETUJUAN_KEMENKEU';
+    if (btnAdvance) btnAdvance.textContent = 'Catat Persetujuan Kemenkeu';
+    if (btnReject) btnReject.style.display = '';
+
+    fieldsHtml = '<div class="form-grp">' +
+                   '<label for="bmn-adv-no-persetujuan">Nomor Surat Persetujuan Kemenkeu <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-no-persetujuan" class="n-input" placeholder="Contoh: S-456/MK.6/KNL.01/2026">' +
+                 '</div>' +
+                 '<div class="form-grp">' +
+                   '<label for="bmn-adv-tgl-persetujuan">Tanggal Persetujuan Kemenkeu <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="date" id="bmn-adv-tgl-persetujuan" class="n-input">' +
+                 '</div>' +
+                 '<div class="form-grp">' +
+                   '<label for="bmn-adv-instansi-kemenkeu">Instansi Penerbit Kemenkeu <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-instansi-kemenkeu" class="n-input" placeholder="Contoh: KPKNL Jakarta I / DJKN Kemenkeu">' +
+                 '</div>' +
+                 '<div class="form-grp">' +
+                   '<label for="bmn-adv-link-persetujuan">Salinan Surat Persetujuan (Drive / PDF) <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-link-persetujuan" class="n-input" placeholder="https://drive.google.com/...">' +
+                 '</div>';
+
+  } else if (currentTahap === 'PERSETUJUAN_KEMENKEU') {
+    if (advanceTitle) advanceTitle.textContent = 'Penerbitan Keputusan Penghapusan (SK KKP)';
+    if (nextBadge) nextBadge.textContent = 'Lanjut ke: SK_PENGHAPUSAN';
+    if (btnAdvance) btnAdvance.textContent = 'Catat SK Penghapusan';
+
+    fieldsHtml = '<div class="form-grp">' +
+                   '<label for="bmn-adv-no-sk">Nomor SK Penghapusan KKP <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-no-sk" class="n-input" placeholder="Contoh: KEP.789/MEN-KP/2026">' +
+                 '</div>' +
+                 '<div class="form-grp">' +
+                   '<label for="bmn-adv-tgl-sk">Tanggal SK Penghapusan <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="date" id="bmn-adv-tgl-sk" class="n-input">' +
+                 '</div>' +
+                 '<div class="form-grp" style="grid-column:1 / -1;">' +
+                   '<label for="bmn-adv-link-sk">Salinan Berkas SK Penghapusan (Drive / PDF) <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-link-sk" class="n-input" placeholder="https://drive.google.com/...">' +
+                 '</div>';
+
+  } else if (currentTahap === 'SK_PENGHAPUSAN') {
+    if (advanceTitle) advanceTitle.textContent = 'Penyelesaian Pemusnahan / Risalah Lelang (BAST Akhir)';
+    if (nextBadge) nextBadge.textContent = 'Finalisasi: BAST_SELESAI';
+    if (btnAdvance) btnAdvance.textContent = 'Finalisasi & Hapus Aset';
+
+    fieldsHtml = '<div class="form-grp" style="grid-column:1 / -1;">' +
+                   '<label for="bmn-adv-link-bast">Salinan Berkas BAST / Risalah Lelang (Drive / PDF) <span style="color:var(--n-crit)">*</span></label>' +
+                   '<input type="text" id="bmn-adv-link-bast" class="n-input" placeholder="https://drive.google.com/...">' +
+                   '<div style="font-size:.75rem; color:var(--n-text-muted); margin-top:4px;">' +
+                     'Peringatan: Langkah ini adalah langkah final legalitas penghapusan. Seluruh aset dalam usulan ini akan diperbarui statusnya menjadi DIHAPUS.' +
+                   '</div>' +
+                 '</div>';
+  }
+
+  if (advanceFields) advanceFields.innerHTML = fieldsHtml;
+}
+
+function _bmnToggleRejectMode() {
+  _BMN_HPS.isRejectMode = !_BMN_HPS.isRejectMode;
+
+  var advanceTitle = document.getElementById('bmn-detail-advance-title');
+  var nextBadge = document.getElementById('bmn-detail-next-step-badge');
+  var advanceFields = document.getElementById('bmn-detail-advance-fields');
+  var btnReject = document.getElementById('btn-advance-reject');
+  var btnAdvance = document.getElementById('btn-confirm-advance');
+
+  if (_BMN_HPS.isRejectMode) {
+    if (advanceTitle) advanceTitle.textContent = 'Tolak Berkas Usulan (Kemenkeu)';
+    if (nextBadge) {
+      nextBadge.textContent = 'Tahap: DITOLAK';
+      nextBadge.className = 'n-badge n-badge-subtle n-badge-crit';
+    }
+    if (btnReject) btnReject.textContent = 'Batal Menolak (Kembali ke Persetujuan)';
+    if (btnAdvance) {
+      btnAdvance.textContent = 'Konfirmasi Tolak Usulan';
+      btnAdvance.className = 'btn-danger-solid';
+    }
+
+    if (advanceFields) {
+      advanceFields.innerHTML = '<div class="form-grp" style="grid-column:1 / -1;">' +
+                                  '<label for="bmn-adv-alasan-tolak">Alasan Penolakan dari Kemenkeu <span style="color:var(--n-crit)">*</span></label>' +
+                                  '<textarea id="bmn-adv-alasan-tolak" class="n-input" rows="3" placeholder="Sebutkan pertimbangan penolakan oleh Kemenkeu/DJKN..."></textarea>' +
+                                  '<div style="font-size:.75rem; color:var(--n-text-muted); margin-top:4px;">' +
+                                    'Aset yang sebelumnya dikarantina akan otomatis dipulihkan kembali ke status AKTIF di register inventaris.' +
+                                  '</div>' +
+                                '</div>';
+    }
+  } else {
+    var master = (_BMN_HPS.activeDetail && _BMN_HPS.activeDetail.master) || {};
+    _bmnRenderAdvanceForm('SURAT_USULAN', master);
+  }
+}
+
+function _bmnSubmitAdvanceStage() {
+  if (!_BMN_HPS.activeDetail || !_BMN_HPS.activeDetail.master) return;
+  var master = _BMN_HPS.activeDetail.master;
+  var currentTahap = String(master.tahap || 'DRAFT_USULAN').toUpperCase();
+  var hpsId = master.penghapusanId;
+
+  var payload = {
+    penghapusanId: hpsId
+  };
+
+  if (_BMN_HPS.isRejectMode) {
+    var elAlasanTolak = document.getElementById('bmn-adv-alasan-tolak');
+    var alasanTolak = elAlasanTolak ? elAlasanTolak.value.trim() : '';
+    if (!alasanTolak) {
+      _msg('bmn-detail-advance-msg', 'error', 'Alasan penolakan dari Kemenkeu wajib diisi.');
+      return;
+    }
+    payload.tahapTarget = 'DITOLAK';
+    payload.alasanTolak = alasanTolak;
+  } else if (currentTahap === 'DRAFT_USULAN') {
+    var elNo = document.getElementById('bmn-adv-no-surat');
+    var elTgl = document.getElementById('bmn-adv-tgl-surat');
+    var elLink = document.getElementById('bmn-adv-link-surat');
+
+    var noSurat = elNo ? elNo.value.trim() : '';
+    var tglSurat = elTgl ? elTgl.value : '';
+    var linkSurat = elLink ? elLink.value.trim() : '';
+
+    if (!noSurat) { _msg('bmn-detail-advance-msg', 'error', 'Nomor Surat Usulan wajib diisi.'); return; }
+    if (!tglSurat) { _msg('bmn-detail-advance-msg', 'error', 'Tanggal Surat Usulan wajib diisi.'); return; }
+    if (!linkSurat) { _msg('bmn-detail-advance-msg', 'error', 'Link berkas bukti Surat Usulan wajib dilampirkan.'); return; }
+
+    payload.tahapTarget = 'SURAT_USULAN';
+    payload.nomorSuratUsulan = noSurat;
+    payload.tanggalSuratUsulan = tglSurat;
+    payload.evidenceSuratUsulan = linkSurat;
+
+  } else if (currentTahap === 'SURAT_USULAN') {
+    var elNoP = document.getElementById('bmn-adv-no-persetujuan');
+    var elTglP = document.getElementById('bmn-adv-tgl-persetujuan');
+    var elInst = document.getElementById('bmn-adv-instansi-kemenkeu');
+    var elLinkP = document.getElementById('bmn-adv-link-persetujuan');
+
+    var noP = elNoP ? elNoP.value.trim() : '';
+    var tglP = elTglP ? elTglP.value : '';
+    var inst = elInst ? elInst.value.trim() : '';
+    var linkP = elLinkP ? elLinkP.value.trim() : '';
+
+    if (!noP) { _msg('bmn-detail-advance-msg', 'error', 'Nomor Surat Persetujuan Kemenkeu wajib diisi.'); return; }
+    if (!tglP) { _msg('bmn-detail-advance-msg', 'error', 'Tanggal Surat Persetujuan Kemenkeu wajib diisi.'); return; }
+    if (!inst) { _msg('bmn-detail-advance-msg', 'error', 'Instansi Kemenkeu penerbit persetujuan wajib diisi.'); return; }
+    if (!linkP) { _msg('bmn-detail-advance-msg', 'error', 'Link bukti berkas persetujuan wajib dilampirkan.'); return; }
+
+    payload.tahapTarget = 'PERSETUJUAN_KEMENKEU';
+    payload.nomorSuratPersetujuan = noP;
+    payload.tanggalSuratPersetujuan = tglP;
+    payload.instansiKemenkeu = inst;
+    payload.evidenceSuratPersetujuan = linkP;
+
+  } else if (currentTahap === 'PERSETUJUAN_KEMENKEU') {
+    var elNoSK = document.getElementById('bmn-adv-no-sk');
+    var elTglSK = document.getElementById('bmn-adv-tgl-sk');
+    var elLinkSK = document.getElementById('bmn-adv-link-sk');
+
+    var noSK = elNoSK ? elNoSK.value.trim() : '';
+    var tglSK = elTglSK ? elTglSK.value : '';
+    var linkSK = elLinkSK ? elLinkSK.value.trim() : '';
+
+    if (!noSK) { _msg('bmn-detail-advance-msg', 'error', 'Nomor SK Penghapusan KKP wajib diisi.'); return; }
+    if (!tglSK) { _msg('bmn-detail-advance-msg', 'error', 'Tanggal SK Penghapusan wajib diisi.'); return; }
+    if (!linkSK) { _msg('bmn-detail-advance-msg', 'error', 'Link bukti berkas SK Penghapusan wajib dilampirkan.'); return; }
+
+    payload.tahapTarget = 'SK_PENGHAPUSAN';
+    payload.nomorSK = noSK;
+    payload.tanggalSK = tglSK;
+    payload.evidenceSK = linkSK;
+
+  } else if (currentTahap === 'SK_PENGHAPUSAN') {
+    var elLinkBAST = document.getElementById('bmn-adv-link-bast');
+    var linkBAST = elLinkBAST ? elLinkBAST.value.trim() : '';
+
+    if (!linkBAST) { _msg('bmn-detail-advance-msg', 'error', 'Link berkas BAST / Risalah Lelang wajib dilampirkan.'); return; }
+
+    payload.tahapTarget = 'BAST_SELESAI';
+    payload.evidenceBAST = linkBAST;
+  }
+
+  var btnAdvance = document.getElementById('btn-confirm-advance');
+  if (btnAdvance) btnAdvance.disabled = true;
+  _msg('bmn-detail-advance-msg', 'info', 'Menyimpan proses tahapan siklus...');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (btnAdvance) btnAdvance.disabled = false;
+      if (!res.success) {
+        _msg('bmn-detail-advance-msg', 'error', res.error || 'Gagal memproses tahapan.');
+        return;
+      }
+      _msg('bmn-detail-advance-msg', 'success', 'Tahapan berkas berhasil dimutakhirkan ke: ' + payload.tahapTarget);
+      _bmnLoadPenghapusanList(true);
+      _bmnLoadAsetList(true);
+      _bmnLoadSummary(true);
+      setTimeout(function () {
+        _bmnOpenDetailHapusModal(hpsId);
+      }, 700);
+    })
+    .withFailureHandler(function (err) {
+      if (btnAdvance) btnAdvance.disabled = false;
+      _msg('bmn-detail-advance-msg', 'error', 'Terjadi kesalahan sistem: ' + (err.message || 'Koneksi gagal.'));
+    })
+    .bmn_advancePenghapusan(APP.token, payload);
+}
+
+// ==========================================
+// ANULIR / VOID USULAN PENGHAPUSAN
+// ==========================================
+
+function _bmnPromptVoidHapus(penghapusanId) {
+  _BMN_HPS.pendingVoidId = penghapusanId;
+  var elTarget = document.getElementById('bmn-void-hps-target-id');
+  var elReason = document.getElementById('bmn-void-hps-reason');
+  var elMsg = document.getElementById('bmn-void-hps-msg');
+
+  if (elTarget) elTarget.textContent = penghapusanId;
+  if (elReason) elReason.value = '';
+  if (elMsg) elMsg.innerHTML = '';
+
+  openModal('modal-bmn-void-hapus');
+}
+
+function _bmnOpenVoidModal() {
+  if (!_BMN_HPS.activeDetail || !_BMN_HPS.activeDetail.master) return;
+  _bmnPromptVoidHapus(_BMN_HPS.activeDetail.master.penghapusanId);
+}
+
+function _bmnExecuteVoidHapus() {
+  var penghapusanId = _BMN_HPS.pendingVoidId;
+  var elReason = document.getElementById('bmn-void-hps-reason');
+  var reason = elReason ? elReason.value.trim() : '';
+  var btn = document.getElementById('btn-confirm-void-hapus');
+
+  if (!reason) {
+    _msg('bmn-void-hps-msg', 'error', 'Alasan pembatalan/anulir usulan wajib diisi.');
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  _msg('bmn-void-hps-msg', 'info', 'Membatalkan berkas usulan dan memulihkan status aset...');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (btn) btn.disabled = false;
+      if (!res.success) {
+        _msg('bmn-void-hps-msg', 'error', res.error || 'Gagal menganulir usulan.');
+        return;
+      }
+      closeModal('modal-bmn-void-hapus');
+      closeModal('modal-bmn-detail-hapus');
+      _msg('bmn-table-msg', 'success', 'Berkas usulan ' + penghapusanId + ' berhasil dianulir dan seluruh aset dipulihkan ke status AKTIF.');
+      _bmnLoadPenghapusanList(true);
+      _bmnLoadAsetList(true);
+      _bmnLoadSummary(true);
+    })
+    .withFailureHandler(function (err) {
+      if (btn) btn.disabled = false;
+      _msg('bmn-void-hps-msg', 'error', 'Terjadi kesalahan sistem: ' + (err.message || 'Koneksi gagal.'));
+    })
+    .bmn_voidPenghapusan(APP.token, {
+      penghapusanId: penghapusanId,
+      alasan: reason
+    });
+}
+
+// ============================================================
 // MODUL OPERASI (KAPAL & PESAWAT — tab gabungan, Fase 7)
 // ============================================================
 var _OPS = {

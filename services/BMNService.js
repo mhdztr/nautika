@@ -911,3 +911,608 @@ function bmn_anulirAset(token, params) {
     return { success: false, error: e.message };
   }
 }
+
+// ============================================================
+// SIKLUS PENGHAPUSAN LEGAL BMN KEMENKEU (SUB-FASE 18B.6)
+// State Machine: DRAFT_USULAN -> SURAT_USULAN -> PERSETUJUAN_KEMENKEU -> SK_PENGHAPUSAN -> BAST_SELESAI (atau DITOLAK)
+// ============================================================
+
+/**
+ * Mengambil daftar aset yang berstatus AKTIF dan siap diusulkan untuk penghapusan.
+ */
+function bmn_getAsetEligibleHapus(token) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertRead(session);
+
+    var sheet = openTuSheet(SHEET_TU.BMN_ASET);
+    var rows  = sheetToObjects(sheet);
+
+    var eligible = rows.filter(function (r) {
+      return String(r['Status']) === ROW_STATUS.ACTIVE &&
+             String(r['StatusAset'] || 'AKTIF').toUpperCase() === 'AKTIF';
+    }).map(function (r) {
+      var tglPeroleh = r['TanggalPerolehan'] ? String(r['TanggalPerolehan']).split('T')[0] : '';
+      var masaManfaat = parseFloat(r['MasaManfaatTahun']) || 5;
+      var age = _bmnComputeAge(tglPeroleh, masaManfaat);
+
+      return {
+        asetId:              String(r['AsetID']),
+        kodeBarang:          String(r['KodeBarang']),
+        nup:                 String(r['NUP']),
+        namaBarang:          String(r['NamaBarang']),
+        merekTipe:           String(r['MerekTipe'] || ''),
+        kondisi:             String(r['Kondisi'] || 'BAIK').toUpperCase(),
+        kategoriPencatatan:  String(r['KategoriPencatatan'] || 'BUKU').toUpperCase(),
+        lokasiId:            String(r['LokasiID'] || ''),
+        namaLokasi:          String(r['NamaLokasi'] || ''),
+        nilaiPerolehan:      parseFloat(r['NilaiPerolehan']) || 0,
+        nilaiBuku:           parseFloat(r['NilaiBuku']) || 0,
+        umurAsetTahun:       age.umurTahun,
+        sisaManfaatTahun:    age.sisaTahun,
+        isKadaluwarsa:       age.isKadaluwarsa
+      };
+    });
+
+    // Urutkan: Rusak Berat dan Kadaluwarsa di atas
+    eligible.sort(function (a, b) {
+      if (a.kondisi === 'RUSAK_BERAT' && b.kondisi !== 'RUSAK_BERAT') return -1;
+      if (b.kondisi === 'RUSAK_BERAT' && a.kondisi !== 'RUSAK_BERAT') return 1;
+      if (a.isKadaluwarsa && !b.isKadaluwarsa) return -1;
+      if (!a.isKadaluwarsa && b.isKadaluwarsa) return 1;
+      return a.namaBarang.localeCompare(b.namaBarang);
+    });
+
+    return { success: true, data: eligible };
+  } catch (e) {
+    Logger.log('[bmn_getAsetEligibleHapus] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Membuat berkas usulan penghapusan BMN baru (Tahap: DRAFT_USULAN).
+ * Mengkarantina aset terpilih menjadi StatusAset = 'DALAM_PENGHAPUSAN'.
+ */
+function bmn_createPenghapusan(token, payload) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertWrite(session);
+
+    if (!payload || !payload.alasan) {
+      throw new Error('Alasan Penghapusan wajib dipilih.');
+    }
+    if (!payload.asetIds || !Array.isArray(payload.asetIds) || payload.asetIds.length === 0) {
+      throw new Error('Pilih minimal 1 unit aset untuk diusulkan penghapusan.');
+    }
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+
+    try {
+      var asetSheet = openTuSheet(SHEET_TU.BMN_ASET);
+      var asetRows  = sheetToObjects(asetSheet);
+      var asetHeaders = asetSheet.getRange(1, 1, 1, asetSheet.getLastColumn()).getValues()[0];
+
+      var colAsetRowId       = asetHeaders.indexOf('RowID') + 1;
+      var colAsetStatusAset  = asetHeaders.indexOf('StatusAset') + 1;
+      var colAsetPenghapusan = asetHeaders.indexOf('PenghapusanID') + 1;
+
+      // Cari dan validasi aset
+      var targetAssets = [];
+      var targetRowIndices = [];
+
+      for (var i = 0; i < asetRows.length; i++) {
+        var ar = asetRows[i];
+        if (payload.asetIds.indexOf(ar['AsetID']) !== -1 && String(ar['Status']) === ROW_STATUS.ACTIVE) {
+          if (String(ar['StatusAset'] || 'AKTIF').toUpperCase() !== 'AKTIF') {
+            throw new Error('Aset ' + ar['NamaBarang'] + ' (NUP ' + ar['NUP'] + ') sedang dalam status ' + ar['StatusAset'] + ' dan tidak dapat diajukan kembali.');
+          }
+          targetAssets.push(ar);
+          targetRowIndices.push(i + 2);
+        }
+      }
+
+      if (targetAssets.length !== payload.asetIds.length) {
+        throw new Error('Sebagian aset yang dipilih tidak ditemukan atau sudah tidak aktif.');
+      }
+
+      var hpsSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN);
+      var hpsRows  = sheetToObjects(hpsSheet);
+
+      var tahun = new Date().getFullYear();
+      var counter = 1;
+      for (var h = 0; h < hpsRows.length; h++) {
+        var existId = String(hpsRows[h]['PenghapusanID'] || '');
+        if (existId.indexOf('HPS-' + tahun) === 0) {
+          var num = parseInt(existId.split('-')[2], 10);
+          if (!isNaN(num) && num >= counter) counter = num + 1;
+        }
+      }
+      var penghapusanId = 'HPS-' + tahun + '-' + ('0000' + counter).slice(-4);
+      var parentRowId   = generateRowId('TX_BMN_Penghapusan');
+      var now = new Date();
+      var periode = now.getFullYear() + '-W' + ('0' + Math.ceil(now.getDate() / 7)).slice(-2);
+
+      var totalNilaiPerolehan = 0;
+      var totalNilaiBuku = 0;
+
+      targetAssets.forEach(function (ta) {
+        totalNilaiPerolehan += parseFloat(ta['NilaiPerolehan']) || 0;
+        totalNilaiBuku += parseFloat(ta['NilaiBuku']) || 0;
+      });
+
+      // 1. Tulis Berkas Induk TX_BMN_Penghapusan
+      var hpsRowData = [
+        parentRowId, _BMN_DIVISI_ID, periode, session.userId, now, ROW_STATUS.ACTIVE, '', '', '', '',
+        penghapusanId,
+        'DRAFT_USULAN',
+        payload.alasan,
+        payload.keterangan || '',
+        payload.nomorSuratUsulan || '',
+        payload.tanggalSuratUsulan || '',
+        payload.evidenceSuratUsulan || '',
+        '', '', '', '', // Surat Persetujuan Kemenkeu
+        '', '', '',    // SK Penghapusan
+        '',            // Evidence BAST
+        targetAssets.length,
+        totalNilaiPerolehan,
+        totalNilaiBuku
+      ];
+      hpsSheet.appendRow(hpsRowData);
+
+      // 2. Tulis Item Detail TX_BMN_Penghapusan_Detail
+      var detailSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN_DETAIL);
+      var detailRowsToAdd = [];
+
+      for (var d = 0; d < targetAssets.length; d++) {
+        var da = targetAssets[d];
+        var dRowId = generateRowId('TX_BMN_Penghapusan_Detail');
+        detailRowsToAdd.push([
+          dRowId, _BMN_DIVISI_ID, periode, session.userId, now, ROW_STATUS.ACTIVE, '', '', '', '',
+          parentRowId,
+          penghapusanId,
+          da['AsetID'],
+          da['Kondisi'] || 'RUSAK_BERAT',
+          parseFloat(da['NilaiBuku']) || 0
+        ]);
+      }
+
+      if (detailRowsToAdd.length > 0) {
+        detailSheet.getRange(
+          detailSheet.getLastRow() + 1,
+          1,
+          detailRowsToAdd.length,
+          detailRowsToAdd[0].length
+        ).setValues(detailRowsToAdd);
+      }
+
+      // 3. Karantina Aset di TX_BMN_Aset
+      for (var k = 0; k < targetRowIndices.length; k++) {
+        var rIdx = targetRowIndices[k];
+        asetSheet.getRange(rIdx, colAsetStatusAset).setValue('DALAM_PENGHAPUSAN');
+        asetSheet.getRange(rIdx, colAsetPenghapusan).setValue(penghapusanId);
+      }
+
+      logAudit(session.userId, 'CREATE_BMN_PENGHAPUSAN', 'TX_BMN_Penghapusan', parentRowId, {
+        penghapusanId: penghapusanId,
+        totalUnit: targetAssets.length,
+        totalNilaiBuku: totalNilaiBuku,
+        alasan: payload.alasan
+      });
+
+      return {
+        success: true,
+        data: {
+          penghapusanId: penghapusanId,
+          totalUnit: targetAssets.length,
+          totalNilaiBuku: totalNilaiBuku
+        },
+        message: 'Berkas usulan penghapusan ' + penghapusanId + ' berhasil dibuat dengan ' + targetAssets.length + ' unit aset dikarantina.'
+      };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[bmn_createPenghapusan] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Mengambil daftar berkas usulan penghapusan BMN.
+ */
+function bmn_getPenghapusanList(token, params) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertRead(session);
+
+    params = params || {};
+    var sheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN);
+    var rows  = sheetToObjects(sheet);
+
+    var activeRows = rows.filter(function (r) {
+      return String(r['Status']) === ROW_STATUS.ACTIVE;
+    });
+
+    var tahapFilter = String(params.tahap || 'ALL').toUpperCase();
+    if (tahapFilter !== 'ALL') {
+      activeRows = activeRows.filter(function (r) {
+        return String(r['Tahap'] || '').toUpperCase() === tahapFilter;
+      });
+    }
+
+    var q = String(params.q || '').trim().toLowerCase();
+    if (q) {
+      activeRows = activeRows.filter(function (r) {
+        return String(r['PenghapusanID'] || '').toLowerCase().indexOf(q) !== -1 ||
+               String(r['NomorSuratUsulan'] || '').toLowerCase().indexOf(q) !== -1 ||
+               String(r['NomorSuratPersetujuan'] || '').toLowerCase().indexOf(q) !== -1 ||
+               String(r['NomorSK'] || '').toLowerCase().indexOf(q) !== -1 ||
+               String(r['KeteranganAlasan'] || '').toLowerCase().indexOf(q) !== -1;
+      });
+    }
+
+    // Urutkan terbaru di atas
+    activeRows.sort(function (a, b) {
+      return new Date(b['Timestamp']).getTime() - new Date(a['Timestamp']).getTime();
+    });
+
+    var result = activeRows.map(function (r) {
+      return {
+        rowId:                   String(r['RowID']),
+        penghapusanId:           String(r['PenghapusanID']),
+        tahap:                   String(r['Tahap'] || 'DRAFT_USULAN'),
+        alasanPenghapusan:       String(r['AlasanPenghapusan'] || ''),
+        keteranganAlasan:         String(r['KeteranganAlasan'] || ''),
+        nomorSuratUsulan:        String(r['NomorSuratUsulan'] || ''),
+        tanggalSuratUsulan:      r['TanggalSuratUsulan'] ? String(r['TanggalSuratUsulan']).split('T')[0] : '',
+        evidenceSuratUsulan:     String(r['EvidenceSuratUsulan'] || ''),
+        nomorSuratPersetujuan:   String(r['NomorSuratPersetujuan'] || ''),
+        tanggalSuratPersetujuan: r['TanggalSuratPersetujuan'] ? String(r['TanggalSuratPersetujuan']).split('T')[0] : '',
+        instansiKemenkeu:        String(r['InstansiKemenkeu'] || ''),
+        evidenceSuratPersetujuan:String(r['EvidenceSuratPersetujuan'] || ''),
+        nomorSK:                 String(r['NomorSK'] || ''),
+        tanggalSK:               r['TanggalSK'] ? String(r['TanggalSK']).split('T')[0] : '',
+        evidenceSK:              String(r['EvidenceSK'] || ''),
+        evidenceBAST:            String(r['EvidenceBAST'] || ''),
+        totalUnit:               parseInt(r['TotalUnit'], 10) || 0,
+        totalNilaiPerolehan:     parseFloat(r['TotalNilaiPerolehan']) || 0,
+        totalNilaiBuku:          parseFloat(r['TotalNilaiBuku']) || 0,
+        submittedBy:             String(r['SubmittedBy'] || ''),
+        timestamp:               r['Timestamp']
+      };
+    });
+
+    return { success: true, data: result };
+  } catch (e) {
+    Logger.log('[bmn_getPenghapusanList] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Mengambil detail berkas usulan penghapusan beserta rincian item aset di dalamnya.
+ */
+function bmn_getPenghapusanDetail(token, penghapusanId) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertRead(session);
+
+    if (!penghapusanId) throw new Error('PenghapusanID wajib diberikan.');
+
+    var hpsSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN);
+    var hpsRows  = sheetToObjects(hpsSheet);
+
+    var usulanRow = null;
+    for (var i = 0; i < hpsRows.length; i++) {
+      if (hpsRows[i]['PenghapusanID'] === penghapusanId && String(hpsRows[i]['Status']) === ROW_STATUS.ACTIVE) {
+        usulanRow = hpsRows[i];
+        break;
+      }
+    }
+
+    if (!usulanRow) throw new Error('Berkas usulan penghapusan tidak ditemukan atau sudah tidak aktif.');
+
+    // Ambil detail items
+    var detailSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN_DETAIL);
+    var detailRows  = sheetToObjects(detailSheet);
+
+    var itemRefs = detailRows.filter(function (d) {
+      return d['PenghapusanID'] === penghapusanId && String(d['Status']) === ROW_STATUS.ACTIVE;
+    });
+
+    // Ambil informasi master aset
+    var asetSheet = openTuSheet(SHEET_TU.BMN_ASET);
+    var asetRows  = sheetToObjects(asetSheet);
+    var asetMap = {};
+    asetRows.forEach(function (ar) {
+      asetMap[ar['AsetID']] = ar;
+    });
+
+    var items = itemRefs.map(function (ir) {
+      var a = asetMap[ir['AsetID']] || {};
+      return {
+        detailRowId:        String(ir['RowID']),
+        asetId:             String(ir['AsetID']),
+        kondisiSaatUsul:    String(ir['KondisiSaatUsul'] || 'RUSAK_BERAT'),
+        nilaiBukuSaatUsul:  parseFloat(ir['NilaiBukuSaatUsul']) || 0,
+        kodeBarang:         String(a['KodeBarang'] || ''),
+        nup:                String(a['NUP'] || ''),
+        namaBarang:         String(a['NamaBarang'] || ''),
+        merekTipe:          String(a['MerekTipe'] || ''),
+        lokasiId:           String(a['LokasiID'] || ''),
+        namaLokasi:         String(a['NamaLokasi'] || ''),
+        statusAset:         String(a['StatusAset'] || 'DALAM_PENGHAPUSAN')
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        usulan: {
+          rowId:                   String(usulanRow['RowID']),
+          penghapusanId:           String(usulanRow['PenghapusanID']),
+          tahap:                   String(usulanRow['Tahap'] || 'DRAFT_USULAN'),
+          alasanPenghapusan:       String(usulanRow['AlasanPenghapusan'] || ''),
+          keteranganAlasan:         String(usulanRow['KeteranganAlasan'] || ''),
+          nomorSuratUsulan:        String(usulanRow['NomorSuratUsulan'] || ''),
+          tanggalSuratUsulan:      usulanRow['TanggalSuratUsulan'] ? String(usulanRow['TanggalSuratUsulan']).split('T')[0] : '',
+          evidenceSuratUsulan:     String(usulanRow['EvidenceSuratUsulan'] || ''),
+          nomorSuratPersetujuan:   String(usulanRow['NomorSuratPersetujuan'] || ''),
+          tanggalSuratPersetujuan: usulanRow['TanggalSuratPersetujuan'] ? String(usulanRow['TanggalSuratPersetujuan']).split('T')[0] : '',
+          instansiKemenkeu:        String(usulanRow['InstansiKemenkeu'] || ''),
+          evidenceSuratPersetujuan:String(usulanRow['EvidenceSuratPersetujuan'] || ''),
+          nomorSK:                 String(usulanRow['NomorSK'] || ''),
+          tanggalSK:               usulanRow['TanggalSK'] ? String(usulanRow['TanggalSK']).split('T')[0] : '',
+          evidenceSK:              String(usulanRow['EvidenceSK'] || ''),
+          evidenceBAST:            String(usulanRow['EvidenceBAST'] || ''),
+          totalUnit:               parseInt(usulanRow['TotalUnit'], 10) || 0,
+          totalNilaiPerolehan:     parseFloat(usulanRow['TotalNilaiPerolehan']) || 0,
+          totalNilaiBuku:          parseFloat(usulanRow['TotalNilaiBuku']) || 0,
+          submittedBy:             String(usulanRow['SubmittedBy'] || ''),
+          timestamp:               usulanRow['Timestamp']
+        },
+        items: items
+      }
+    };
+  } catch (e) {
+    Logger.log('[bmn_getPenghapusanDetail] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Memajukan tahapan berkas usulan penghapusan BMN sesuai State Machine legal Kemenkeu.
+ *
+ * Transisi:
+ * - DRAFT_USULAN -> SURAT_USULAN (wajib NomorSuratUsulan, TanggalSuratUsulan, EvidenceSuratUsulan)
+ * - SURAT_USULAN -> PERSETUJUAN_KEMENKEU (wajib NomorSuratPersetujuan, TanggalSuratPersetujuan, InstansiKemenkeu, EvidenceSuratPersetujuan)
+ * - PERSETUJUAN_KEMENKEU -> SK_PENGHAPUSAN (wajib NomorSK, TanggalSK, EvidenceSK)
+ * - SK_PENGHAPUSAN -> BAST_SELESAI (wajib EvidenceBAST) -> Eksekusi StatusAset = 'DIHAPUS'
+ * - Any -> DITOLAK -> Lepaskan aset kembali ke StatusAset = 'AKTIF'
+ */
+function bmn_advancePenghapusan(token, payload) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertWrite(session);
+
+    if (!payload || !payload.penghapusanId || !payload.tahapTarget) {
+      throw new Error('PenghapusanID dan Tahap Target wajib diisi.');
+    }
+
+    var validTahap = ['SURAT_USULAN', 'PERSETUJUAN_KEMENKEU', 'SK_PENGHAPUSAN', 'BAST_SELESAI', 'DITOLAK'];
+    if (validTahap.indexOf(payload.tahapTarget) === -1) {
+      throw new Error('Tahap target tidak valid: ' + payload.tahapTarget);
+    }
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+
+    try {
+      var hpsSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN);
+      var hpsRows  = sheetToObjects(hpsSheet);
+      var hpsHeaders = hpsSheet.getRange(1, 1, 1, hpsSheet.getLastColumn()).getValues()[0];
+
+      var targetRowIdx = -1;
+      var currentHps = null;
+
+      for (var i = 0; i < hpsRows.length; i++) {
+        if (hpsRows[i]['PenghapusanID'] === payload.penghapusanId && String(hpsRows[i]['Status']) === ROW_STATUS.ACTIVE) {
+          targetRowIdx = i + 2;
+          currentHps = hpsRows[i];
+          break;
+        }
+      }
+
+      if (targetRowIdx === -1 || !currentHps) {
+        throw new Error('Berkas usulan penghapusan tidak ditemukan atau sudah tidak aktif.');
+      }
+
+      var currentTahap = String(currentHps['Tahap'] || 'DRAFT_USULAN');
+      if (currentTahap === 'BAST_SELESAI' || currentTahap === 'DITOLAK') {
+        throw new Error('Berkas usulan ini sudah berada pada status final (' + currentTahap + ') dan tidak dapat diubah lagi.');
+      }
+
+      var colMap = {};
+      hpsHeaders.forEach(function (h, idx) { colMap[h] = idx + 1; });
+
+      // Validasi per tahap
+      if (payload.tahapTarget === 'SURAT_USULAN') {
+        if (!payload.nomorSuratUsulan) throw new Error('Nomor Surat Usulan Satker wajib diisi.');
+        if (!payload.tanggalSuratUsulan) throw new Error('Tanggal Surat Usulan wajib diisi.');
+        if (!payload.evidenceSuratUsulan) throw new Error('Bukti dukung berkas Surat Usulan (PDF / Drive) wajib dilampirkan.');
+
+        hpsSheet.getRange(targetRowIdx, colMap['Tahap']).setValue('SURAT_USULAN');
+        hpsSheet.getRange(targetRowIdx, colMap['NomorSuratUsulan']).setValue(payload.nomorSuratUsulan);
+        hpsSheet.getRange(targetRowIdx, colMap['TanggalSuratUsulan']).setValue(payload.tanggalSuratUsulan);
+        hpsSheet.getRange(targetRowIdx, colMap['EvidenceSuratUsulan']).setValue(payload.evidenceSuratUsulan);
+
+      } else if (payload.tahapTarget === 'PERSETUJUAN_KEMENKEU') {
+        if (!payload.nomorSuratPersetujuan) throw new Error('Nomor Surat Persetujuan Kemenkeu wajib diisi.');
+        if (!payload.tanggalSuratPersetujuan) throw new Error('Tanggal Surat Persetujuan Kemenkeu wajib diisi.');
+        if (!payload.instansiKemenkeu) throw new Error('Instansi Kemenkeu penerbit izin (DJKN/KPKNL) wajib diisi.');
+        if (!payload.evidenceSuratPersetujuan) throw new Error('Bukti dukung izin persetujuan Kemenkeu (PDF / Drive) wajib dilampirkan.');
+
+        hpsSheet.getRange(targetRowIdx, colMap['Tahap']).setValue('PERSETUJUAN_KEMENKEU');
+        hpsSheet.getRange(targetRowIdx, colMap['NomorSuratPersetujuan']).setValue(payload.nomorSuratPersetujuan);
+        hpsSheet.getRange(targetRowIdx, colMap['TanggalSuratPersetujuan']).setValue(payload.tanggalSuratPersetujuan);
+        hpsSheet.getRange(targetRowIdx, colMap['InstansiKemenkeu']).setValue(payload.instansiKemenkeu);
+        hpsSheet.getRange(targetRowIdx, colMap['EvidenceSuratPersetujuan']).setValue(payload.evidenceSuratPersetujuan);
+
+      } else if (payload.tahapTarget === 'SK_PENGHAPUSAN') {
+        if (!payload.nomorSK) throw new Error('Nomor SK Penghapusan KKP wajib diisi.');
+        if (!payload.tanggalSK) throw new Error('Tanggal SK Penghapusan wajib diisi.');
+        if (!payload.evidenceSK) throw new Error('Salinan berkas SK Penghapusan (PDF / Drive) wajib dilampirkan.');
+
+        hpsSheet.getRange(targetRowIdx, colMap['Tahap']).setValue('SK_PENGHAPUSAN');
+        hpsSheet.getRange(targetRowIdx, colMap['NomorSK']).setValue(payload.nomorSK);
+        hpsSheet.getRange(targetRowIdx, colMap['TanggalSK']).setValue(payload.tanggalSK);
+        hpsSheet.getRange(targetRowIdx, colMap['EvidenceSK']).setValue(payload.evidenceSK);
+
+      } else if (payload.tahapTarget === 'BAST_SELESAI') {
+        if (!payload.evidenceBAST) throw new Error('Bukti BAST Pemusnahan / Risalah Lelang wajib dilampirkan.');
+
+        hpsSheet.getRange(targetRowIdx, colMap['Tahap']).setValue('BAST_SELESAI');
+        hpsSheet.getRange(targetRowIdx, colMap['EvidenceBAST']).setValue(payload.evidenceBAST);
+
+        // Eksekusi pemutakhiran status aset menjadi DIHAPUS
+        var asetSheet = openTuSheet(SHEET_TU.BMN_ASET);
+        var asetRows  = sheetToObjects(asetSheet);
+        var asetHeaders = asetSheet.getRange(1, 1, 1, asetSheet.getLastColumn()).getValues()[0];
+        var colStatusAset = asetHeaders.indexOf('StatusAset') + 1;
+
+        for (var a = 0; a < asetRows.length; a++) {
+          if (asetRows[a]['PenghapusanID'] === payload.penghapusanId && String(asetRows[a]['Status']) === ROW_STATUS.ACTIVE) {
+            asetSheet.getRange(a + 2, colStatusAset).setValue('DIHAPUS');
+          }
+        }
+
+      } else if (payload.tahapTarget === 'DITOLAK') {
+        hpsSheet.getRange(targetRowIdx, colMap['Tahap']).setValue('DITOLAK');
+        if (payload.alasanTolak) {
+          var currKet = String(currentHps['KeteranganAlasan'] || '');
+          hpsSheet.getRange(targetRowIdx, colMap['KeteranganAlasan']).setValue(currKet + ' [Ditolak: ' + payload.alasanTolak + ']');
+        }
+
+        // Kembalikan aset ke status AKTIF dan kosongkan PenghapusanID
+        var asetSheetTolak = openTuSheet(SHEET_TU.BMN_ASET);
+        var asetRowsTolak  = sheetToObjects(asetSheetTolak);
+        var asetHeadersTolak = asetSheetTolak.getRange(1, 1, 1, asetSheetTolak.getLastColumn()).getValues()[0];
+        var colStAset = asetHeadersTolak.indexOf('StatusAset') + 1;
+        var colHpsId  = asetHeadersTolak.indexOf('PenghapusanID') + 1;
+
+        for (var at = 0; at < asetRowsTolak.length; at++) {
+          if (asetRowsTolak[at]['PenghapusanID'] === payload.penghapusanId && String(asetRowsTolak[at]['Status']) === ROW_STATUS.ACTIVE) {
+            asetSheetTolak.getRange(at + 2, colStAset).setValue('AKTIF');
+            asetSheetTolak.getRange(at + 2, colHpsId).setValue('');
+          }
+        }
+      }
+
+      logAudit(session.userId, 'ADVANCE_BMN_PENGHAPUSAN', 'TX_BMN_Penghapusan', currentHps['RowID'], {
+        penghapusanId: payload.penghapusanId,
+        tahapLama: currentTahap,
+        tahapBaru: payload.tahapTarget
+      });
+
+      return {
+        success: true,
+        data: { penghapusanId: payload.penghapusanId, tahap: payload.tahapTarget },
+        message: 'Tahapan berkas usulan ' + payload.penghapusanId + ' berhasil diperbarui ke ' + payload.tahapTarget + '.'
+      };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[bmn_advancePenghapusan] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Menganulir berkas usulan penghapusan BMN.
+ * Seluruh aset yang dikarantina otomatis dibebaskan kembali ke StatusAset = 'AKTIF'.
+ */
+function bmn_voidPenghapusan(token, params) {
+  try {
+    var session = _bmnRequireSession(token);
+    _bmnAssertVoid(session);
+
+    if (!params || !params.penghapusanId || !params.alasan) {
+      throw new Error('PenghapusanID dan Alasan Anulir wajib diisi.');
+    }
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+
+    try {
+      var hpsSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN);
+      var hpsRows  = sheetToObjects(hpsSheet);
+      var targetIdx = -1;
+      var targetRowId = '';
+
+      for (var i = 0; i < hpsRows.length; i++) {
+        if (hpsRows[i]['PenghapusanID'] === params.penghapusanId && String(hpsRows[i]['Status']) === ROW_STATUS.ACTIVE) {
+          targetIdx = i + 2;
+          targetRowId = hpsRows[i]['RowID'];
+          break;
+        }
+      }
+
+      if (targetIdx === -1) {
+        throw new Error('Berkas usulan penghapusan tidak ditemukan atau sudah tidak aktif.');
+      }
+
+      var hpsHeaders = hpsSheet.getRange(1, 1, 1, hpsSheet.getLastColumn()).getValues()[0];
+      hpsSheet.getRange(targetIdx, hpsHeaders.indexOf('Status') + 1).setValue(ROW_STATUS.VOID);
+      hpsSheet.getRange(targetIdx, hpsHeaders.indexOf('VoidReason') + 1).setValue(params.alasan);
+      hpsSheet.getRange(targetIdx, hpsHeaders.indexOf('VoidedBy') + 1).setValue(session.userId);
+      hpsSheet.getRange(targetIdx, hpsHeaders.indexOf('VoidedAt') + 1).setValue(new Date());
+
+      // Anulir juga di detail
+      var detailSheet = openTuSheet(SHEET_TU.BMN_PENGHAPUSAN_DETAIL);
+      var detailRows  = sheetToObjects(detailSheet);
+      var detailHeaders = detailSheet.getRange(1, 1, 1, detailSheet.getLastColumn()).getValues()[0];
+      var colDStatus = detailHeaders.indexOf('Status') + 1;
+      var colDReason = detailHeaders.indexOf('VoidReason') + 1;
+      var colDBy     = detailHeaders.indexOf('VoidedBy') + 1;
+      var colDAt     = detailHeaders.indexOf('VoidedAt') + 1;
+
+      for (var d = 0; d < detailRows.length; d++) {
+        if (detailRows[d]['PenghapusanID'] === params.penghapusanId && String(detailRows[d]['Status']) === ROW_STATUS.ACTIVE) {
+          detailSheet.getRange(d + 2, colDStatus).setValue(ROW_STATUS.VOID);
+          detailSheet.getRange(d + 2, colDReason).setValue(params.alasan);
+          detailSheet.getRange(d + 2, colDBy).setValue(session.userId);
+          detailSheet.getRange(d + 2, colDAt).setValue(new Date());
+        }
+      }
+
+      // Bebaskan aset yang dikarantina kembali ke StatusAset = 'AKTIF'
+      var asetSheet = openTuSheet(SHEET_TU.BMN_ASET);
+      var asetRows  = sheetToObjects(asetSheet);
+      var asetHeaders = asetSheet.getRange(1, 1, 1, asetSheet.getLastColumn()).getValues()[0];
+      var colAsetSt = asetHeaders.indexOf('StatusAset') + 1;
+      var colAsetHp = asetHeaders.indexOf('PenghapusanID') + 1;
+
+      for (var a = 0; a < asetRows.length; a++) {
+        if (asetRows[a]['PenghapusanID'] === params.penghapusanId && String(asetRows[a]['Status']) === ROW_STATUS.ACTIVE) {
+          asetSheet.getRange(a + 2, colAsetSt).setValue('AKTIF');
+          asetSheet.getRange(a + 2, colAsetHp).setValue('');
+        }
+      }
+
+      logAudit(session.userId, 'VOID_BMN_PENGHAPUSAN', 'TX_BMN_Penghapusan', targetRowId, {
+        penghapusanId: params.penghapusanId,
+        alasan: params.alasan
+      });
+
+      return { success: true, message: 'Berkas usulan penghapusan berhasil dianulir dan aset dibebaskan kembali ke status aktif.' };
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (e) {
+    Logger.log('[bmn_voidPenghapusan] ' + e.message);
+    return { success: false, error: e.message };
+  }
+}

@@ -3524,6 +3524,82 @@ button.btn:active:not(:disabled),
   margin-bottom: 8px;
 }
 
+/* ── Stepper Alur Administrasi BMN (Sub-Fase 18B.6) ─────────── */
+.n-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 24px;
+  position: relative;
+}
+.n-stepper::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 32px;
+  right: 32px;
+  height: 2px;
+  background: var(--n-border);
+  z-index: 1;
+}
+.n-step-item {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+.n-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  border: 2px solid var(--n-border-strong);
+  color: var(--n-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-bottom: 6px;
+}
+.n-step-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--n-text-muted);
+  line-height: 1.25;
+}
+.n-step-item.active .n-step-dot {
+  border-color: var(--n-primary);
+  background: var(--n-primary);
+  color: #FFFFFF;
+  box-shadow: 0 0 0 3px var(--n-primary-tint);
+}
+.n-step-item.active .n-step-label {
+  color: var(--n-primary);
+  font-weight: 700;
+}
+.n-step-item.completed .n-step-dot {
+  border-color: var(--n-ok);
+  background: var(--n-ok);
+  color: #FFFFFF;
+}
+.n-step-item.completed .n-step-label {
+  color: var(--n-text-primary);
+}
+.n-step-item.rejected .n-step-dot {
+  border-color: var(--n-crit);
+  background: var(--n-crit);
+  color: #FFFFFF;
+}
+.n-step-item.rejected .n-step-label {
+  color: var(--n-crit);
+}
+
 /* ============================================================
    IKHTISAR — grid kartu divisi dinamis (Fase 14)
    6 kolom; tiap kartu memilih lebar (.s2/.s3/.s4/.s6) sehingga baris
